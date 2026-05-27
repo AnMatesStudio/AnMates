@@ -622,9 +622,8 @@ class _Step2Page extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _StepLayout(
-      // Design spec: Berry Tint #FAF1F5 bg + Ocean Twilight heading
       backgroundColor: AppColors.berryTint,
-      titleColor: AppColors.ocean,
+      titleColor: AppColors.ink,
       eyebrow: '02 · Match cùng quán',
       title: 'Ai cũng đang\nthèm quán này?',
       body:
@@ -782,9 +781,9 @@ class _Step2IllustrationState extends State<_Step2Illustration>
     final start = _dragOffset;
     final end   = Offset(dir * 500.0, start.dy + 50.0);
     _moveAnim = Tween<Offset>(begin: start, end: end)
-        .animate(CurvedAnimation(parent: _moveCtrl, curve: Curves.easeIn));
+        .animate(CurvedAnimation(parent: _moveCtrl, curve: Curves.easeInCubic));
     _moveCtrl
-      ..duration = const Duration(milliseconds: 420)
+      ..duration = const Duration(milliseconds: 700)
       ..reset();
     await _moveCtrl.forward();
     if (!mounted) return;
@@ -803,7 +802,7 @@ class _Step2IllustrationState extends State<_Step2Illustration>
     _moveAnim = Tween<Offset>(begin: start, end: Offset.zero)
         .animate(CurvedAnimation(parent: _moveCtrl, curve: Curves.elasticOut));
     _moveCtrl
-      ..duration = const Duration(milliseconds: 600)
+      ..duration = const Duration(milliseconds: 750)
       ..reset();
     await _moveCtrl.forward();
     if (!mounted) return;
@@ -895,12 +894,49 @@ class _Step2IllustrationState extends State<_Step2Illustration>
                         onPanUpdate: _onPanUpdate,
                         onPanEnd: _onPanEnd,
                         behavior: HitTestBehavior.opaque,
-                        child: Transform.rotate(
-                          angle: frontAngle,
-                          child: Opacity(
-                            opacity: frontAlpha.clamp(0.0, 1.0),
-                            child: _MateProfileCard(
-                                profile: _kMates[_topIdx % _kMates.length]),
+                        child: AnimatedScale(
+                          // Card lifts slightly as user picks it up
+                          scale: _isDragging ? 1.04 : 1.0,
+                          duration: const Duration(milliseconds: 160),
+                          curve: Curves.easeOut,
+                          child: Transform.rotate(
+                            angle: frontAngle,
+                            child: Opacity(
+                              opacity: frontAlpha.clamp(0.0, 1.0),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  _MateProfileCard(
+                                      profile: _kMates[_topIdx % _kMates.length]),
+                                  // ── LIKE badge (drag right) ─────────────────
+                                  if (live.dx > 20)
+                                    Positioned(
+                                      top: 22,
+                                      left: 16,
+                                      child: Opacity(
+                                        opacity: ((live.dx - 20) / 70)
+                                            .clamp(0.0, 1.0),
+                                        child: const _SwipeBadge(
+                                            text: 'LIKE ♥',
+                                            color: Color(0xFF2ECC71)),
+                                      ),
+                                    ),
+                                  // ── NOPE badge (drag left) ──────────────────
+                                  if (live.dx < -20)
+                                    Positioned(
+                                      top: 22,
+                                      right: 16,
+                                      child: Opacity(
+                                        opacity: ((-live.dx - 20) / 70)
+                                            .clamp(0.0, 1.0),
+                                        child: const _SwipeBadge(
+                                            text: 'NOPE',
+                                            color: Color(0xFFE74C3C)),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1093,6 +1129,37 @@ class _DiagonalStripesPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_DiagonalStripesPainter _) => false;
+}
+
+// ─── Swipe direction badge (LIKE / NOPE) ─────────────────────────────────────
+class _SwipeBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+  const _SwipeBadge({required this.text, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: -0.38, // slight CCW tilt
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          border: Border.all(color: color, width: 2.5),
+          borderRadius: BorderRadius.circular(7),
+        ),
+        child: Text(
+          text,
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: color,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Step 3 ───────────────────────────────────────────────────────────────────
