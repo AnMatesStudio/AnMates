@@ -72,5 +72,4 @@ class DefaultFirebaseOptions {
     projectId: 'anmates-studio',
     storageBucket: 'anmates-studio.firebasestorage.app',
   );
-
 }

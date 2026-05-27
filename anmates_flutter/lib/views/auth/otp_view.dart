@@ -174,8 +174,10 @@ class _OtpViewState extends State<OtpView> {
       theme: RecaptchaVerifierTheme.light,
     );
     try {
-      final newResult = await FirebaseAuth.instance
-          .signInWithPhoneNumber(widget.phone, _resendVerifier!);
+      final newResult = await FirebaseAuth.instance.signInWithPhoneNumber(
+        widget.phone,
+        _resendVerifier!,
+      );
       if (!mounted) return;
       setState(() => _loading = false);
       _replaceWith(confirmationResult: newResult);
@@ -230,12 +232,14 @@ class _OtpViewState extends State<OtpView> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: AppColors.berry,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.berry,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   int get _activeIndex => _digits.indexWhere((d) => d.isEmpty);
@@ -272,8 +276,11 @@ class _OtpViewState extends State<OtpView> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.arrow_back,
-                      size: 20, color: AppColors.ink),
+                  child: const Icon(
+                    Icons.arrow_back,
+                    size: 20,
+                    color: AppColors.ink,
+                  ),
                 ),
               ),
             ),
@@ -318,7 +325,9 @@ class _OtpViewState extends State<OtpView> {
                       TextSpan(
                         text: 'Chưa nhận được? ',
                         style: GoogleFonts.beVietnamPro(
-                            fontSize: 13, color: AppColors.ink50),
+                          fontSize: 13,
+                          color: AppColors.ink50,
+                        ),
                       ),
                       TextSpan(
                         text: _secondsLeft > 0
@@ -385,8 +394,8 @@ class _OtpBox extends StatelessWidget {
           color: isLoading
               ? AppColors.berry.withValues(alpha: 0.4)
               : isActive
-                  ? AppColors.berry
-                  : AppColors.ink10,
+              ? AppColors.berry
+              : AppColors.ink10,
           width: isActive ? 2 : 1,
         ),
         boxShadow: isActive
@@ -417,15 +426,15 @@ class _OtpBox extends StatelessWidget {
                 ),
               )
             : isActive
-                ? Container(
-                    width: 2,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: AppColors.berry,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  )
-                : const SizedBox.shrink(),
+            ? Container(
+                width: 2,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: AppColors.berry,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              )
+            : const SizedBox.shrink(),
       ),
     );
   }
@@ -437,10 +446,18 @@ class _NumericKeypad extends StatelessWidget {
   const _NumericKeypad({required this.onKeyTap});
 
   static const _keys = [
-    '1', '2', '3',
-    '4', '5', '6',
-    '7', '8', '9',
-    '',  '0', '⌫',
+    '1',
+    '2',
+    '3',
+    '4',
+    '5',
+    '6',
+    '7',
+    '8',
+    '9',
+    '',
+    '0',
+    '⌫',
   ];
 
   @override
@@ -455,10 +472,12 @@ class _NumericKeypad extends StatelessWidget {
         mainAxisSpacing: 8,
         crossAxisSpacing: 10,
         children: _keys
-            .map((key) => _KeyButton(
-                  keyLabel: key,
-                  onTap: key.isEmpty ? null : () => onKeyTap(key),
-                ))
+            .map(
+              (key) => _KeyButton(
+                keyLabel: key,
+                onTap: key.isEmpty ? null : () => onKeyTap(key),
+              ),
+            )
             .toList(),
       ),
     );
@@ -505,8 +524,11 @@ class _KeyButtonState extends State<_KeyButton> {
         ),
         child: Center(
           child: isBackspace
-              ? const Icon(Icons.backspace_outlined,
-                  size: 22, color: AppColors.ink70)
+              ? const Icon(
+                  Icons.backspace_outlined,
+                  size: 22,
+                  color: AppColors.ink70,
+                )
               : Text(
                   widget.keyLabel,
                   style: GoogleFonts.plusJakartaSans(

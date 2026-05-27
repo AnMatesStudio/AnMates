@@ -36,14 +36,14 @@ dependencies:
   http: ^1.2.2
   web_socket_channel: ^3.0.1
   shared_preferences: ^2.3.3
-  flutter_map: ^7.0.2
+  flutter_map: ^8.3.0
   latlong2: ^0.9.1
-  geolocator: ^13.0.0
+  geolocator: ^14.0.2
   url_launcher: ^6.3.1
-  google_fonts: ^6.2.1
+  google_fonts: ^8.1.0
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
-  firebase_auth_platform_interface: ^8.0.0
+  firebase_auth_platform_interface: ^9.0.1
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +68,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/food/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

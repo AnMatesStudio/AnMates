@@ -3,8 +3,9 @@
 // server — you point it at one with SMOKE_BASE_URL (default http://localhost:8080).
 //
 // Run:
-//   docker compose --env-file .env up -d   # or: npm run dev
-//   npm run test:smoke
+//
+//	docker compose --env-file .env up -d   # or: npm run dev
+//	npm run test:smoke
 //
 // Prerequisites the server must satisfy:
 //   - DEV_MODE=true and DEV_BYPASS_SECRET set (the test uses /auth/dev-login

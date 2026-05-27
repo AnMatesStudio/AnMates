@@ -1,0 +1,135 @@
+name: CI · Flutter Web
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'anmates_flutter/**'
+      - '.github/workflows/ci.flutter-web.yml'
+
+concurrency:
+  group: ci.flutter-web-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: anmates_flutter
+
+jobs:
+  analyze-test-build:
+    name: Analyze + Test + Build web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      build-success: ${{ steps.build.outcome }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: flutter --version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: dart format check (warning only)
+        continue-on-error: true
+        run: |
+          # Existing codebase not yet fully formatted (see TECH-2 follow-up).
+          # Flip continue-on-error to false after running `dart format .` once and committing.
+          dart format --output=none --set-exit-if-changed .
+
+      - name: flutter analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: flutter test
+        run: flutter test --reporter=expanded
+
+      - name: flutter build web
+        id: build
+        run: flutter build web --release --base-href /
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://anmates-api-492509819332.asia-southeast1.run.app' }}
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-web-${{ github.event.pull_request.number }}
+          path: anmates_flutter/build/web
+          retention-days: 7
+
+  preview-deploy:
+    name: Deploy preview channel
+    runs-on: ubuntu-latest
+    needs: analyze-test-build
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: flutter-web-${{ github.event.pull_request.number }}
+          path: anmates_flutter/build/web
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy preview channel
+        id: deploy
+        working-directory: anmates_flutter
+        run: |
+          CHANNEL_ID="pr-${{ github.event.pull_request.number }}"
+          firebase hosting:channel:deploy "$CHANNEL_ID" \
+            --project anmates-studio \
+            --expires 7d \
+            --json > deploy-output.json
+          PREVIEW_URL=$(jq -r ".result.\"anmates-studio\".url" deploy-output.json)
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.preview_url }}';
+            const body = `Preview deployed: ${url}\n\nExpires in 7 days. Channel: \`pr-${{ github.event.pull_request.number }}\`.`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.user.type === 'Bot' && c.body.startsWith('Preview deployed:'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

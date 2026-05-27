@@ -27,10 +27,7 @@ class _MainTabViewState extends State<MainTabView> {
 
     return Scaffold(
       backgroundColor: AppColors.mint,
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: tabs,
-      ),
+      body: IndexedStack(index: _selectedIndex, children: tabs),
       bottomNavigationBar: AnmTabBar(
         activeIndex: _selectedIndex,
         onTap: (i) => setState(() => _selectedIndex = i),

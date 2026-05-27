@@ -7,15 +7,15 @@ import (
 )
 
 type Config struct {
-	DatabaseURL        string
-	JWTSecret          []byte
-	JWTAccessExpire    time.Duration
-	JWTRefreshExpire   time.Duration
-	Port               string
-	Env                string
-	FirebaseWebAPIKey  string
-	DevMode            bool
-	DevBypassSecret    string
+	DatabaseURL       string
+	JWTSecret         []byte
+	JWTAccessExpire   time.Duration
+	JWTRefreshExpire  time.Duration
+	Port              string
+	Env               string
+	FirebaseWebAPIKey string
+	DevMode           bool
+	DevBypassSecret   string
 }
 
 func Load() (*Config, error) {

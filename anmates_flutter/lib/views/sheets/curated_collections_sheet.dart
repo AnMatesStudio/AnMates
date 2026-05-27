@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
-import '../../theme/app_theme.dart';
 
 class CuratedCollectionsSheet extends StatelessWidget {
   const CuratedCollectionsSheet({super.key});
@@ -15,7 +14,7 @@ class CuratedCollectionsSheet extends StatelessWidget {
       minChildSize: 0.4,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: const Color(0xFF1E1E2E),
+          color: Color(0xFF1E1E2E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ListView.builder(

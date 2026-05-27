@@ -36,10 +36,19 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   static final _initialMessages = [
     const _Message(_Sender.them, 'Hey Vy! Cùng team thèm ramen quận 1 nè 🍜'),
-    const _Message(_Sender.me, 'Haha, mình đặt nó vào wishlist 2 tuần rồi mà chưa rủ được ai'),
-    const _Message(_Sender.them, 'Quán bé tí mà ngon ác. Vy thường gọi tonkotsu hay miso?'),
+    const _Message(
+      _Sender.me,
+      'Haha, mình đặt nó vào wishlist 2 tuần rồi mà chưa rủ được ai',
+    ),
+    const _Message(
+      _Sender.them,
+      'Quán bé tí mà ngon ác. Vy thường gọi tonkotsu hay miso?',
+    ),
     const _Message(_Sender.me, 'Spicy miso, level 3 luôn nha 🌶️🌶️🌶️'),
-    const _Message(_Sender.them, 'Wow same! Mình còn order thêm chả cá quết 👀'),
+    const _Message(
+      _Sender.them,
+      'Wow same! Mình còn order thêm chả cá quết 👀',
+    ),
   ];
 
   late List<_Message> _messages;
@@ -171,7 +180,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.ocean.withOpacity(0.1),
+          color: AppColors.ocean.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(999),
         ),
         child: Text(
@@ -188,14 +197,12 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        mainAxisAlignment:
-            isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isMe) ...[
-            AnmAvatar(size: 28, hue: 1),
-            const SizedBox(width: 8),
-          ],
+          if (!isMe) ...[AnmAvatar(size: 28, hue: 1), const SizedBox(width: 8)],
           ConstrainedBox(
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.7,
@@ -240,12 +247,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             (c) => GestureDetector(
               onTap: () => _sendQuickReply(c.$1),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: c.$2.withOpacity(0.1),
+                  color: c.$2.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: c.$2.withOpacity(0.35)),
+                  border: Border.all(color: c.$2.withValues(alpha: 0.35)),
                 ),
                 child: Text(
                   c.$1,
@@ -274,7 +283,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: AppColors.berry.withOpacity(0.28),
+            color: AppColors.berry.withValues(alpha: 0.28),
             blurRadius: 14,
             offset: const Offset(0, 6),
           ),
@@ -282,7 +291,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       ),
       child: Row(
         children: [
-          Sparkle(size: 28, color: Colors.white.withOpacity(0.9)),
+          Sparkle(size: 28, color: Colors.white.withValues(alpha: 0.9)),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -311,10 +320,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           ),
           const SizedBox(width: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(
@@ -427,7 +435,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 style: AppTextStyles.body(size: 14, color: AppColors.ink),
                 decoration: InputDecoration(
                   hintText: 'Nhắn cho ${widget.mateName}…',
-                  hintStyle: AppTextStyles.body(size: 14, color: AppColors.ink50),
+                  hintStyle: AppTextStyles.body(
+                    size: 14,
+                    color: AppColors.ink50,
+                  ),
                   isDense: true,
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.zero,
@@ -452,8 +463,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                     end: Alignment.bottomRight,
                   ),
                 ),
-                child: const Icon(Icons.camera_alt_outlined,
-                    size: 18, color: Colors.white),
+                child: const Icon(
+                  Icons.camera_alt_outlined,
+                  size: 18,
+                  color: Colors.white,
+                ),
               ),
               Positioned(
                 right: -3,
@@ -488,7 +502,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             child: const SizedBox(
               width: 38,
               height: 38,
-              child: Icon(Icons.mic_none_rounded, size: 22, color: AppColors.ink70),
+              child: Icon(
+                Icons.mic_none_rounded,
+                size: 22,
+                color: AppColors.ink70,
+              ),
             ),
           ),
         ],

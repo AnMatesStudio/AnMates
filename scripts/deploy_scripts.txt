@@ -1,0 +1,14 @@
+gcloud run deploy anmates-api \
+  --image asia-southeast1-docker.pkg.dev/anmates-studio/anmates-api/api:latest \
+  --platform managed \
+  --region asia-southeast1 \
+  --allow-unauthenticated \
+  --port 8080 \
+  --timeout 3600 \
+  --set-env-vars "DATABASE_URL=postgresql://postgres:AnMates@9701@db.vujbeldejveabrxzgsql.supabase.co:5432/postgres" \
+  --set-env-vars "JWT_SECRET=dev-only-jwt-secret-must-be-at-least-32-chars-long-xxxx" \
+  --set-env-vars "FIREBASE_WEB_API_KEY=AIzaSyA3nfCpBXiDaoL4g80lJINU2CYKUw8bEfA" \
+  --set-env-vars "ENV=production"
+
+
+flutter build web --release --dart-define=API_BASE_URL=https://anmates-api-492509819332.asia-southeast1.run.app

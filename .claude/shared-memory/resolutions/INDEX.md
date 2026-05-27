@@ -19,6 +19,7 @@ If a query matches, **read the full resolution file** before proposing a new fix
 | ID | Title | Tags | Platform | Severity | Date | Confirmed by | File |
 |----|-------|------|----------|----------|------|--------------|------|
 | R-001 | Firebase Phone OTP `INVALID_APP_CREDENTIAL` on web localhost | `firebase`, `phone-auth`, `otp`, `recaptcha`, `authorized-domains`, `127.0.0.1`, `localhost`, `web-dev` | web | blocker | 2026-05-26 | user | [R-001-firebase-phone-otp-web-127001.md](R-001-firebase-phone-otp-web-127001.md) |
+| R-002 | Deploy Flutter Web → Firebase Hosting + Go Fiber API → Cloud Run | `flutter`, `firebase`, `go-backend`, `cloud-run`, `gcp`, `deploy`, `hosting`, `api-base-url` | web, backend | major | 2026-05-26 | user | [R-002-deploy-flutter-firebase-go-cloudrun.md](R-002-deploy-flutter-firebase-go-cloudrun.md) |
 
 ---
 
@@ -32,6 +33,11 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `auth/captcha-check-failed` (web) | R-001 |
 | `Phone OTP` + `not sending` + `web localhost` | R-001 |
 | `reCAPTCHA` + `Firebase` + `localhost` | R-001 |
+| `localhost:8080` + Flutter web production | R-002 |
+| `firebase deploy` + app trắng / không load | R-002 |
+| `"public": "public"` + Firebase Hosting | R-002 |
+| deploy Flutter Firebase Hosting | R-002 |
+| deploy Go Cloud Run | R-002 |
 
 ---
 
@@ -50,6 +56,11 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `go-backend` | Go Fiber backend (`anmates-api`) |
 | `android` | Android-specific (SHA fingerprint, Play Integrity) |
 | `ios` | iOS-specific (APNs, entitlements, URL schemes) |
+| `cloud-run` | Google Cloud Run deployment |
+| `gcp` | Google Cloud Platform |
+| `deploy` | Deployment procedures (hosting, infra) |
+| `hosting` | Firebase Hosting |
+| `api-base-url` | Flutter API base URL config (`String.fromEnvironment`) |
 
 When adding a new resolution, **re-use existing tags** where possible — only add a new tag if no existing one fits.
 

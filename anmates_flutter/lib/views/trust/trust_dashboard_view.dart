@@ -126,8 +126,11 @@ class TrustDashboardView extends StatelessWidget {
               color: AppColors.ink10,
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.help_outline_rounded,
-                size: 18, color: AppColors.ink),
+            child: const Icon(
+              Icons.help_outline_rounded,
+              size: 18,
+              color: AppColors.ink,
+            ),
           ),
         ],
       ),
@@ -155,7 +158,10 @@ class TrustDashboardView extends StatelessWidget {
                 Positioned(
                   bottom: 14,
                   left: 12,
-                  child: Sparkle(size: 14, color: AppColors.berry.withOpacity(0.5)),
+                  child: Sparkle(
+                    size: 14,
+                    color: AppColors.berry.withValues(alpha: 0.5),
+                  ),
                 ),
                 // Ring
                 CustomPaint(
@@ -200,9 +206,11 @@ class TrustDashboardView extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
-              color: AppColors.berry.withOpacity(0.1),
+              color: AppColors.berry.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: AppColors.berry.withOpacity(0.25)),
+              border: Border.all(
+                color: AppColors.berry.withValues(alpha: 0.25),
+              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -275,10 +283,12 @@ class TrustDashboardView extends StatelessWidget {
       children: [
         const Eyebrow('HOẠT ĐỘNG GẦN ĐÂY'),
         const SizedBox(height: 10),
-        ..._events.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _EventCard(event: e),
-            )),
+        ..._events.map(
+          (e) => Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: _EventCard(event: e),
+          ),
+        ),
       ],
     );
   }
@@ -320,18 +330,11 @@ class _TrustScoreRingPainter extends CustomPainter {
       ..strokeWidth = strokeWidth
       ..strokeCap = StrokeCap.round;
 
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      sweepAngle,
-      false,
-      gradientPaint,
-    );
+    canvas.drawArc(rect, -math.pi / 2, sweepAngle, false, gradientPaint);
   }
 
   @override
-  bool shouldRepaint(_TrustScoreRingPainter old) =>
-      old.progress != progress;
+  bool shouldRepaint(_TrustScoreRingPainter old) => old.progress != progress;
 }
 
 // ─── Tier Progress Track ──────────────────────────────────────────────────────
@@ -419,10 +422,7 @@ class _TierTrackPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, barTop, w, barH))
       ..style = PaintingStyle.fill;
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, barTop, w * progress, barH),
-        r,
-      ),
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, barTop, w * progress, barH), r),
       filledPaint,
     );
 
@@ -434,7 +434,9 @@ class _TierTrackPainter extends CustomPainter {
         ..color = Colors.white
         ..style = PaintingStyle.fill;
       final borderPaint = Paint()
-        ..color = m <= (progress * 100).round() ? AppColors.berry : AppColors.ink30
+        ..color = m <= (progress * 100).round()
+            ? AppColors.berry
+            : AppColors.ink30
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
       canvas.drawCircle(Offset(x, barTop + barH / 2), 5, dotPaint);
@@ -519,7 +521,7 @@ class _EventCard extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: event.color.withOpacity(0.12),
+              color: event.color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Center(
@@ -555,7 +557,7 @@ class _EventCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: deltaColor.withOpacity(0.1),
+              color: deltaColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(999),
             ),
             child: Text(

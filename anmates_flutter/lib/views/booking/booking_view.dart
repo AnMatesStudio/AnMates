@@ -115,7 +115,7 @@ class _BookingViewState extends State<BookingView> {
         ),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
           width: 1.5,
           // Dashed effect simulated via strokeAlign + decoration
         ),
@@ -126,7 +126,7 @@ class _BookingViewState extends State<BookingView> {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Center(
@@ -152,7 +152,7 @@ class _BookingViewState extends State<BookingView> {
                   'Áp dụng khi cả hai check-in đúng giờ',
                   style: AppTextStyles.body(
                     size: 12,
-                    color: Colors.white.withOpacity(0.85),
+                    color: Colors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -246,7 +246,9 @@ class _BookingViewState extends State<BookingView> {
 
               return Expanded(
                 child: GestureDetector(
-                  onTap: isPast ? null : () => setState(() => _selectedDay = day),
+                  onTap: isPast
+                      ? null
+                      : () => setState(() => _selectedDay = day),
                   child: Container(
                     height: 36,
                     margin: const EdgeInsets.symmetric(horizontal: 1),
@@ -254,21 +256,21 @@ class _BookingViewState extends State<BookingView> {
                       color: isSelected
                           ? AppColors.berry
                           : isPast
-                              ? AppColors.ink10
-                              : Colors.white,
+                          ? AppColors.ink10
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(10),
                       border: isToday && !isSelected
                           ? Border.all(color: AppColors.berry, width: 1.5)
                           : isSelected
-                              ? null
-                              : Border.all(color: AppColors.ink10),
+                          ? null
+                          : Border.all(color: AppColors.ink10),
                       boxShadow: isSelected
                           ? [
                               BoxShadow(
-                                color: AppColors.berry.withOpacity(0.3),
+                                color: AppColors.berry.withValues(alpha: 0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
-                              )
+                              ),
                             ]
                           : null,
                     ),
@@ -288,10 +290,10 @@ class _BookingViewState extends State<BookingView> {
                                 color: isSelected
                                     ? Colors.white
                                     : isToday
-                                        ? AppColors.berry
-                                        : isSunday
-                                            ? AppColors.berry
-                                            : AppColors.ink,
+                                    ? AppColors.berry
+                                    : isSunday
+                                    ? AppColors.berry
+                                    : AppColors.ink,
                                 letterSpacing: 0,
                               ),
                       ),
@@ -360,7 +362,9 @@ class _BookingViewState extends State<BookingView> {
                 onTap: () => setState(() => _selectedTimeIndex = i),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 10),
+                    horizontal: 18,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: active ? AppColors.berry : Colors.white,
                     borderRadius: BorderRadius.circular(999),
@@ -371,10 +375,10 @@ class _BookingViewState extends State<BookingView> {
                     boxShadow: active
                         ? [
                             BoxShadow(
-                              color: AppColors.berry.withOpacity(0.25),
+                              color: AppColors.berry.withValues(alpha: 0.25),
                               blurRadius: 8,
                               offset: const Offset(0, 3),
-                            )
+                            ),
                           ]
                         : null,
                   ),
@@ -402,9 +406,9 @@ class _BookingViewState extends State<BookingView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.ocean.withOpacity(0.07),
+        color: AppColors.ocean.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.ocean.withOpacity(0.2)),
+        border: Border.all(color: AppColors.ocean.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,10 +417,12 @@ class _BookingViewState extends State<BookingView> {
             width: 36,
             height: 36,
             decoration: BoxDecoration(
-              color: AppColors.ocean.withOpacity(0.15),
+              color: AppColors.ocean.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Center(child: Sparkle(size: 18, color: AppColors.ocean)),
+            child: const Center(
+              child: Sparkle(size: 18, color: AppColors.ocean),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(

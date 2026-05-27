@@ -28,7 +28,7 @@ class _DateSchedulingSheetState extends State<DateSchedulingSheet> {
       maxChildSize: 0.95,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: const Color(0xFF1E1E2E),
+          color: Color(0xFF1E1E2E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ListView(
@@ -48,7 +48,11 @@ class _DateSchedulingSheetState extends State<DateSchedulingSheet> {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.calendar_today, color: AppColors.berry, size: 20),
+                const Icon(
+                  Icons.calendar_today,
+                  color: AppColors.berry,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   'Đặt lịch hẹn tại ${widget.place.name}',
@@ -70,7 +74,9 @@ class _DateSchedulingSheetState extends State<DateSchedulingSheet> {
                   lastDate: DateTime.now().add(const Duration(days: 365)),
                   builder: (_, child) => Theme(
                     data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(primary: AppColors.berry),
+                      colorScheme: const ColorScheme.dark(
+                        primary: AppColors.berry,
+                      ),
                     ),
                     child: child!,
                   ),
@@ -92,7 +98,9 @@ class _DateSchedulingSheetState extends State<DateSchedulingSheet> {
                   initialTime: _selectedTime,
                   builder: (_, child) => Theme(
                     data: ThemeData.dark().copyWith(
-                      colorScheme: const ColorScheme.dark(primary: AppColors.berry),
+                      colorScheme: const ColorScheme.dark(
+                        primary: AppColors.berry,
+                      ),
                     ),
                     child: child!,
                   ),
@@ -157,7 +165,11 @@ class _DateRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _DateRow({required this.icon, required this.label, required this.value});
+  const _DateRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {

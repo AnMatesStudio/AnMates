@@ -4,14 +4,14 @@ import "github.com/gofiber/fiber/v2"
 
 // Error codes — keep in sync with spec.
 const (
-	ErrUnauthorized    = "UNAUTHORIZED"
-	ErrNotFound        = "NOT_FOUND"
-	ErrValidation      = "VALIDATION_ERROR"
-	ErrMatchNotFound   = "MATCH_NOT_FOUND"
-	ErrChatLocked      = "CHAT_LOCKED"
-	ErrRateLimited     = "RATE_LIMITED"
-	ErrConflict        = "CONFLICT"
-	ErrInternal        = "INTERNAL"
+	ErrUnauthorized  = "UNAUTHORIZED"
+	ErrNotFound      = "NOT_FOUND"
+	ErrValidation    = "VALIDATION_ERROR"
+	ErrMatchNotFound = "MATCH_NOT_FOUND"
+	ErrChatLocked    = "CHAT_LOCKED"
+	ErrRateLimited   = "RATE_LIMITED"
+	ErrConflict      = "CONFLICT"
+	ErrInternal      = "INTERNAL"
 )
 
 type SuccessEnvelope struct {

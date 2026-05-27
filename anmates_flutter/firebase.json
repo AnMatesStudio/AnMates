@@ -1,1 +1,45 @@
-{"flutter":{"platforms":{"ios":{"default":{"projectId":"anmates-studio","appId":"1:492509819332:ios:590f6db8c98f4b985b3491","uploadDebugSymbols":false,"fileOutput":"ios/Runner/GoogleService-Info.plist"}},"dart":{"lib/firebase_options.dart":{"projectId":"anmates-studio","configurations":{"android":"1:492509819332:android:8ed3f6ed617acc3f5b3491","ios":"1:492509819332:ios:590f6db8c98f4b985b3491","web":"1:492509819332:web:557f8670747a5c025b3491"}}},"android":{"default":{"projectId":"anmates-studio","appId":"1:492509819332:android:8ed3f6ed617acc3f5b3491","fileOutput":"android/app/google-services.json"}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "ios": {
+        "default": {
+          "projectId": "anmates-studio",
+          "appId": "1:492509819332:ios:590f6db8c98f4b985b3491",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "anmates-studio",
+          "configurations": {
+            "android": "1:492509819332:android:8ed3f6ed617acc3f5b3491",
+            "ios": "1:492509819332:ios:590f6db8c98f4b985b3491",
+            "web": "1:492509819332:web:557f8670747a5c025b3491"
+          }
+        }
+      },
+      "android": {
+        "default": {
+          "projectId": "anmates-studio",
+          "appId": "1:492509819332:android:8ed3f6ed617acc3f5b3491",
+          "fileOutput": "android/app/google-services.json"
+        }
+      }
+    }
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

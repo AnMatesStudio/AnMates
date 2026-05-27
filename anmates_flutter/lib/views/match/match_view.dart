@@ -46,7 +46,7 @@ class MatchView extends StatelessWidget {
                       style: AppTextStyles.mono(
                         size: 11,
                         weight: FontWeight.w700,
-                        color: Colors.white.withOpacity(0.7),
+                        color: Colors.white.withValues(alpha: 0.7),
                         letterSpacing: 2.5,
                       ),
                     ),
@@ -67,7 +67,7 @@ class MatchView extends StatelessWidget {
                       'Cả hai đều thèm $restaurantName — vào chat làm nóng nồi lẩu nào.',
                       style: AppTextStyles.body(
                         size: 15,
-                        color: Colors.white.withOpacity(0.82),
+                        color: Colors.white.withValues(alpha: 0.82),
                         height: 1.5,
                       ),
                       textAlign: TextAlign.center,
@@ -88,10 +88,14 @@ class MatchView extends StatelessWidget {
                       width: double.infinity,
                       height: 56,
                       child: OutlinedButton(
-                        onPressed: onContinue ?? () => Navigator.maybePop(context),
+                        onPressed:
+                            onContinue ?? () => Navigator.maybePop(context),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
-                          side: const BorderSide(color: Colors.white38, width: 1.5),
+                          side: const BorderSide(
+                            color: Colors.white38,
+                            width: 1.5,
+                          ),
                           shape: const StadiumBorder(),
                         ),
                         child: Text(
@@ -130,7 +134,7 @@ class MatchView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -157,7 +161,7 @@ class MatchView extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
+                      color: Colors.black.withValues(alpha: 0.2),
                       blurRadius: 20,
                       offset: const Offset(0, 8),
                     ),
@@ -182,7 +186,7 @@ class MatchView extends StatelessWidget {
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.berry.withOpacity(0.4),
+                    color: AppColors.berry.withValues(alpha: 0.4),
                     blurRadius: 16,
                     spreadRadius: 2,
                   ),
@@ -201,14 +205,14 @@ class MatchView extends StatelessWidget {
   List<Widget> _buildSparkles() {
     // (top, left_or_null, right_or_null, size, opacity)
     final configs = <(double, double?, double?, double, double)>[
-      (60.0,  24.0,  null,  18.0, 0.60),
-      (80.0,  80.0,  null,  10.0, 0.40),
-      (40.0,  null,  30.0,  22.0, 0.70),
-      (110.0, null,  70.0,  12.0, 0.45),
-      (200.0, 40.0,  null,  14.0, 0.35),
-      (240.0, null,  40.0,  16.0, 0.50),
-      (160.0, 160.0, null,   8.0, 0.30),
-      (300.0, null,  20.0,  20.0, 0.40),
+      (60.0, 24.0, null, 18.0, 0.60),
+      (80.0, 80.0, null, 10.0, 0.40),
+      (40.0, null, 30.0, 22.0, 0.70),
+      (110.0, null, 70.0, 12.0, 0.45),
+      (200.0, 40.0, null, 14.0, 0.35),
+      (240.0, null, 40.0, 16.0, 0.50),
+      (160.0, 160.0, null, 8.0, 0.30),
+      (300.0, null, 20.0, 20.0, 0.40),
     ];
 
     return configs.map((c) {

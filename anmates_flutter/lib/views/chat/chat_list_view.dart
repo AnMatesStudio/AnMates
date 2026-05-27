@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 import 'chat_detail_view.dart';
 
@@ -188,7 +187,7 @@ class _ChatListViewState extends State<ChatListView> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _newMatches.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              separatorBuilder: (_, _) => const SizedBox(width: 10),
               itemBuilder: (_, i) => _NewMatchCard(match: _newMatches[i]),
             ),
           ),
@@ -213,21 +212,23 @@ class _ChatListViewState extends State<ChatListView> {
             ],
           ),
           const SizedBox(height: 10),
-          ..._activeChats.map((chat) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _ActiveChatCard(
-                  chat: chat,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ChatDetailView(
-                        mateName: chat.name,
-                        vibePercent: chat.vibe,
-                      ),
+          ..._activeChats.map(
+            (chat) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _ActiveChatCard(
+                chat: chat,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatDetailView(
+                      mateName: chat.name,
+                      vibePercent: chat.vibe,
                     ),
                   ),
                 ),
-              )),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -245,7 +246,10 @@ class _ChatListViewState extends State<ChatListView> {
             children: [
               Eyebrow('BEST MATE', color: AppColors.wisteriaDeep),
               const SizedBox(width: 8),
-              _CountBadge(count: _bestMates.length, color: AppColors.wisteriaDeep),
+              _CountBadge(
+                count: _bestMates.length,
+                color: AppColors.wisteriaDeep,
+              ),
               const SizedBox(width: 6),
               Text(
                 '≥3 lần ăn cùng',
@@ -314,12 +318,10 @@ class _NewMatchCard extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
-                child: PhotoSlot(
-                  width: 96,
-                  height: 100,
-                  radius: 0,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(17),
                 ),
+                child: PhotoSlot(width: 96, height: 100, radius: 0),
               ),
               Positioned(
                 bottom: -10,
@@ -339,7 +341,10 @@ class _NewMatchCard extends StatelessWidget {
                     ],
                   ),
                   child: const Center(
-                    child: Text('♥', style: TextStyle(color: Colors.white, fontSize: 13)),
+                    child: Text(
+                      '♥',
+                      style: TextStyle(color: Colors.white, fontSize: 13),
+                    ),
                   ),
                 ),
               ),
@@ -454,9 +459,12 @@ class _ActiveChatCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: vibeColor.withOpacity(0.12),
+                          color: vibeColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
@@ -504,15 +512,15 @@ class _ActiveChatCard extends StatelessWidget {
                                   color: AppColors.ocean,
                                 ).copyWith(fontStyle: FontStyle.italic)
                               : chat.unread > 0
-                                  ? AppTextStyles.body(
-                                      size: 12,
-                                      weight: FontWeight.w700,
-                                      color: AppColors.ink,
-                                    )
-                                  : AppTextStyles.body(
-                                      size: 12,
-                                      color: AppColors.ink50,
-                                    ),
+                              ? AppTextStyles.body(
+                                  size: 12,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.ink,
+                                )
+                              : AppTextStyles.body(
+                                  size: 12,
+                                  color: AppColors.ink50,
+                                ),
                         ),
                       ),
                       if (chat.unread > 0) ...[
@@ -630,9 +638,11 @@ class _BestMateRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: AppColors.wisteria.withOpacity(0.12),
+                color: AppColors.wisteria.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppColors.wisteria.withOpacity(0.4)),
+                border: Border.all(
+                  color: AppColors.wisteria.withValues(alpha: 0.4),
+                ),
               ),
               child: Text(
                 'Rủ đi',
@@ -684,7 +694,7 @@ class _CountBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

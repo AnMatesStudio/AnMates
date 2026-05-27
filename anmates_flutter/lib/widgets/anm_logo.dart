@@ -48,10 +48,8 @@ class _SparkleState extends State<Sparkle> with SingleTickerProviderStateMixin {
     if (!widget.animated) return child;
     return AnimatedBuilder(
       animation: _ctrl,
-      builder: (_, c) => Transform.rotate(
-        angle: _ctrl.value * 2 * math.pi,
-        child: c,
-      ),
+      builder: (_, c) =>
+          Transform.rotate(angle: _ctrl.value * 2 * math.pi, child: c),
       child: child,
     );
   }
@@ -72,7 +70,14 @@ class _SparklePainter extends CustomPainter {
     final s = size.width / 24;
     path.moveTo(cx, 0);
     path.cubicTo(cx + 0.8 * s, 8 * s, cx + 4 * s, cy - 0.8 * s, size.width, cy);
-    path.cubicTo(cx + 4 * s, cy + 0.8 * s, cx + 0.8 * s, cy + 4 * s, cx, size.height);
+    path.cubicTo(
+      cx + 4 * s,
+      cy + 0.8 * s,
+      cx + 0.8 * s,
+      cy + 4 * s,
+      cx,
+      size.height,
+    );
     path.cubicTo(cx - 0.8 * s, cy + 4 * s, cx - 4 * s, cy + 0.8 * s, 0, cy);
     path.cubicTo(cx - 4 * s, cy - 0.8 * s, cx - 0.8 * s, 8 * s, cx, 0);
     path.close();
@@ -102,7 +107,8 @@ class LogoMark extends StatefulWidget {
   State<LogoMark> createState() => _LogoMarkState();
 }
 
-class _LogoMarkState extends State<LogoMark> with SingleTickerProviderStateMixin {
+class _LogoMarkState extends State<LogoMark>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _floatAnim;
 
@@ -113,9 +119,10 @@ class _LogoMarkState extends State<LogoMark> with SingleTickerProviderStateMixin
       vsync: this,
       duration: const Duration(milliseconds: 2800),
     );
-    _floatAnim = Tween<double>(begin: -4.0, end: 4.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _floatAnim = Tween<double>(
+      begin: -4.0,
+      end: 4.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
     if (widget.float) _ctrl.repeat(reverse: true);
   }
 
@@ -135,10 +142,8 @@ class _LogoMarkState extends State<LogoMark> with SingleTickerProviderStateMixin
     if (!widget.float) return logo;
     return AnimatedBuilder(
       animation: _floatAnim,
-      builder: (_, c) => Transform.translate(
-        offset: Offset(0, _floatAnim.value),
-        child: c,
-      ),
+      builder: (_, c) =>
+          Transform.translate(offset: Offset(0, _floatAnim.value), child: c),
       child: logo,
     );
   }
@@ -176,7 +181,9 @@ class _LogoPainter extends CustomPainter {
       ..close();
     canvas.drawPath(pin, pinPaint);
 
-    final tablePaint = Paint()..color = accent..style = PaintingStyle.fill;
+    final tablePaint = Paint()
+      ..color = accent
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(50 * sx, 44 * sy), 22 * sy, tablePaint);
 
     final borderPaint = Paint()
@@ -213,35 +220,89 @@ class _LogoPainter extends CustomPainter {
     );
     canvas.restore();
 
-    final heartPaint = Paint()..color = AppColors.berry..style = PaintingStyle.fill;
+    final heartPaint = Paint()
+      ..color = AppColors.berry
+      ..style = PaintingStyle.fill;
     final heart = Path();
     final hx = 50 * sx;
     final hy = 47 * sy;
     final hs = sx;
     heart.moveTo(hx, hy);
-    heart.cubicTo(hx - 2 * hs, hy - 3 * hs, hx - 6 * hs, hy - 3 * hs, hx - 6 * hs, hy);
-    heart.cubicTo(hx - 6 * hs, hy + 3 * hs, hx - 3 * hs, hy + 5 * hs, hx, hy + 8 * hs);
-    heart.cubicTo(hx + 3 * hs, hy + 5 * hs, hx + 6 * hs, hy + 3 * hs, hx + 6 * hs, hy);
+    heart.cubicTo(
+      hx - 2 * hs,
+      hy - 3 * hs,
+      hx - 6 * hs,
+      hy - 3 * hs,
+      hx - 6 * hs,
+      hy,
+    );
+    heart.cubicTo(
+      hx - 6 * hs,
+      hy + 3 * hs,
+      hx - 3 * hs,
+      hy + 5 * hs,
+      hx,
+      hy + 8 * hs,
+    );
+    heart.cubicTo(
+      hx + 3 * hs,
+      hy + 5 * hs,
+      hx + 6 * hs,
+      hy + 3 * hs,
+      hx + 6 * hs,
+      hy,
+    );
     heart.cubicTo(hx + 6 * hs, hy - 3 * hs, hx + 2 * hs, hy - 3 * hs, hx, hy);
     heart.close();
     canvas.drawPath(heart, heartPaint);
 
-    final sparklePaint = Paint()..color = accent..style = PaintingStyle.fill;
+    final sparklePaint = Paint()
+      ..color = accent
+      ..style = PaintingStyle.fill;
     final spx = 50 * sx;
     final spy = 88 * sy;
     final ss = sx;
     final sparkPath = Path()
       ..moveTo(spx, spy)
-      ..cubicTo(spx + 0.4 * ss, spy + 4 * ss, spx + 1.8 * ss, spy + 5.6 * ss, spx + 5.6 * ss, spy + 6 * ss)
-      ..cubicTo(spx + 1.8 * ss, spy + 6.4 * ss, spx + 0.4 * ss, spy + 7.8 * ss, spx, spy + 11.6 * ss)
-      ..cubicTo(spx - 0.4 * ss, spy + 7.8 * ss, spx - 1.8 * ss, spy + 6.4 * ss, spx - 5.6 * ss, spy + 6 * ss)
-      ..cubicTo(spx - 1.8 * ss, spy + 5.6 * ss, spx - 0.4 * ss, spy + 4 * ss, spx, spy)
+      ..cubicTo(
+        spx + 0.4 * ss,
+        spy + 4 * ss,
+        spx + 1.8 * ss,
+        spy + 5.6 * ss,
+        spx + 5.6 * ss,
+        spy + 6 * ss,
+      )
+      ..cubicTo(
+        spx + 1.8 * ss,
+        spy + 6.4 * ss,
+        spx + 0.4 * ss,
+        spy + 7.8 * ss,
+        spx,
+        spy + 11.6 * ss,
+      )
+      ..cubicTo(
+        spx - 0.4 * ss,
+        spy + 7.8 * ss,
+        spx - 1.8 * ss,
+        spy + 6.4 * ss,
+        spx - 5.6 * ss,
+        spy + 6 * ss,
+      )
+      ..cubicTo(
+        spx - 1.8 * ss,
+        spy + 5.6 * ss,
+        spx - 0.4 * ss,
+        spy + 4 * ss,
+        spx,
+        spy,
+      )
       ..close();
     canvas.drawPath(sparkPath, sparklePaint);
   }
 
   @override
-  bool shouldRepaint(_LogoPainter old) => old.fill != fill || old.accent != accent;
+  bool shouldRepaint(_LogoPainter old) =>
+      old.fill != fill || old.accent != accent;
 }
 
 // ─── Wordmark ─────────────────────────────────────────────────────────────────

@@ -19,7 +19,7 @@ type RateLimit struct {
 }
 
 type visitor struct {
-	limiter *rate.Limiter
+	limiter  *rate.Limiter
 	lastSeen time.Time
 	mu       sync.Mutex
 }

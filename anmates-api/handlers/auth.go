@@ -168,11 +168,11 @@ func (a *Auth) PhoneVerify(c *fiber.Ctx) error {
 }
 
 // upsertPhoneUser handles three cases without tripping any UNIQUE constraint:
-//   1. firebase_uid already in DB → keep phone fresh, return that row.
-//   2. phone already in DB (different/old firebase_uid) → re-bind to the new
-//      firebase_uid. This is the common case when Firebase rotated the session
-//      (different project, signed out, etc.) but the user kept their number.
-//   3. Neither matches → INSERT new row.
+//  1. firebase_uid already in DB → keep phone fresh, return that row.
+//  2. phone already in DB (different/old firebase_uid) → re-bind to the new
+//     firebase_uid. This is the common case when Firebase rotated the session
+//     (different project, signed out, etc.) but the user kept their number.
+//  3. Neither matches → INSERT new row.
 //
 // ON CONFLICT alone can't cover this because Postgres only accepts one conflict
 // target per statement and we have two unique columns (firebase_uid, phone).

@@ -57,7 +57,7 @@ class PlaceDetailView extends StatelessWidget {
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Text(
@@ -83,7 +83,11 @@ class PlaceDetailView extends StatelessWidget {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(Icons.star, color: Colors.yellow, size: 14),
+                                const Icon(
+                                  Icons.star,
+                                  color: Colors.yellow,
+                                  size: 14,
+                                ),
                                 const SizedBox(width: 4),
                                 Text(
                                   place.rating.toStringAsFixed(1),
@@ -223,7 +227,11 @@ class PlaceDetailView extends StatelessWidget {
                       childAspectRatio: 3.5,
                       children: const [
                         _VibeStat(emoji: '💕', label: 'Romantic', count: 42),
-                        _VibeStat(emoji: '📸', label: 'Instagrammable', count: 67),
+                        _VibeStat(
+                          emoji: '📸',
+                          label: 'Instagrammable',
+                          count: 67,
+                        ),
                         _VibeStat(emoji: '🎉', label: 'Lively', count: 28),
                         _VibeStat(emoji: '🤫', label: 'Quiet', count: 12),
                       ],
@@ -235,20 +243,16 @@ class PlaceDetailView extends StatelessWidget {
                       title: '📝 Check-in & Viết Review',
                       subtitle: 'Kiếm +30 AnPoints',
                       gradient: const [Color(0xFFfdcb6e), Color(0xFFe17055)],
-                      onTap: () => _showSheet(
-                        context,
-                        ReviewCheckinSheet(place: place),
-                      ),
+                      onTap: () =>
+                          _showSheet(context, ReviewCheckinSheet(place: place)),
                     ),
                     const SizedBox(height: 10),
                     _CTAButton(
                       title: '👥 Tạo Nhóm Đi Ăn',
                       subtitle: 'Tối đa 4 người · Mời thêm bạn',
                       gradient: const [AppColors.berry, AppColors.wisteria],
-                      onTap: () => _showSheet(
-                        context,
-                        DiningGroupSheet(place: place),
-                      ),
+                      onTap: () =>
+                          _showSheet(context, DiningGroupSheet(place: place)),
                     ),
                     const SizedBox(height: 10),
                     _CTAButton(
@@ -285,10 +289,12 @@ class PlaceDetailView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ...place.reviews.map((r) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _ReviewRow(review: r),
-                        )),
+                    ...place.reviews.map(
+                      (r) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _ReviewRow(review: r),
+                      ),
+                    ),
                     const SizedBox(height: 40),
                   ]),
                 ),
@@ -308,7 +314,7 @@ class PlaceDetailView extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
+                      color: Colors.black.withValues(alpha: 0.4),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -324,7 +330,7 @@ class PlaceDetailView extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.4),
+                      color: Colors.black.withValues(alpha: 0.4),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -375,7 +381,7 @@ class _QuickActionBtn extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: color, size: 18),
@@ -400,7 +406,11 @@ class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -415,9 +425,15 @@ class _InfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                ),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                Text(
+                  value,
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
               ],
             ),
           ),
@@ -431,7 +447,11 @@ class _VibeStat extends StatelessWidget {
   final String emoji;
   final String label;
   final int count;
-  const _VibeStat({required this.emoji, required this.label, required this.count});
+  const _VibeStat({
+    required this.emoji,
+    required this.label,
+    required this.count,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -582,7 +602,10 @@ class _ReviewRow extends StatelessWidget {
             children: review.vibeTags
                 .map(
                   (t) => Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2D2D42),
                       borderRadius: BorderRadius.circular(20),

@@ -65,14 +65,14 @@ type MatchCandidate struct {
 
 // Conversation is what GET /api/conversations returns — accepted matches with partner info.
 type Conversation struct {
-	MatchID         uuid.UUID  `json:"match_id"`
-	PartnerID       uuid.UUID  `json:"partner_id"`
-	PartnerName     string     `json:"partner_name"`
-	PartnerAvatarURL *string   `json:"partner_avatar_url,omitempty"`
-	LastMessage     *string    `json:"last_message,omitempty"`
-	LastMessageAt   *time.Time `json:"last_message_at,omitempty"`
-	Score           float64    `json:"score"`
-	CreatedAt       time.Time  `json:"created_at"`
+	MatchID          uuid.UUID  `json:"match_id"`
+	PartnerID        uuid.UUID  `json:"partner_id"`
+	PartnerName      string     `json:"partner_name"`
+	PartnerAvatarURL *string    `json:"partner_avatar_url,omitempty"`
+	LastMessage      *string    `json:"last_message,omitempty"`
+	LastMessageAt    *time.Time `json:"last_message_at,omitempty"`
+	Score            float64    `json:"score"`
+	CreatedAt        time.Time  `json:"created_at"`
 }
 
 // Nồi Lẩu thresholds — index = level - 1 (level 1 starts at 0 points).

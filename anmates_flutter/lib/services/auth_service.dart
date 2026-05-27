@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Backend base URL. Override at build/run time:
 //   flutter run --dart-define=API_BASE_URL=http://192.168.1.216:8080
-const _baseUrl =
-    String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080');
+const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://anmates-api-492509819332.asia-southeast1.run.app',
+);
 
 /// Public copy for tests + dev-only flows (e.g. dev-login button).
 const apiBaseUrl = _baseUrl;
@@ -29,7 +31,9 @@ class AuthService {
   /// [firebaseToken] — ID token từ Firebase Auth sau khi verify OTP.
   /// [name] — Tên hiển thị, dùng khi tạo tài khoản mới.
   Future<Map<String, dynamic>> phoneVerify(
-      String firebaseToken, {String name = ''}) async {
+    String firebaseToken, {
+    String name = '',
+  }) async {
     final res = await http.post(
       Uri.parse('$_baseUrl/api/auth/phone-verify'),
       headers: {'Content-Type': 'application/json'},
@@ -83,7 +87,10 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> register(
-      String email, String password, String name) async {
+    String email,
+    String password,
+    String name,
+  ) async {
     final res = await http.post(
       Uri.parse('$_baseUrl/api/auth/register'),
       headers: {'Content-Type': 'application/json'},
@@ -109,8 +116,9 @@ class AuthService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(
-            {'refresh_token': prefs.getString('refresh_token') ?? ''}),
+        body: jsonEncode({
+          'refresh_token': prefs.getString('refresh_token') ?? '',
+        }),
       );
     }
     await prefs.remove('access_token');
@@ -126,7 +134,8 @@ class AuthService {
     if (data['refresh_token'] != null) {
       await prefs.setString('refresh_token', data['refresh_token'] as String);
     }
-    final userId = data['user_id'] as String? ??
+    final userId =
+        data['user_id'] as String? ??
         (data['user'] as Map<String, dynamic>?)?['id'] as String?;
     if (userId != null) {
       await prefs.setString('user_id', userId);

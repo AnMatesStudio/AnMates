@@ -1,0 +1,72 @@
+name: CI · Go API
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'anmates-api/**'
+      - '.github/workflows/ci.go-api.yml'
+
+concurrency:
+  group: ci.go-api-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: anmates-api
+
+jobs:
+  lint-test:
+    name: Lint + Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: anmates-api/go.mod
+          cache: true
+          cache-dependency-path: anmates-api/go.sum
+
+      - name: Verify gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go build
+        run: go build ./...
+
+      - name: go test
+        run: |
+          # Exclude smoke/ — that suite hits a live server, not for CI.
+          go test -race -count=1 $(go list ./... | grep -v '/smoke$')
+
+  docker-build:
+    name: Docker build (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (verify Dockerfile)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./anmates-api
+          file: ./anmates-api/Dockerfile
+          push: false
+          tags: anmates-api:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

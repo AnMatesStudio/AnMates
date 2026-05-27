@@ -29,24 +29,30 @@ class _WishlistViewState extends State<WishlistView> {
           SliverToBoxAdapter(child: _buildHeader()),
           SliverToBoxAdapter(child: _buildMemoryFilmStrip()),
           SliverToBoxAdapter(child: _buildDistrictFilters()),
-          SliverToBoxAdapter(child: _buildDistrictSection(
-            district: 'QUẬN 1',
-            count: 12,
-            accentColor: AppColors.berry,
-            cards: _q1Cards,
-          )),
-          SliverToBoxAdapter(child: _buildDistrictSection(
-            district: 'QUẬN 3',
-            count: 8,
-            accentColor: AppColors.ocean,
-            cards: _q3Cards,
-          )),
-          SliverToBoxAdapter(child: _buildDistrictSection(
-            district: 'QUẬN 5',
-            count: 6,
-            accentColor: AppColors.wisteria,
-            cards: _q5Cards,
-          )),
+          SliverToBoxAdapter(
+            child: _buildDistrictSection(
+              district: 'QUẬN 1',
+              count: 12,
+              accentColor: AppColors.berry,
+              cards: _q1Cards,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildDistrictSection(
+              district: 'QUẬN 3',
+              count: 8,
+              accentColor: AppColors.ocean,
+              cards: _q3Cards,
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _buildDistrictSection(
+              district: 'QUẬN 5',
+              count: 6,
+              accentColor: AppColors.wisteria,
+              cards: _q5Cards,
+            ),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
       ),
@@ -144,7 +150,7 @@ class _WishlistViewState extends State<WishlistView> {
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             itemCount: memories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            separatorBuilder: (_, _) => const SizedBox(width: 10),
             itemBuilder: (context, i) => _MemoryCard(data: memories[i]),
           ),
         ),
@@ -162,7 +168,7 @@ class _WishlistViewState extends State<WishlistView> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 20),
           itemCount: _districtFilters.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (context, i) {
             final label = _districtFilters[i];
             final key = label.replaceAll('📍 ', '');
@@ -170,7 +176,10 @@ class _WishlistViewState extends State<WishlistView> {
             return GestureDetector(
               onTap: () => setState(() => _activeDistrict = key),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: active ? AppColors.ink : Colors.white,
                   borderRadius: BorderRadius.circular(999),
@@ -228,7 +237,7 @@ class _WishlistViewState extends State<WishlistView> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: accentColor.withOpacity(0.12),
+                  color: accentColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -253,7 +262,9 @@ class _WishlistViewState extends State<WishlistView> {
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
             childAspectRatio: 0.75,
-            children: cards.map((c) => _WishlistCard(data: c, accentColor: accentColor)).toList(),
+            children: cards
+                .map((c) => _WishlistCard(data: c, accentColor: accentColor))
+                .toList(),
           ),
         ],
       ),
@@ -353,7 +364,7 @@ class _MemoryCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: AppColors.ink.withOpacity(0.06),
+            color: AppColors.ink.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -369,7 +380,10 @@ class _MemoryCard extends StatelessWidget {
                 top: 6,
                 left: 6,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black54,
                     borderRadius: BorderRadius.circular(6),
@@ -466,7 +480,7 @@ class _WishlistCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: AppColors.ink.withOpacity(0.06),
+            color: AppColors.ink.withValues(alpha: 0.06),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -488,7 +502,10 @@ class _WishlistCard extends StatelessWidget {
                   top: 8,
                   left: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.berry,
                       borderRadius: BorderRadius.circular(8),
@@ -511,10 +528,14 @@ class _WishlistCard extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.9),
+                    color: Colors.white.withValues(alpha: 0.9),
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.favorite_border, size: 14, color: AppColors.berry),
+                  child: const Icon(
+                    Icons.favorite_border,
+                    size: 14,
+                    color: AppColors.berry,
+                  ),
                 ),
               ),
             ],
@@ -550,12 +571,18 @@ class _WishlistCard extends StatelessWidget {
                   children: [
                     Text(
                       data.price,
-                      style: AppTextStyles.body(size: 11, color: AppColors.ink50),
+                      style: AppTextStyles.body(
+                        size: 11,
+                        color: AppColors.ink50,
+                      ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
-                        color: accentColor.withOpacity(0.1),
+                        color: accentColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
@@ -589,7 +616,7 @@ class _MiniTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(

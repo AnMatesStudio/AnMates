@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 
 class ProfileView extends StatefulWidget {
@@ -129,10 +128,7 @@ class _AvatarInfoRow extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   'Designer · Quận 1 · 🇻🇳',
-                  style: AppTextStyles.body(
-                    size: 13,
-                    color: AppColors.ink70,
-                  ),
+                  style: AppTextStyles.body(size: 13, color: AppColors.ink70),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -253,7 +249,7 @@ class _AstrologyCell extends StatelessWidget {
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: tintColor.withOpacity(0.12),
+              color: tintColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -273,7 +269,7 @@ class _AstrologyCell extends StatelessWidget {
             style: AppTextStyles.mono(
               size: 9,
               weight: FontWeight.w700,
-              color: tintColor.withOpacity(0.7),
+              color: tintColor.withValues(alpha: 0.7),
               letterSpacing: 1.5,
             ),
           ),
@@ -352,7 +348,7 @@ class _StatCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -405,7 +401,6 @@ class _PhotoAlbumSection extends StatelessWidget {
               final gap = 8.0;
               // 2fr / 1fr / 1fr — big col takes ~half, two small cols share the rest
               final bigWidth = (totalWidth - 2 * gap) * 0.5;
-              final smallWidth = (totalWidth - 2 * gap) * 0.25;
               final row1Height = 110.0;
               final row2Height = 80.0;
 
@@ -500,12 +495,42 @@ class _FoodPrefsSection extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              AnmChip(label: '🌶️ Cay 3', active: true, color: AppColors.berry, sm: true),
-              AnmChip(label: '🥩 Beef', active: true, color: AppColors.ocean, sm: true),
-              AnmChip(label: '🦐 Hải sản', active: true, color: AppColors.wisteria, sm: true),
-              AnmChip(label: '🚫 Không hành', active: true, color: AppColors.glaucous, sm: true),
-              AnmChip(label: '☕ Cafe đen', active: true, color: AppColors.berryDeep, sm: true),
-              AnmChip(label: '🍣 Sushi', active: true, color: AppColors.ocean, sm: true),
+              AnmChip(
+                label: '🌶️ Cay 3',
+                active: true,
+                color: AppColors.berry,
+                sm: true,
+              ),
+              AnmChip(
+                label: '🥩 Beef',
+                active: true,
+                color: AppColors.ocean,
+                sm: true,
+              ),
+              AnmChip(
+                label: '🦐 Hải sản',
+                active: true,
+                color: AppColors.wisteria,
+                sm: true,
+              ),
+              AnmChip(
+                label: '🚫 Không hành',
+                active: true,
+                color: AppColors.glaucous,
+                sm: true,
+              ),
+              AnmChip(
+                label: '☕ Cafe đen',
+                active: true,
+                color: AppColors.berryDeep,
+                sm: true,
+              ),
+              AnmChip(
+                label: '🍣 Sushi',
+                active: true,
+                color: AppColors.ocean,
+                sm: true,
+              ),
             ],
           ),
         ],
@@ -595,7 +620,7 @@ class _CurrentPlanBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: AppColors.wisteria.withOpacity(0.35),
+            color: AppColors.wisteria.withValues(alpha: 0.35),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -608,9 +633,12 @@ class _CurrentPlanBanner extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.3),
+                width: 1,
+              ),
             ),
             child: const Center(
               child: Text('👑', style: TextStyle(fontSize: 22)),
@@ -628,7 +656,7 @@ class _CurrentPlanBanner extends StatelessWidget {
                   style: AppTextStyles.mono(
                     size: 9,
                     weight: FontWeight.w700,
-                    color: Colors.white.withOpacity(0.75),
+                    color: Colors.white.withValues(alpha: 0.75),
                     letterSpacing: 1.8,
                   ),
                 ),
@@ -647,7 +675,7 @@ class _CurrentPlanBanner extends StatelessWidget {
                   'Còn 18 ngày · gia hạn 59k/tháng',
                   style: AppTextStyles.body(
                     size: 11,
-                    color: Colors.white.withOpacity(0.8),
+                    color: Colors.white.withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -658,9 +686,12 @@ class _CurrentPlanBanner extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.25),
+              color: Colors.white.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: Colors.white.withOpacity(0.4), width: 1),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.4),
+                width: 1,
+              ),
             ),
             child: Text(
               'Active',
@@ -708,13 +739,11 @@ class _TierRow extends StatelessWidget {
         gradient: gradient,
         color: hasBg ? null : AppColors.mint,
         borderRadius: BorderRadius.circular(16),
-        border: hasBg
-            ? null
-            : Border.all(color: AppColors.ink10, width: 1.5),
+        border: hasBg ? null : Border.all(color: AppColors.ink10, width: 1.5),
         boxShadow: hasBg
             ? [
                 BoxShadow(
-                  color: AppColors.berry.withOpacity(0.2),
+                  color: AppColors.berry.withValues(alpha: 0.2),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -729,7 +758,7 @@ class _TierRow extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: hasBg
-                  ? Colors.white.withOpacity(0.2)
+                  ? Colors.white.withValues(alpha: 0.2)
                   : AppColors.ink10,
               borderRadius: BorderRadius.circular(12),
             ),
@@ -750,7 +779,7 @@ class _TierRow extends StatelessWidget {
                     size: 9,
                     weight: FontWeight.w700,
                     color: hasBg
-                        ? Colors.white.withOpacity(0.7)
+                        ? Colors.white.withValues(alpha: 0.7)
                         : AppColors.ink50,
                     letterSpacing: 1.5,
                   ),
@@ -784,7 +813,10 @@ class _TierRow extends StatelessWidget {
               GestureDetector(
                 onTap: () {},
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 7,
+                  ),
                   decoration: BoxDecoration(
                     color: buttonStyle == _TierButtonStyle.whiteSolid
                         ? Colors.white

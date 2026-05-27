@@ -2,8 +2,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _baseUrl =
-    String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080');
+const _baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://anmates-api-492509819332.asia-southeast1.run.app',
+);
 
 class ApiException implements Exception {
   final int statusCode;
@@ -24,9 +26,9 @@ class ApiClient {
   }
 
   Map<String, String> _headers(String? token) => {
-        'Content-Type': 'application/json',
-        if (token != null) 'Authorization': 'Bearer $token',
-      };
+    'Content-Type': 'application/json',
+    if (token != null) 'Authorization': 'Bearer $token',
+  };
 
   Future<dynamic> get(String path) async {
     final token = await _token();

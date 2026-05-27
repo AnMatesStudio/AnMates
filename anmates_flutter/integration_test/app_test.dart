@@ -38,8 +38,9 @@ void main() {
   });
 
   group('Boot flow', () {
-    testWidgets('splash → onboarding (auto navigates after ~2.5s)',
-        (tester) async {
+    testWidgets('splash → onboarding (auto navigates after ~2.5s)', (
+      tester,
+    ) async {
       app.main();
       // Splash is animated, so let it settle past its 2.5s delay.
       await tester.pump();
@@ -60,8 +61,9 @@ void main() {
       expect(find.text('Dev Mode (skip OTP)'), findsOneWidget);
     });
 
-    testWidgets('Dev Mode button skips OTP and lands on MainTabView',
-        (tester) async {
+    testWidgets('Dev Mode button skips OTP and lands on MainTabView', (
+      tester,
+    ) async {
       await _bootToPhoneInput(tester);
 
       await tester.tap(find.byKey(const ValueKey('dev_mode_skip_otp')));
@@ -87,8 +89,9 @@ void main() {
       expect(prefs.getString('user_id'), isNotNull);
     });
 
-    testWidgets('Main CTA stays disabled until name + phone filled',
-        (tester) async {
+    testWidgets('Main CTA stays disabled until name + phone filled', (
+      tester,
+    ) async {
       await _bootToPhoneInput(tester);
 
       // Main CTA exists; tapping while disabled does nothing — assertion is
@@ -99,8 +102,9 @@ void main() {
 
       // Now fill the fields and observe the label still equals "Gửi mã OTP"
       // (we don't trigger Firebase from the test).
-      final nameField =
-          find.widgetWithText(TextField, 'Tên của bạn').hitTestable();
+      final nameField = find
+          .widgetWithText(TextField, 'Tên của bạn')
+          .hitTestable();
       if (nameField.evaluate().isNotEmpty) {
         await tester.enterText(nameField, 'Tester');
       }
@@ -154,8 +158,11 @@ Future<void> _bootToPhoneInput(WidgetTester tester) async {
   // Onboarding has a "Bỏ qua" (skip) button — tap if present, otherwise
   // walk through pages with whatever primary CTA is visible.
   await _dismissOnboarding(tester);
-  expect(find.byType(PhoneInputView), findsOneWidget,
-      reason: 'expected to land on PhoneInputView after onboarding');
+  expect(
+    find.byType(PhoneInputView),
+    findsOneWidget,
+    reason: 'expected to land on PhoneInputView after onboarding',
+  );
 }
 
 Future<void> _dismissOnboarding(WidgetTester tester) async {
@@ -171,12 +178,13 @@ Future<void> _dismissOnboarding(WidgetTester tester) async {
   // No explicit skip — advance through pages by tapping any "Tiếp" / "Next" /
   // "Bắt đầu" / "Bắt đầu ngay" CTA we can find. Bounded so we don't loop.
   for (int i = 0; i < 5; i++) {
-    final advance = const ['Tiếp', 'Tiếp tục', 'Next', 'Bắt đầu', 'Bắt đầu ngay']
-        .map(find.text)
-        .firstWhere(
-          (f) => f.evaluate().isNotEmpty,
-          orElse: () => find.byType(SizedBox).first,
-        );
+    final advance =
+        const ['Tiếp', 'Tiếp tục', 'Next', 'Bắt đầu', 'Bắt đầu ngay']
+            .map(find.text)
+            .firstWhere(
+              (f) => f.evaluate().isNotEmpty,
+              orElse: () => find.byType(SizedBox).first,
+            );
     if (advance == find.byType(SizedBox).first) break;
     await tester.tap(advance.first);
     await tester.pumpAndSettle(const Duration(milliseconds: 600));

@@ -28,7 +28,7 @@ class _DiningGroupSheetState extends State<DiningGroupSheet> {
       maxChildSize: 0.95,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: const Color(0xFF1E1E2E),
+          color: Color(0xFF1E1E2E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ListView(
@@ -120,7 +120,11 @@ class _DiningGroupSheetState extends State<DiningGroupSheet> {
             const SizedBox(height: 16),
             const Text(
               'Mood hôm nay',
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -131,14 +135,19 @@ class _DiningGroupSheetState extends State<DiningGroupSheet> {
                     (m) => GestureDetector(
                       onTap: () => setState(() => _selectedMood = m),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: _selectedMood == m
-                              ? m.color.withOpacity(0.3)
+                              ? m.color.withValues(alpha: 0.3)
                               : const Color(0xFF2D2D42),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: _selectedMood == m ? m.color : Colors.transparent,
+                            color: _selectedMood == m
+                                ? m.color
+                                : Colors.transparent,
                           ),
                         ),
                         child: Row(
@@ -149,7 +158,9 @@ class _DiningGroupSheetState extends State<DiningGroupSheet> {
                             Text(
                               m.label,
                               style: TextStyle(
-                                color: _selectedMood == m ? m.color : Colors.grey,
+                                color: _selectedMood == m
+                                    ? m.color
+                                    : Colors.grey,
                                 fontSize: 12,
                               ),
                             ),

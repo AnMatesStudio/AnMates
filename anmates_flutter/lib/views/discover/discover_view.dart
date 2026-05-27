@@ -87,7 +87,7 @@ class _DiscoverViewState extends State<DiscoverView> {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: AppColors.ink.withOpacity(0.06),
+              color: AppColors.ink.withValues(alpha: 0.06),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -101,10 +101,7 @@ class _DiscoverViewState extends State<DiscoverView> {
             Expanded(
               child: Text(
                 'Tìm quán, món, vibe…',
-                style: AppTextStyles.body(
-                  size: 14,
-                  color: AppColors.ink50,
-                ),
+                style: AppTextStyles.body(size: 14, color: AppColors.ink50),
               ),
             ),
             const Text('🎙️', style: TextStyle(fontSize: 16)),
@@ -139,26 +136,45 @@ class _DiscoverViewState extends State<DiscoverView> {
         const SizedBox(height: 12),
         _HorizontalDraggableGenreList(
           items: [
-            ('Lẩu sùng sục', '🍲', const LinearGradient(
-              colors: [AppColors.berry, AppColors.berryDeep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )),
-            ('Nướng xì xèo', '🥩', const LinearGradient(
-              colors: [AppColors.wisteria, AppColors.wisteriaDeep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )),
-            ('Cafe chill', '☕', const LinearGradient(
-              colors: [AppColors.ocean, AppColors.oceanDeep],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )),
-            ('Ăn vặt phố', '🍢', LinearGradient(
-              colors: [AppColors.glaucous, AppColors.glaucous.withOpacity(0.7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            )),
+            (
+              'Lẩu sùng sục',
+              '🍲',
+              const LinearGradient(
+                colors: [AppColors.berry, AppColors.berryDeep],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            (
+              'Nướng xì xèo',
+              '🥩',
+              const LinearGradient(
+                colors: [AppColors.wisteria, AppColors.wisteriaDeep],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            (
+              'Cafe chill',
+              '☕',
+              const LinearGradient(
+                colors: [AppColors.ocean, AppColors.oceanDeep],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            (
+              'Ăn vặt phố',
+              '🍢',
+              LinearGradient(
+                colors: [
+                  AppColors.glaucous,
+                  AppColors.glaucous.withValues(alpha: 0.7),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
           ],
         ),
       ],
@@ -251,10 +267,12 @@ class _HorizontalDraggableGenreList extends StatefulWidget {
   const _HorizontalDraggableGenreList({required this.items});
 
   @override
-  State<_HorizontalDraggableGenreList> createState() => _HorizontalDraggableGenreListState();
+  State<_HorizontalDraggableGenreList> createState() =>
+      _HorizontalDraggableGenreListState();
 }
 
-class _HorizontalDraggableGenreListState extends State<_HorizontalDraggableGenreList> {
+class _HorizontalDraggableGenreListState
+    extends State<_HorizontalDraggableGenreList> {
   late final ScrollController _scrollCtrl;
   bool _isDragging = false;
   double _dragStart = 0;
@@ -288,22 +306,6 @@ class _HorizontalDraggableGenreListState extends State<_HorizontalDraggableGenre
     setState(() => _isDragging = false);
   }
 
-  void _onTouchStart(PointerDownEvent event) {
-    setState(() => _isDragging = true);
-    _dragStart = event.position.dx;
-    _scrollStart = _scrollCtrl.offset;
-  }
-
-  void _onTouchMove(PointerMoveEvent event) {
-    if (!_isDragging) return;
-    final delta = event.position.dx - _dragStart;
-    _scrollCtrl.jumpTo(_scrollStart - delta);
-  }
-
-  void _onTouchEnd(PointerUpEvent event) {
-    setState(() => _isDragging = false);
-  }
-
   @override
   Widget build(BuildContext context) {
     return Listener(
@@ -311,7 +313,9 @@ class _HorizontalDraggableGenreListState extends State<_HorizontalDraggableGenre
       onPointerMove: _onMouseMove,
       onPointerUp: _onMouseUp,
       child: MouseRegion(
-        cursor: _isDragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+        cursor: _isDragging
+            ? SystemMouseCursors.grabbing
+            : SystemMouseCursors.grab,
         child: SizedBox(
           height: 90,
           child: SingleChildScrollView(
@@ -360,7 +364,8 @@ class _GenreCard extends StatefulWidget {
   State<_GenreCard> createState() => _GenreCardState();
 }
 
-class _GenreCardState extends State<_GenreCard> with SingleTickerProviderStateMixin {
+class _GenreCardState extends State<_GenreCard>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
   late final AnimationController _emojiCtrl;
   late final Animation<double> _emojiFloat;
@@ -373,9 +378,10 @@ class _GenreCardState extends State<_GenreCard> with SingleTickerProviderStateMi
       vsync: this,
       duration: Duration(milliseconds: durationMs),
     );
-    _emojiFloat = Tween<double>(begin: 0.0, end: -7.0).animate(
-      CurvedAnimation(parent: _emojiCtrl, curve: Curves.easeInOut),
-    );
+    _emojiFloat = Tween<double>(
+      begin: 0.0,
+      end: -7.0,
+    ).animate(CurvedAnimation(parent: _emojiCtrl, curve: Curves.easeInOut));
     final delayMs = (widget.label.length * 160) % 700;
     Future.delayed(Duration(milliseconds: delayMs), () {
       if (mounted) _emojiCtrl.repeat(reverse: true);
@@ -407,8 +413,9 @@ class _GenreCardState extends State<_GenreCard> with SingleTickerProviderStateMi
             borderRadius: BorderRadius.circular(18),
             boxShadow: [
               BoxShadow(
-                color: widget.gradient.colors.first
-                    .withOpacity(_hovered ? 0.48 : 0.30),
+                color: widget.gradient.colors.first.withValues(
+                  alpha: _hovered ? 0.48 : 0.30,
+                ),
                 blurRadius: _hovered ? 20 : 10,
                 offset: Offset(0, _hovered ? 8 : 4),
               ),
@@ -425,8 +432,10 @@ class _GenreCardState extends State<_GenreCard> with SingleTickerProviderStateMi
                     offset: Offset(0, _hovered ? -7 : _emojiFloat.value),
                     child: child,
                   ),
-                  child: Text(widget.emoji,
-                      style: const TextStyle(fontSize: 28)),
+                  child: Text(
+                    widget.emoji,
+                    style: const TextStyle(fontSize: 28),
+                  ),
                 ),
               ),
               Positioned(
@@ -487,88 +496,91 @@ class _RestaurantRowState extends State<_RestaurantRow> {
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: AppColors.ink.withOpacity(_hovered ? 0.09 : 0.05),
+              color: AppColors.ink.withValues(alpha: _hovered ? 0.09 : 0.05),
               blurRadius: _hovered ? 20 : 12,
               offset: Offset(0, _hovered ? 8 : 4),
             ),
           ],
         ),
         child: Row(
-        children: [
-          PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        widget.name,
-                        style: AppTextStyles.body(
-                          size: 14,
-                          weight: FontWeight.w700,
-                          color: AppColors.ink,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (widget.hot)
-                      Text('🔥', style: const TextStyle(fontSize: 14)),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  '${widget.tag} · ${widget.dist}',
-                  style: AppTextStyles.body(
-                    size: 12,
-                    color: AppColors.ink50,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.berry.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
+          children: [
+            PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      Sparkle(size: 9, color: AppColors.berry),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${widget.peopleCraving} người đang thèm',
-                        style: AppTextStyles.mono(
-                          size: 9,
-                          weight: FontWeight.w700,
-                          color: AppColors.berry,
-                          letterSpacing: 0.5,
+                      Expanded(
+                        child: Text(
+                          widget.name,
+                          style: AppTextStyles.body(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: AppColors.ink,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                      if (widget.hot)
+                        Text('🔥', style: const TextStyle(fontSize: 14)),
                     ],
                   ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '${widget.tag} · ${widget.dist}',
+                    style: AppTextStyles.body(size: 12, color: AppColors.ink50),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.berry.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Sparkle(size: 9, color: AppColors.berry),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${widget.peopleCraving} người đang thèm',
+                          style: AppTextStyles.mono(
+                            size: 9,
+                            weight: FontWeight.w700,
+                            color: AppColors.berry,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.mint,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.ink10, width: 1),
+              ),
+              child: const Center(
+                child: Text(
+                  '→',
+                  style: TextStyle(fontSize: 16, color: AppColors.ink),
                 ),
-              ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.mint,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.ink10, width: 1),
-            ),
-            child: const Center(
-              child: Text('→', style: TextStyle(fontSize: 16, color: AppColors.ink)),
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }

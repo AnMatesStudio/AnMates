@@ -36,14 +36,13 @@ class AppTextStyles {
     Color color = AppColors.ink,
     double letterSpacing = -1.5,
     double? height,
-  }) =>
-      GoogleFonts.plusJakartaSans(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        letterSpacing: letterSpacing,
-        height: height,
-      );
+  }) => GoogleFonts.plusJakartaSans(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: letterSpacing,
+    height: height,
+  );
 
   // Body / Vietnamese — Be Vietnam Pro
   static TextStyle body({
@@ -51,13 +50,12 @@ class AppTextStyles {
     FontWeight weight = FontWeight.w400,
     Color color = AppColors.ink,
     double? height,
-  }) =>
-      GoogleFonts.beVietnamPro(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        height: height ?? 1.55,
-      );
+  }) => GoogleFonts.beVietnamPro(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height ?? 1.55,
+  );
 
   // Mono / Data — JetBrains Mono
   static TextStyle mono({
@@ -65,51 +63,42 @@ class AppTextStyles {
     FontWeight weight = FontWeight.w500,
     Color color = AppColors.ink50,
     double letterSpacing = 1.5,
-  }) =>
-      GoogleFonts.jetBrainsMono(
-        fontSize: size,
-        fontWeight: weight,
-        color: color,
-        letterSpacing: letterSpacing,
-      );
+  }) => GoogleFonts.jetBrainsMono(
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    letterSpacing: letterSpacing,
+  );
 
   // Convenience
   static TextStyle heading1({Color color = AppColors.ink}) => display(
-        size: 30,
-        weight: FontWeight.w800,
-        color: color,
-        letterSpacing: -1.0,
-        height: 1.1,
-      );
+    size: 30,
+    weight: FontWeight.w800,
+    color: color,
+    letterSpacing: -1.0,
+    height: 1.1,
+  );
 
   static TextStyle heading2({Color color = AppColors.ink}) => display(
-        size: 24,
-        weight: FontWeight.w800,
-        color: color,
-        letterSpacing: -0.8,
-        height: 1.15,
-      );
+    size: 24,
+    weight: FontWeight.w800,
+    color: color,
+    letterSpacing: -0.8,
+    height: 1.15,
+  );
 
-  static TextStyle label({Color color = AppColors.ink50}) => mono(
-        size: 10,
-        weight: FontWeight.w700,
-        color: color,
-        letterSpacing: 2.0,
-      );
+  static TextStyle label({Color color = AppColors.ink50}) =>
+      mono(size: 10, weight: FontWeight.w700, color: color, letterSpacing: 2.0);
 
-  static TextStyle eyebrow({Color color = AppColors.berry}) => mono(
-        size: 10,
-        weight: FontWeight.w600,
-        color: color,
-        letterSpacing: 2.0,
-      );
+  static TextStyle eyebrow({Color color = AppColors.berry}) =>
+      mono(size: 10, weight: FontWeight.w600, color: color, letterSpacing: 2.0);
 
   static TextStyle cta({Color color = Colors.white}) => display(
-        size: 17,
-        weight: FontWeight.w700,
-        color: color,
-        letterSpacing: -0.3,
-      );
+    size: 17,
+    weight: FontWeight.w700,
+    color: color,
+    letterSpacing: -0.3,
+  );
 
   static TextStyle chip({bool active = false, Color? color}) =>
       GoogleFonts.beVietnamPro(
@@ -122,69 +111,69 @@ class AppTextStyles {
 // ─── Theme ───────────────────────────────────────────────────────────────────
 class AppTheme {
   static ThemeData get theme => ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.light(
-          primary: AppColors.berry,
-          secondary: AppColors.ocean,
-          surface: AppColors.mint,
-          onPrimary: Colors.white,
-          onSecondary: Colors.white,
-          onSurface: AppColors.ink,
-        ),
-        scaffoldBackgroundColor: AppColors.mint,
-        textTheme: _buildTextTheme(),
-        appBarTheme: AppBarTheme(
-          backgroundColor: AppColors.mint,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleTextStyle: AppTextStyles.display(size: 18, weight: FontWeight.w700),
-          iconTheme: const IconThemeData(color: AppColors.ink),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.berry,
-            foregroundColor: Colors.white,
-            shape: const StadiumBorder(),
-            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
-            textStyle: AppTextStyles.cta(),
-            elevation: 0,
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: AppColors.ink10),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: BorderSide(color: AppColors.ink10),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(18),
-            borderSide: const BorderSide(color: AppColors.berry, width: 1.5),
-          ),
-        ),
-      );
+    useMaterial3: true,
+    colorScheme: ColorScheme.light(
+      primary: AppColors.berry,
+      secondary: AppColors.ocean,
+      surface: AppColors.mint,
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+      onSurface: AppColors.ink,
+    ),
+    scaffoldBackgroundColor: AppColors.mint,
+    textTheme: _buildTextTheme(),
+    appBarTheme: AppBarTheme(
+      backgroundColor: AppColors.mint,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      titleTextStyle: AppTextStyles.display(size: 18, weight: FontWeight.w700),
+      iconTheme: const IconThemeData(color: AppColors.ink),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.berry,
+        foregroundColor: Colors.white,
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
+        textStyle: AppTextStyles.cta(),
+        elevation: 0,
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: AppColors.ink10),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: BorderSide(color: AppColors.ink10),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(18),
+        borderSide: const BorderSide(color: AppColors.berry, width: 1.5),
+      ),
+    ),
+  );
 
   static TextTheme _buildTextTheme() => TextTheme(
-        displayLarge: AppTextStyles.display(size: 44),
-        displayMedium: AppTextStyles.display(size: 36),
-        displaySmall: AppTextStyles.display(size: 28),
-        headlineLarge: AppTextStyles.heading1(),
-        headlineMedium: AppTextStyles.heading2(),
-        headlineSmall: AppTextStyles.display(size: 20, weight: FontWeight.w700),
-        titleLarge: AppTextStyles.display(size: 18, weight: FontWeight.w700),
-        titleMedium: AppTextStyles.display(size: 15, weight: FontWeight.w700),
-        titleSmall: AppTextStyles.display(size: 13, weight: FontWeight.w700),
-        bodyLarge: AppTextStyles.body(size: 16),
-        bodyMedium: AppTextStyles.body(size: 14),
-        bodySmall: AppTextStyles.body(size: 12),
-        labelLarge: AppTextStyles.mono(size: 11),
-        labelMedium: AppTextStyles.mono(size: 10),
-        labelSmall: AppTextStyles.mono(size: 9),
-      );
+    displayLarge: AppTextStyles.display(size: 44),
+    displayMedium: AppTextStyles.display(size: 36),
+    displaySmall: AppTextStyles.display(size: 28),
+    headlineLarge: AppTextStyles.heading1(),
+    headlineMedium: AppTextStyles.heading2(),
+    headlineSmall: AppTextStyles.display(size: 20, weight: FontWeight.w700),
+    titleLarge: AppTextStyles.display(size: 18, weight: FontWeight.w700),
+    titleMedium: AppTextStyles.display(size: 15, weight: FontWeight.w700),
+    titleSmall: AppTextStyles.display(size: 13, weight: FontWeight.w700),
+    bodyLarge: AppTextStyles.body(size: 16),
+    bodyMedium: AppTextStyles.body(size: 14),
+    bodySmall: AppTextStyles.body(size: 12),
+    labelLarge: AppTextStyles.mono(size: 11),
+    labelMedium: AppTextStyles.mono(size: 10),
+    labelSmall: AppTextStyles.mono(size: 9),
+  );
 }
 
 // Legacy ThemeNotifier kept for compatibility

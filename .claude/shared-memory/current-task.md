@@ -1,9 +1,16 @@
 # Current Task
 
-**Status:** coding (Phase 0 → Phase 1)
-**Owner:** team-leader
-**Started at:** 2026-05-26 (this session)
+**Status:** in-progress (Phase 1 — Onboarding screen 02 nearly complete)
+**Owner:** main-assistant
+**Started at:** 2026-05-26
+**Last updated:** 2026-05-27
 **Goal:** Refactor TOÀN BỘ UI Flutter app (`anmates_flutter/`) khớp 24 design HTML mới nhất (`plan/lastest/design/`) + animation spec chi tiết trong `design-system.md`. Phased delivery (8 phases). This session covers **Phase 0 (Foundation) + Phase 1 (Onboarding screens 01-07)**.
+
+## Most recent progress (2026-05-27)
+
+Onboarding screen 02 "Chọn quán" refactored end-to-end: polaroid cards with real cartoon PNG illustrations (Lẩu/Cafe chill/Đồ nướng/Ăn vặt), tightly-stacked layout, full animation suite (staggered entry + ambient float + hover lift + press), responsive sizing for iPhone SE through 14, swipe enabled on touch + mouse + trackpad + stylus. ~400 lines of dead CustomPainter code removed. Visual confirmation pending. See [sessions/2026-05-26-onboard-02-chon-quan-polaroid-cards.md](sessions/2026-05-26-onboard-02-chon-quan-polaroid-cards.md) for full multi-iteration log.
+
+**Blocked on user decision:** how to interpret the `food_card.png` re-crop request (food-art-only vs whole-polaroid + Flutter chrome refactor).
 
 ## Scope (this session)
 

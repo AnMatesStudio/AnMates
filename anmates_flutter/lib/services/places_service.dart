@@ -27,15 +27,24 @@ class OsmPlace {
 
   String get emoji {
     final c = (cuisine ?? '').toLowerCase();
-    if (c.contains('viet') || c.contains('pho') || c.contains('bun')) return '🍜';
-    if (c.contains('coffee') || c.contains('tea') || amenity == 'cafe') return '☕';
-    if (c.contains('japanese') || c.contains('sushi') || c.contains('ramen')) return '🍣';
+    if (c.contains('viet') || c.contains('pho') || c.contains('bun'))
+      return '🍜';
+    if (c.contains('coffee') || c.contains('tea') || amenity == 'cafe')
+      return '☕';
+    if (c.contains('japanese') || c.contains('sushi') || c.contains('ramen'))
+      return '🍣';
     if (c.contains('pizza') || c.contains('italian')) return '🍕';
     if (c.contains('korean')) return '🥘';
-    if (c.contains('chinese') || c.contains('dim_sum') || c.contains('cantonese')) return '🥡';
+    if (c.contains('chinese') ||
+        c.contains('dim_sum') ||
+        c.contains('cantonese'))
+      return '🥡';
     if (c.contains('thai')) return '🌶️';
     if (c.contains('seafood') || c.contains('fish')) return '🦐';
-    if (c.contains('burger') || c.contains('american') || amenity == 'fast_food') return '🍔';
+    if (c.contains('burger') ||
+        c.contains('american') ||
+        amenity == 'fast_food')
+      return '🍔';
     if (amenity == 'bar') return '🍺';
     return '🍽️';
   }
@@ -62,8 +71,12 @@ class OsmPlace {
     const r = 6371000.0;
     final dLat = (lat - fromLat) * pi / 180;
     final dLng = (lng - fromLng) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(fromLat * pi / 180) * cos(lat * pi / 180) * sin(dLng / 2) * sin(dLng / 2);
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(fromLat * pi / 180) *
+            cos(lat * pi / 180) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
     return 2 * r * asin(sqrt(a));
   }
 
@@ -91,7 +104,9 @@ class OsmPlace {
     final street = tags['addr:street'] as String?;
     if (houseNum != null) parts.add(houseNum);
     if (street != null) parts.add(street);
-    final addr = parts.isNotEmpty ? parts.join(' ') : tags['addr:full'] as String?;
+    final addr = parts.isNotEmpty
+        ? parts.join(' ')
+        : tags['addr:full'] as String?;
 
     return OsmPlace(
       id: '${type}_${json['id']}',
@@ -139,7 +154,8 @@ class PlacesService {
       return _cache;
     }
 
-    final query = '''
+    final query =
+        '''
 [out:json][timeout:20];
 (
   node["amenity"~"restaurant|cafe|fast_food|bar"]["name"](around:$radiusM,$lat,$lng);

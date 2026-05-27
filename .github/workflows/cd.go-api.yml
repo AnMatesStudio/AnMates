@@ -1,0 +1,128 @@
+name: CD · Go API → Cloud Run
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'anmates-api/**'
+      - '.github/workflows/cd.go-api.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: cd.go-api-main
+  cancel-in-progress: false
+
+env:
+  GCP_PROJECT: anmates-studio
+  GCP_REGION: asia-southeast1
+  SERVICE_NAME: anmates-api
+  AR_REPO: anmates-api
+  AR_IMAGE: api
+
+jobs:
+  deploy:
+    name: Build + Deploy Cloud Run
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: production-api
+      url: https://anmates-api-492509819332.asia-southeast1.run.app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go (validate + test)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: anmates-api/go.mod
+          cache: true
+          cache-dependency-path: anmates-api/go.sum
+
+      - name: go vet + test
+        working-directory: anmates-api
+        run: |
+          go vet ./...
+          # Exclude smoke/ — that suite hits a live server, not for CI.
+          go test -race -count=1 $(go list ./... | grep -v '/smoke$')
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build + push image
+        id: build
+        working-directory: anmates-api
+        run: |
+          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}:${{ github.sha }}"
+          IMAGE_LATEST="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}:latest"
+          gcloud builds submit \
+            --tag "$IMAGE_TAG" \
+            --quiet
+          # Also tag as :latest for traceability (Artifact Registry supports multi-tag)
+          gcloud artifacts docker tags add "$IMAGE_TAG" "$IMAGE_LATEST"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Capture previous Cloud Run revision (for rollback)
+        id: prev
+        run: |
+          PREV=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --format="value(status.latestReadyRevisionName)" 2>/dev/null || echo "")
+          echo "prev_revision=$PREV" >> "$GITHUB_OUTPUT"
+          echo "Previous revision: $PREV"
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ steps.build.outputs.image_tag }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8080 \
+            --timeout 3600 \
+            --revision-suffix "sha-${GITHUB_SHA::7}" \
+            --set-env-vars "ENV=production" \
+            --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
+            --set-env-vars "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
+            --set-env-vars "FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}" \
+            --quiet
+
+      - name: Smoke check /health
+        id: smoke
+        run: |
+          URL=$(gcloud run services describe ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --format="value(status.url)")
+          echo "Service URL: $URL"
+          for i in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health")
+            if [ "$status" = "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: got $status, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Health check failed after 6 attempts"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure() && steps.deploy.outcome == 'success' && steps.prev.outputs.prev_revision != ''
+        run: |
+          echo "::warning::Deploy succeeded but smoke check failed. Rolling back to ${{ steps.prev.outputs.prev_revision }}"
+          gcloud run services update-traffic ${{ env.SERVICE_NAME }} \
+            --region ${{ env.GCP_REGION }} \
+            --to-revisions=${{ steps.prev.outputs.prev_revision }}=100 \
+            --quiet

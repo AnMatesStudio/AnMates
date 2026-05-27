@@ -13,8 +13,10 @@ import 'otp_view.dart';
 
 // Dev bypass — must match backend DEV_BYPASS_SECRET. Override via:
 //   flutter run --dart-define=DEV_BYPASS_SECRET=...
-const _devBypassSecret =
-    String.fromEnvironment('DEV_BYPASS_SECRET', defaultValue: 'dev-local-2026');
+const _devBypassSecret = String.fromEnvironment(
+  'DEV_BYPASS_SECRET',
+  defaultValue: 'dev-local-2026',
+);
 const _devTestPhone = '+84999000001';
 const _devTestName = 'Dev User';
 
@@ -100,8 +102,10 @@ class _PhoneInputViewState extends State<PhoneInputView> {
     _clearVerifier();
     _recaptchaVerifier = _buildVerifier();
     try {
-      final result = await FirebaseAuth.instance
-          .signInWithPhoneNumber(phone, _recaptchaVerifier!);
+      final result = await FirebaseAuth.instance.signInWithPhoneNumber(
+        phone,
+        _recaptchaVerifier!,
+      );
       if (!mounted) return;
       setState(() => _loading = false);
       _goToOtp(phone, confirmationResult: result);
@@ -127,8 +131,9 @@ class _PhoneInputViewState extends State<PhoneInputView> {
       verificationCompleted: (PhoneAuthCredential credential) async {
         // Android instant-verification path: sign in without typing OTP.
         try {
-          final uc =
-              await FirebaseAuth.instance.signInWithCredential(credential);
+          final uc = await FirebaseAuth.instance.signInWithCredential(
+            credential,
+          );
           final idToken = await uc.user?.getIdToken();
           if (idToken != null && mounted) {
             _goToOtp(phone, autoIdToken: idToken);
@@ -174,8 +179,9 @@ class _PhoneInputViewState extends State<PhoneInputView> {
   Future<void> _devSkipOtp() async {
     if (_loading) return;
     setState(() => _loading = true);
-    final name =
-        _nameCtrl.text.trim().isEmpty ? _devTestName : _nameCtrl.text.trim();
+    final name = _nameCtrl.text.trim().isEmpty
+        ? _devTestName
+        : _nameCtrl.text.trim();
     try {
       await AuthService().devLogin(
         secret: _devBypassSecret,
@@ -193,12 +199,14 @@ class _PhoneInputViewState extends State<PhoneInputView> {
 
   void _showError(String msg) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(msg),
-      backgroundColor: AppColors.berry,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: AppColors.berry,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   @override
@@ -403,12 +411,16 @@ class _PhoneFieldState extends State<_PhoneField> {
                 decoration: InputDecoration(
                   hintText: '912 345 678',
                   hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, color: AppColors.ink30),
+                    fontSize: 15,
+                    color: AppColors.ink30,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
-                      vertical: 18, horizontal: 12),
+                    vertical: 18,
+                    horizontal: 12,
+                  ),
                 ),
               ),
             ),
@@ -486,7 +498,9 @@ class _InputFieldState extends State<_InputField> {
                 decoration: InputDecoration(
                   hintText: widget.hint,
                   hintStyle: GoogleFonts.plusJakartaSans(
-                      fontSize: 15, color: AppColors.ink30),
+                    fontSize: 15,
+                    color: AppColors.ink30,
+                  ),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
                   focusedBorder: InputBorder.none,

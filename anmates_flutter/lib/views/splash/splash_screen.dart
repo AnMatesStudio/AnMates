@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
@@ -15,6 +17,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _progressController;
   late final Animation<double> _progressAnim;
+  Timer? _navTimer;
 
   @override
   void initState() {
@@ -32,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _progressController.forward();
 
-    Future.delayed(const Duration(milliseconds: 2500), () {
+    _navTimer = Timer(const Duration(milliseconds: 2500), () {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
@@ -43,6 +46,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
+    _navTimer?.cancel();
     _progressController.dispose();
     super.dispose();
   }
@@ -55,11 +59,7 @@ class _SplashScreenState extends State<SplashScreen>
           gradient: RadialGradient(
             center: Alignment(0, -0.3),
             radius: 1.4,
-            colors: [
-              AppColors.wisteria,
-              AppColors.berry,
-              AppColors.berryDeep,
-            ],
+            colors: [AppColors.wisteria, AppColors.berry, AppColors.berryDeep],
             stops: [0.0, 0.55, 1.0],
           ),
         ),
@@ -71,11 +71,7 @@ class _SplashScreenState extends State<SplashScreen>
               left: 32,
               child: Opacity(
                 opacity: 0.35,
-                child: Sparkle(
-                  size: 36,
-                  color: Colors.white,
-                  animated: true,
-                ),
+                child: Sparkle(size: 36, color: Colors.white, animated: true),
               ),
             ),
             Positioned(
@@ -83,11 +79,7 @@ class _SplashScreenState extends State<SplashScreen>
               right: 44,
               child: Opacity(
                 opacity: 0.25,
-                child: Sparkle(
-                  size: 52,
-                  color: Colors.white,
-                  animated: true,
-                ),
+                child: Sparkle(size: 52, color: Colors.white, animated: true),
               ),
             ),
             Positioned(
@@ -95,11 +87,7 @@ class _SplashScreenState extends State<SplashScreen>
               left: 28,
               child: Opacity(
                 opacity: 0.4,
-                child: Sparkle(
-                  size: 28,
-                  color: Colors.white,
-                  animated: true,
-                ),
+                child: Sparkle(size: 28, color: Colors.white, animated: true),
               ),
             ),
             Positioned(
@@ -107,11 +95,7 @@ class _SplashScreenState extends State<SplashScreen>
               right: 36,
               child: Opacity(
                 opacity: 0.30,
-                child: Sparkle(
-                  size: 44,
-                  color: Colors.white,
-                  animated: true,
-                ),
+                child: Sparkle(size: 44, color: Colors.white, animated: true),
               ),
             ),
 
@@ -189,7 +173,7 @@ class _SplashScreenState extends State<SplashScreen>
                         borderRadius: BorderRadius.circular(999),
                         child: Container(
                           height: 4,
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           child: FractionallySizedBox(
                             alignment: Alignment.centerLeft,
                             widthFactor: filled,
@@ -197,10 +181,7 @@ class _SplashScreenState extends State<SplashScreen>
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(999),
                                 gradient: const LinearGradient(
-                                  colors: [
-                                    AppColors.mint,
-                                    Colors.white,
-                                  ],
+                                  colors: [AppColors.mint, Colors.white],
                                 ),
                               ),
                             ),
@@ -215,7 +196,7 @@ class _SplashScreenState extends State<SplashScreen>
                     style: GoogleFonts.jetBrainsMono(
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
-                      color: Colors.white.withOpacity(0.70),
+                      color: Colors.white.withValues(alpha: 0.70),
                     ),
                   ),
                 ],

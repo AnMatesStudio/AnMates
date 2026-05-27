@@ -50,10 +50,7 @@ class _AuthViewState extends State<AuthView> {
           _nameCtrl.text.trim(),
         );
       } else {
-        await AuthService().login(
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
-        );
+        await AuthService().login(_emailCtrl.text.trim(), _passwordCtrl.text);
       }
       if (mounted) widget.onAuthenticated();
     } catch (e) {
@@ -64,7 +61,9 @@ class _AuthViewState extends State<AuthView> {
           content: Text(msg),
           backgroundColor: AppColors.berry,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     } finally {
@@ -100,7 +99,11 @@ class _AuthViewState extends State<AuthView> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: ListenableBuilder(
-              listenable: Listenable.merge([_emailCtrl, _passwordCtrl, _nameCtrl]),
+              listenable: Listenable.merge([
+                _emailCtrl,
+                _passwordCtrl,
+                _nameCtrl,
+              ]),
               builder: (context, _) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -109,7 +112,9 @@ class _AuthViewState extends State<AuthView> {
                     const LogoMark(size: 64),
                     const SizedBox(height: 24),
                     ScreenTitle(
-                      title: _isRegister ? 'Tạo tài khoản' : 'Va Mates, ăn miết.',
+                      title: _isRegister
+                          ? 'Tạo tài khoản'
+                          : 'Va Mates, ăn miết.',
                       subtitle: _isRegister
                           ? 'Nhập thông tin để bắt đầu va Mates.'
                           : 'Sòng phẳng, an toàn, không sến — đăng nhập để bắt đầu.',
@@ -145,7 +150,9 @@ class _AuthViewState extends State<AuthView> {
                       suffixIcon: GestureDetector(
                         onTap: () => setState(() => _obscure = !_obscure),
                         child: Icon(
-                          _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                          _obscure
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
                           size: 20,
                           color: AppColors.ink50,
                         ),
@@ -158,7 +165,10 @@ class _AuthViewState extends State<AuthView> {
                           alignment: Alignment.centerLeft,
                           child: Text(
                             'Tối thiểu 10 ký tự',
-                            style: AppTextStyles.body(size: 11, color: AppColors.ink50),
+                            style: AppTextStyles.body(
+                              size: 11,
+                              color: AppColors.ink50,
+                            ),
                           ),
                         ),
                       ),

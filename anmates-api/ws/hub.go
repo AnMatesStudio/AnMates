@@ -9,7 +9,7 @@ import (
 
 // Envelope is the wire format for chat WebSocket messages.
 type Envelope struct {
-	Type    string          `json:"type"`              // "message" | "typing" | "read" | "system"
+	Type    string          `json:"type"` // "message" | "typing" | "read" | "system"
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 

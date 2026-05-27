@@ -52,8 +52,9 @@ class _AnmCTAState extends State<AnmCTA> {
             boxShadow: isBerry
                 ? [
                     BoxShadow(
-                      color: AppColors.berry.withOpacity(
-                          (_hovered && widget.onTap != null) ? 0.50 : 0.35),
+                      color: AppColors.berry.withValues(
+                        alpha: (_hovered && widget.onTap != null) ? 0.50 : 0.35,
+                      ),
                       blurRadius: (_hovered && widget.onTap != null) ? 36 : 24,
                       offset: (_hovered && widget.onTap != null)
                           ? const Offset(0, 12)
@@ -71,9 +72,7 @@ class _AnmCTAState extends State<AnmCTA> {
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 0),
               elevation: 0,
               shadowColor: Colors.transparent,
-            ).copyWith(
-              overlayColor: WidgetStateProperty.all(Colors.white12),
-            ),
+            ).copyWith(overlayColor: WidgetStateProperty.all(Colors.white12)),
             child: Text(
               widget.label,
               style: AppTextStyles.cta(color: widget.foreground),
@@ -91,7 +90,12 @@ class AnmGhostBtn extends StatelessWidget {
   final VoidCallback? onTap;
   final bool dark;
 
-  const AnmGhostBtn({super.key, required this.label, this.onTap, this.dark = false});
+  const AnmGhostBtn({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.dark = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -168,24 +172,28 @@ class _AnmChipState extends State<AnmChip> {
               color: widget.active
                   ? activeColor
                   : _hovered
-                      ? (widget.dark
-                          ? Colors.white.withOpacity(0.18)
-                          : activeColor.withOpacity(0.08))
-                      : (widget.dark ? Colors.white12 : Colors.white),
+                  ? (widget.dark
+                        ? Colors.white.withValues(alpha: 0.18)
+                        : activeColor.withValues(alpha: 0.08))
+                  : (widget.dark ? Colors.white12 : Colors.white),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: widget.active
                     ? Colors.transparent
                     : _hovered
-                        ? (widget.dark ? Colors.white38 : activeColor.withOpacity(0.35))
-                        : (widget.dark ? Colors.white24 : AppColors.ink10),
+                    ? (widget.dark
+                          ? Colors.white38
+                          : activeColor.withValues(alpha: 0.35))
+                    : (widget.dark ? Colors.white24 : AppColors.ink10),
                 width: 1,
               ),
             ),
             child: Text(
               widget.label,
               style: AppTextStyles.chip(
-                  active: widget.active, color: widget.dark ? Colors.white : null),
+                active: widget.active,
+                color: widget.dark ? Colors.white : null,
+              ),
             ),
           ),
         ),
@@ -203,10 +211,7 @@ class Eyebrow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      text.toUpperCase(),
-      style: AppTextStyles.eyebrow(color: color),
-    );
+    return Text(text.toUpperCase(), style: AppTextStyles.eyebrow(color: color));
   }
 }
 
@@ -246,7 +251,7 @@ class ScreenTitle extends StatelessWidget {
             style: AppTextStyles.body(
               size: 15,
               color: dark
-                  ? Colors.white.withOpacity(0.7)
+                  ? Colors.white.withValues(alpha: 0.7)
                   : AppColors.ink70,
               height: 1.4,
             ),
@@ -290,7 +295,7 @@ class PhotoSlot extends StatelessWidget {
               )
             : LinearGradient(
                 colors: [
-                  AppColors.wisteria.withOpacity(0.3),
+                  AppColors.wisteria.withValues(alpha: 0.3),
                   AppColors.mint,
                 ],
                 begin: Alignment.topLeft,
@@ -306,9 +311,7 @@ class PhotoSlot extends StatelessWidget {
           label,
           style: AppTextStyles.mono(
             size: 10,
-            color: dark
-                ? Colors.white54
-                : AppColors.ink50,
+            color: dark ? Colors.white54 : AppColors.ink50,
             letterSpacing: 2,
           ),
         ),
@@ -367,8 +370,8 @@ class TrustRing extends StatelessWidget {
     final color = score >= 90
         ? AppColors.ocean
         : score >= 80
-            ? AppColors.wisteriaDeep
-            : AppColors.berry;
+        ? AppColors.wisteriaDeep
+        : AppColors.berry;
 
     return SizedBox(
       width: size,
@@ -462,7 +465,12 @@ class _VibeStage {
   final String emoji;
   final String name;
   final bool gate;
-  const _VibeStage({required this.p, required this.emoji, required this.name, this.gate = false});
+  const _VibeStage({
+    required this.p,
+    required this.emoji,
+    required this.name,
+    this.gate = false,
+  });
 }
 
 const _vibeStages = [
@@ -477,7 +485,11 @@ class VibeProgressBar extends StatelessWidget {
   final int percent;
   final bool unlocked;
 
-  const VibeProgressBar({super.key, required this.percent, this.unlocked = false});
+  const VibeProgressBar({
+    super.key,
+    required this.percent,
+    this.unlocked = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -499,7 +511,9 @@ class VibeProgressBar extends StatelessWidget {
                     colors: [AppColors.berry, AppColors.wisteriaDeep],
                   ),
                 ),
-                child: const Center(child: Sparkle(size: 13, color: Colors.white, animated: true)),
+                child: const Center(
+                  child: Sparkle(size: 13, color: Colors.white, animated: true),
+                ),
               ),
               const SizedBox(width: 8),
               ShaderMask(
@@ -533,11 +547,17 @@ class VibeProgressBar extends StatelessWidget {
                   ),
                 ),
               ),
-              Text('/100', style: AppTextStyles.mono(size: 11, color: AppColors.ink50)),
+              Text(
+                '/100',
+                style: AppTextStyles.mono(size: 11, color: AppColors.ink50),
+              ),
               if (unlocked)
                 Container(
                   margin: const EdgeInsets.only(left: 6),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.berry,
                     borderRadius: BorderRadius.circular(999),
@@ -582,8 +602,8 @@ class VibeProgressBar extends StatelessWidget {
                           height: 14,
                           decoration: BoxDecoration(
                             color: (s.p <= percent)
-                                ? Colors.white.withOpacity(0.7)
-                                : AppColors.ink.withOpacity(0.15),
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : AppColors.ink.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(1),
                           ),
                         ),
@@ -591,16 +611,22 @@ class VibeProgressBar extends StatelessWidget {
                       Positioned(
                         left: (w * s.p / 100 - 9).clamp(0.0, w - 18),
                         top: 44,
-                        child: Text(s.emoji, style: const TextStyle(fontSize: 12)),
+                        child: Text(
+                          s.emoji,
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ),
                       if (s.gate)
                         Positioned(
                           left: (w * s.p / 100 - 30).clamp(0.0, w - 62),
                           top: 2,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppColors.berry.withOpacity(0.12),
+                              color: AppColors.berry.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -624,7 +650,10 @@ class VibeProgressBar extends StatelessWidget {
           // Helper text
           Row(
             children: [
-              Text(unlocked ? '🎉' : '💌', style: const TextStyle(fontSize: 13)),
+              Text(
+                unlocked ? '🎉' : '💌',
+                style: const TextStyle(fontSize: 13),
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: RichText(
@@ -678,19 +707,31 @@ class _VibeBarPainter extends CustomPainter {
     // Track
     final trackPaint = Paint()
       ..shader = const LinearGradient(
-        colors: [AppColors.ocean, AppColors.glaucous, AppColors.wisteria, AppColors.berry, AppColors.berryDeep],
+        colors: [
+          AppColors.ocean,
+          AppColors.glaucous,
+          AppColors.wisteria,
+          AppColors.berry,
+          AppColors.berryDeep,
+        ],
       ).createShader(Rect.fromLTWH(0, barTop, w, barH))
       ..style = PaintingStyle.fill;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Rect.fromLTWH(0, barTop, w, barH), radius),
-      trackPaint..color = trackPaint.color.withOpacity(0.18),
+      trackPaint..color = trackPaint.color.withValues(alpha: 0.18),
     );
 
     // Filled
     if (progress > 0) {
       final filledPaint = Paint()
         ..shader = const LinearGradient(
-          colors: [AppColors.ocean, AppColors.glaucous, AppColors.wisteria, AppColors.berry, AppColors.berryDeep],
+          colors: [
+            AppColors.ocean,
+            AppColors.glaucous,
+            AppColors.wisteria,
+            AppColors.berry,
+            AppColors.berryDeep,
+          ],
         ).createShader(Rect.fromLTWH(0, barTop, w, barH));
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -728,9 +769,21 @@ class AnmTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const items = [
-      (icon: Icons.explore_outlined, activeIcon: Icons.explore, label: 'Khám phá'),
-      (icon: Icons.favorite_border, activeIcon: Icons.favorite, label: 'Wishlist'),
-      (icon: Icons.chat_bubble_outline, activeIcon: Icons.chat_bubble, label: 'Chat'),
+      (
+        icon: Icons.explore_outlined,
+        activeIcon: Icons.explore,
+        label: 'Khám phá',
+      ),
+      (
+        icon: Icons.favorite_border,
+        activeIcon: Icons.favorite,
+        label: 'Wishlist',
+      ),
+      (
+        icon: Icons.chat_bubble_outline,
+        activeIcon: Icons.chat_bubble,
+        label: 'Chat',
+      ),
       (icon: Icons.person_outline, activeIcon: Icons.person, label: 'Mình'),
     ];
 
@@ -790,8 +843,8 @@ class _TabItemState extends State<_TabItem> {
     final color = widget.active
         ? AppColors.berry
         : _hovered
-            ? AppColors.berry.withOpacity(0.55)
-            : AppColors.ink50;
+        ? AppColors.berry.withValues(alpha: 0.55)
+        : AppColors.ink50;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -804,7 +857,11 @@ class _TabItemState extends State<_TabItem> {
         onTapCancel: () => setState(() => _pressed = false),
         behavior: HitTestBehavior.opaque,
         child: AnimatedScale(
-          scale: _pressed ? 0.88 : _hovered ? 1.10 : 1.0,
+          scale: _pressed
+              ? 0.88
+              : _hovered
+              ? 1.10
+              : 1.0,
           duration: const Duration(milliseconds: 120),
           curve: Curves.easeOut,
           child: SizedBox(
@@ -814,10 +871,8 @@ class _TabItemState extends State<_TabItem> {
               children: [
                 AnimatedSwitcher(
                   duration: const Duration(milliseconds: 200),
-                  transitionBuilder: (child, anim) => ScaleTransition(
-                    scale: anim,
-                    child: child,
-                  ),
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
                   child: Icon(
                     widget.active ? widget.activeIcon : widget.icon,
                     key: ValueKey(widget.active),

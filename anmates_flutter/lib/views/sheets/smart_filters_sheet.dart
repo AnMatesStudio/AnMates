@@ -5,7 +5,11 @@ import '../../theme/app_theme.dart';
 class SmartFiltersSheet extends StatefulWidget {
   final PlaceFilter filter;
   final ValueChanged<PlaceFilter> onApply;
-  const SmartFiltersSheet({super.key, required this.filter, required this.onApply});
+  const SmartFiltersSheet({
+    super.key,
+    required this.filter,
+    required this.onApply,
+  });
 
   @override
   State<SmartFiltersSheet> createState() => _SmartFiltersSheetState();
@@ -34,7 +38,7 @@ class _SmartFiltersSheetState extends State<SmartFiltersSheet> {
       minChildSize: 0.4,
       builder: (_, ctrl) => Container(
         decoration: const BoxDecoration(
-          color: const Color(0xFF1E1E2E),
+          color: Color(0xFF1E1E2E),
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: ListView(
@@ -94,7 +98,7 @@ class _SmartFiltersSheetState extends State<SmartFiltersSheet> {
                 const Spacer(),
                 Switch(
                   value: _filter.openNow,
-                  activeColor: AppColors.berry,
+                  activeThumbColor: AppColors.berry,
                   onChanged: (v) => setState(() => _filter.openNow = v),
                 ),
               ],
@@ -102,7 +106,11 @@ class _SmartFiltersSheetState extends State<SmartFiltersSheet> {
             const SizedBox(height: 12),
             const Text(
               'Phù hợp với',
-              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -113,10 +121,13 @@ class _SmartFiltersSheetState extends State<SmartFiltersSheet> {
                     (o) => GestureDetector(
                       onTap: () => setState(() => _filter.suitableFor = o),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
                         decoration: BoxDecoration(
                           color: _filter.suitableFor == o
-                              ? AppColors.berry.withOpacity(0.3)
+                              ? AppColors.berry.withValues(alpha: 0.3)
                               : const Color(0xFF2D2D42),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
@@ -194,7 +205,10 @@ class _SliderRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+            ),
             const Spacer(),
             Text(
               '${value.toStringAsFixed(unit == 'km' ? 1 : 0)}$unit',
@@ -211,7 +225,7 @@ class _SliderRow extends StatelessWidget {
             activeTrackColor: AppColors.berry,
             inactiveTrackColor: const Color(0xFF2D2D42),
             thumbColor: AppColors.berry,
-            overlayColor: AppColors.berry.withOpacity(0.2),
+            overlayColor: AppColors.berry.withValues(alpha: 0.2),
           ),
           child: Slider(
             value: value.clamp(min, max),

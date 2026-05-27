@@ -18,16 +18,14 @@ class MatchCandidate {
   });
 
   factory MatchCandidate.fromJson(Map<String, dynamic> j) => MatchCandidate(
-        userId: j['user_id'] as String,
-        name: j['name'] as String,
-        avatarUrl: j['avatar_url'] as String?,
-        overlapCount: j['overlap_count'] as int,
-        overlapFoods: (j['overlap_foods'] as List?)
-                ?.map((e) => e as String)
-                .toList() ??
-            [],
-        score: (j['score'] as num).toDouble(),
-      );
+    userId: j['user_id'] as String,
+    name: j['name'] as String,
+    avatarUrl: j['avatar_url'] as String?,
+    overlapCount: j['overlap_count'] as int,
+    overlapFoods:
+        (j['overlap_foods'] as List?)?.map((e) => e as String).toList() ?? [],
+    score: (j['score'] as num).toDouble(),
+  );
 
   int get vibeScore => (score * 100).round();
 }
@@ -52,16 +50,16 @@ class ApiMatch {
   });
 
   factory ApiMatch.fromJson(Map<String, dynamic> j) => ApiMatch(
-        id: j['match_id'] as String,
-        partnerName: j['partner_name'] as String,
-        partnerAvatarUrl: j['partner_avatar_url'] as String?,
-        lastMessage: j['last_message'] as String?,
-        lastMessageAt: j['last_message_at'] != null
-            ? DateTime.parse(j['last_message_at'] as String)
-            : null,
-        score: (j['score'] as num).toDouble(),
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['match_id'] as String,
+    partnerName: j['partner_name'] as String,
+    partnerAvatarUrl: j['partner_avatar_url'] as String?,
+    lastMessage: j['last_message'] as String?,
+    lastMessageAt: j['last_message_at'] != null
+        ? DateTime.parse(j['last_message_at'] as String)
+        : null,
+    score: (j['score'] as num).toDouble(),
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 }
 
 class ApiMessage {
@@ -82,13 +80,13 @@ class ApiMessage {
   });
 
   factory ApiMessage.fromJson(Map<String, dynamic> j) => ApiMessage(
-        id: j['id'] as String,
-        matchId: j['match_id'] as String,
-        senderId: j['sender_id'] as String,
-        content: j['content'] as String,
-        msgType: j['msg_type'] as String,
-        createdAt: DateTime.parse(j['created_at'] as String),
-      );
+    id: j['id'] as String,
+    matchId: j['match_id'] as String,
+    senderId: j['sender_id'] as String,
+    content: j['content'] as String,
+    msgType: j['msg_type'] as String,
+    createdAt: DateTime.parse(j['created_at'] as String),
+  );
 }
 
 class MatchService {
@@ -119,8 +117,7 @@ class MatchService {
         .toList();
   }
 
-  Future<List<ApiMessage>> getHistory(String matchId,
-      {int limit = 50}) async {
+  Future<List<ApiMessage>> getHistory(String matchId, {int limit = 50}) async {
     final data =
         await _api.get('/api/matches/$matchId/messages?limit=$limit') as List;
     return data

@@ -107,4 +107,3 @@ func (w *Wishlist) Delete(c *fiber.Ctx) error {
 	}
 	return models.OK(c, fiber.Map{"deleted": id})
 }
-

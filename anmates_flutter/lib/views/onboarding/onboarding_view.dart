@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
@@ -68,14 +69,24 @@ class _OnboardingViewState extends State<OnboardingView> {
     return Scaffold(
       body: Stack(
         children: [
-          PageView(
-            controller: _pageController,
-            onPageChanged: (i) => setState(() => _currentPage = i),
-            children: const [
-              _Step1Page(),
-              _Step2Page(),
-              _Step3Page(),
-            ],
+          ScrollConfiguration(
+            // Enable horizontal swipe via touch + mouse + trackpad + stylus
+            // (Flutter web disables mouse drag on scroll widgets by default).
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: const {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+                PointerDeviceKind.trackpad,
+                PointerDeviceKind.stylus,
+              },
+              scrollbars: false,
+            ),
+            child: PageView(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(),
+              onPageChanged: (i) => setState(() => _currentPage = i),
+              children: const [_Step1Page(), _Step2Page(), _Step3Page()],
+            ),
           ),
           // Top bar overlay
           SafeArea(
@@ -169,7 +180,7 @@ class _BottomControls extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.berry.withOpacity(0.35),
+                    color: AppColors.berry.withValues(alpha: 0.35),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   ),
@@ -210,6 +221,19 @@ class _StepLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Responsive scaling — small iPhones (≤375pt: SE/mini) get tighter spacing
+    // and smaller title; larger devices (Pro Max) keep generous spacing.
+    final media = MediaQuery.of(context);
+    final w = media.size.width;
+    final h = media.size.height;
+    final isCompact = w <= 380 || h <= 700;
+
+    final illustrationTopPad = isCompact ? 56.0 : 88.0;
+    final bottomPad = isCompact ? 100.0 : 120.0;
+    final titleSize = isCompact ? 28.0 : 32.0;
+    final bodySize = isCompact ? 14.0 : 15.0;
+    final horizontalPad = isCompact ? 22.0 : 28.0;
+
     return Container(
       color: backgroundColor,
       child: Column(
@@ -219,33 +243,42 @@ class _StepLayout extends StatelessWidget {
           Expanded(
             flex: 5,
             child: Padding(
-              padding: const EdgeInsets.only(top: 100),
+              padding: EdgeInsets.only(
+                top: illustrationTopPad,
+                left: 16,
+                right: 16,
+              ),
               child: Center(child: illustration),
             ),
           ),
           // Text area
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 0, 28, 120),
+            padding: EdgeInsets.fromLTRB(
+              horizontalPad,
+              0,
+              horizontalPad,
+              bottomPad,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Eyebrow(eyebrow),
-                const SizedBox(height: 10),
+                SizedBox(height: isCompact ? 8 : 10),
                 Text(
                   title,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 32,
+                    fontSize: titleSize,
                     fontWeight: FontWeight.w800,
                     color: AppColors.ink,
                     height: 1.15,
                     letterSpacing: -1.2,
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: isCompact ? 10 : 12),
                 Text(
                   body,
                   style: GoogleFonts.beVietnamPro(
-                    fontSize: 15,
+                    fontSize: bodySize,
                     color: AppColors.ink70,
                     height: 1.55,
                   ),
@@ -269,152 +302,310 @@ class _Step1Page extends StatelessWidget {
       backgroundColor: AppColors.mint,
       eyebrow: '01 · Chọn quán trước',
       title: 'Hôm nay ăn gì?\nChạm là ra ngay.',
-      body: 'Lắc nhẹ, vuốt nhanh — ĂnMates gợi ý quán vừa túi tiền, vừa tâm trạng, đúng lúc bạn đói nhất.',
-      illustration: _Step1Illustration(),
+      body:
+          'Khám phá theo Genre & Vibe — lẩu sùng sục, cafe khuất hẻm, quán nướng xì xèo... Bookmark vào Wishlist để tính sau.',
+      illustration: const _Step1Illustration(),
     );
   }
 }
 
+enum _FoodKind { lau, cafe, nuong, vat }
+
 class _Step1Illustration extends StatelessWidget {
-  static const _cards = [
-    (label: 'LẨU', angle: -8.0, top: 20.0, left: 10.0, color: AppColors.wisteria),
-    (label: 'CAFE CHILL', angle: 6.0, top: 0.0, left: 90.0, color: AppColors.glaucous),
-    (label: 'ĐỒ NƯỚNG', angle: -4.0, top: 80.0, left: 30.0, color: AppColors.berry),
-    (label: 'ĂN VẶT', angle: 10.0, top: 60.0, left: 110.0, color: AppColors.ocean),
+  const _Step1Illustration();
+
+  static const _cards = <_CardSpec>[
+    _CardSpec(
+      label: 'LẨU',
+      display: 'Lẩu',
+      kind: _FoodKind.lau,
+      angleDeg: -8.0,
+      top: 0.0,
+      left: 14.0,
+      accent: AppColors.berry,
+      delayMs: 0,
+    ),
+    _CardSpec(
+      label: 'CAFE CHILL',
+      display: 'Cafe chill',
+      kind: _FoodKind.cafe,
+      angleDeg: 6.0,
+      top: 6.0,
+      left: 148.0,
+      accent: AppColors.wisteriaDeep,
+      delayMs: 90,
+    ),
+    _CardSpec(
+      label: 'ĐỒ NƯỚNG',
+      display: 'Đồ nướng',
+      kind: _FoodKind.nuong,
+      angleDeg: -4.0,
+      top: 170.0,
+      left: 24.0,
+      accent: AppColors.berryDeep,
+      delayMs: 180,
+    ),
+    _CardSpec(
+      label: 'ĂN VẶT',
+      display: 'ăn vặt',
+      kind: _FoodKind.vat,
+      angleDeg: 10.0,
+      top: 162.0,
+      left: 158.0,
+      accent: AppColors.ocean,
+      delayMs: 270,
+    ),
   ];
+
+  // Intrinsic dimensions of the polaroid stage — FittedBox scales it down
+  // on small screens (iPhone 11/12/13 logical width 375pt).
+  static const double _stageW = 300;
+  static const double _stageH = 340;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 280,
-      height: 220,
-      child: Stack(
-        children: _cards.map((c) {
-          return Positioned(
-            top: c.top,
-            left: c.left,
-            child: Transform.rotate(
-              angle: c.angle * 3.14159 / 180,
-              child: _FoodCard(label: c.label, accentColor: c.color),
+    return FittedBox(
+      fit: BoxFit.contain,
+      alignment: Alignment.topCenter,
+      child: SizedBox(
+        width: _stageW,
+        height: _stageH,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            // Sparkle accent (top-right, near Cafe chill card)
+            const Positioned(
+              top: -8,
+              right: 6,
+              child: Sparkle(size: 26, color: AppColors.berry, animated: true),
             ),
-          );
-        }).toList(),
+            for (int i = 0; i < _cards.length; i++)
+              Positioned(
+                top: _cards[i].top,
+                left: _cards[i].left,
+                child: _FoodCard(spec: _cards[i]),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _FoodCard extends StatefulWidget {
+class _CardSpec {
   final String label;
-  final Color accentColor;
+  final String display;
+  final _FoodKind kind;
+  final double angleDeg;
+  final double top;
+  final double left;
+  final Color accent;
+  final int delayMs;
 
-  const _FoodCard({required this.label, required this.accentColor});
+  const _CardSpec({
+    required this.label,
+    required this.display,
+    required this.kind,
+    required this.angleDeg,
+    required this.top,
+    required this.left,
+    required this.accent,
+    required this.delayMs,
+  });
+}
+
+class _FoodCard extends StatefulWidget {
+  final _CardSpec spec;
+
+  const _FoodCard({required this.spec});
 
   @override
   State<_FoodCard> createState() => _FoodCardState();
 }
 
-class _FoodCardState extends State<_FoodCard> with SingleTickerProviderStateMixin {
+class _FoodCardState extends State<_FoodCard> with TickerProviderStateMixin {
   bool _hovered = false;
+  bool _pressed = false;
+
   late final AnimationController _floatCtrl;
   late final Animation<double> _floatAnim;
+
+  late final AnimationController _enterCtrl;
+  late final Animation<double> _enterScale;
+  late final Animation<double> _enterFade;
+  late final Animation<double> _enterOffset;
 
   @override
   void initState() {
     super.initState();
-    // Different duration per card so they float out of sync
-    final durationMs = 2000 + (widget.label.hashCode.abs() % 600);
+
+    // Ambient float (out-of-sync per card)
+    final floatMs = 2200 + (widget.spec.label.hashCode.abs() % 800);
     _floatCtrl = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: durationMs),
+      duration: Duration(milliseconds: floatMs),
     );
-    _floatAnim = Tween<double>(begin: -5.0, end: 5.0).animate(
-      CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut),
+    _floatAnim = Tween<double>(
+      begin: -4.0,
+      end: 4.0,
+    ).animate(CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut));
+
+    // Staggered drop-in entry
+    _enterCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
     );
-    // Stagger start using label length so cards don't all move together
-    final delayMs = (widget.label.length * 120) % 900;
-    Future.delayed(Duration(milliseconds: delayMs), () {
-      if (mounted) _floatCtrl.repeat(reverse: true);
+    _enterScale = Tween<double>(
+      begin: 0.72,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _enterCtrl, curve: Curves.elasticOut));
+    _enterFade = CurvedAnimation(
+      parent: _enterCtrl,
+      curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
+    );
+    _enterOffset = Tween<double>(
+      begin: 36.0,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOutCubic));
+
+    Future.delayed(Duration(milliseconds: widget.spec.delayMs), () {
+      if (!mounted) return;
+      _enterCtrl.forward().then((_) {
+        final floatDelay = (widget.spec.label.length * 90) % 600;
+        Future.delayed(Duration(milliseconds: floatDelay), () {
+          if (mounted) _floatCtrl.repeat(reverse: true);
+        });
+      });
     });
   }
 
   @override
   void dispose() {
     _floatCtrl.dispose();
+    _enterCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Slightly straighten when hovered (snap to upright reads as "selecting")
+    final liveAngleDeg = _hovered
+        ? widget.spec.angleDeg * 0.35
+        : widget.spec.angleDeg;
+    final scale = _pressed
+        ? 0.94
+        : _hovered
+        ? 1.08
+        : 1.0;
+
     return AnimatedBuilder(
-      animation: _floatAnim,
-      builder: (_, child) => Transform.translate(
-        offset: Offset(0, _floatAnim.value),
-        child: child,
-      ),
+      animation: Listenable.merge([_floatCtrl, _enterCtrl]),
+      builder: (_, child) {
+        return Opacity(
+          opacity: _enterFade.value,
+          child: Transform.translate(
+            offset: Offset(0, _floatAnim.value + _enterOffset.value),
+            child: Transform.scale(scale: _enterScale.value, child: child),
+          ),
+        );
+      },
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         cursor: SystemMouseCursors.click,
-        child: AnimatedScale(
-          scale: _hovered ? 1.07 : 1.0,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 120,
-            height: 150,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: widget.accentColor
-                      .withOpacity(_hovered ? 0.35 : 0.20),
-                  blurRadius: _hovered ? 24 : 14,
-                  offset: Offset(0, _hovered ? 10 : 6),
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedRotation(
+            turns: liveAngleDeg / 360,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutBack,
+            child: AnimatedScale(
+              scale: scale,
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOut,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                width: 122,
+                height: 156,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.spec.accent.withValues(
+                        alpha: _hovered ? 0.42 : 0.18,
+                      ),
+                      blurRadius: _hovered ? 28 : 16,
+                      offset: Offset(0, _hovered ? 14 : 8),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: _hovered
+                        ? widget.spec.accent.withValues(alpha: 0.45)
+                        : AppColors.ink10,
+                    width: 1,
+                  ),
                 ),
-              ],
-              border: Border.all(
-                color: _hovered
-                    ? widget.accentColor.withOpacity(0.35)
-                    : AppColors.ink10,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
+                  child: Column(
+                    children: [
+                      // Polaroid photo area — illustrated food asset
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              AnimatedScale(
+                                scale: _hovered ? 1.08 : 1.0,
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOut,
+                                child: Image.asset(
+                                  _assetFor(widget.spec.kind),
+                                  fit: BoxFit.cover,
+                                  filterQuality: FilterQuality.medium,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      // Polaroid caption (formal label)
+                      Text(
+                        widget.spec.display,
+                        style: GoogleFonts.beVietnamPro(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: widget.accentColor
-                        .withOpacity(_hovered ? 0.22 : 0.15),
-                  ),
-                  child: Center(
-                    child: Icon(Icons.restaurant,
-                        color: widget.accentColor, size: 28),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  widget.label,
-                  style: AppTextStyles.mono(
-                    size: 10,
-                    weight: FontWeight.w700,
-                    color: AppColors.ink,
-                    letterSpacing: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
             ),
           ),
         ),
       ),
     );
+  }
+}
+
+// ─── Food kind → asset path ──────────────────────────────────────────────────
+String _assetFor(_FoodKind kind) {
+  switch (kind) {
+    case _FoodKind.lau:
+      return 'assets/food/lau.png';
+    case _FoodKind.cafe:
+      return 'assets/food/cafe.png';
+    case _FoodKind.nuong:
+      return 'assets/food/nuong.png';
+    case _FoodKind.vat:
+      return 'assets/food/vat.png';
   }
 }
 
@@ -428,7 +619,8 @@ class _Step2Page extends StatelessWidget {
       backgroundColor: const Color(0xFFFAF1F5),
       eyebrow: '02 · Match cùng quán',
       title: 'Ai cũng đang\nthèm quán này?',
-      body: 'Xem ai trong vùng đang đói cùng món. Ghép Mate, hẹn bàn, chia bill — không còn ăn một mình.',
+      body:
+          'Xem ai trong vùng đang đói cùng món. Ghép Mate, hẹn bàn, chia bill — không còn ăn một mình.',
       illustration: const _Step2Illustration(),
     );
   }
@@ -460,10 +652,7 @@ class _Step2Illustration extends StatelessWidget {
               child: _MateCard(hue: 1),
             ),
           ),
-          Positioned(
-            top: 0,
-            child: _MateCard(hue: 0),
-          ),
+          Positioned(top: 0, child: _MateCard(hue: 0)),
           // Berry heart badge
           Positioned(
             top: 0,
@@ -476,7 +665,7 @@ class _Step2Illustration extends StatelessWidget {
                 color: AppColors.berry,
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.berry.withOpacity(0.4),
+                    color: AppColors.berry.withValues(alpha: 0.4),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -547,7 +736,7 @@ class _MateCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.berry.withOpacity(0.1),
+                color: AppColors.berry.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -576,7 +765,8 @@ class _Step3Page extends StatelessWidget {
       backgroundColor: const Color(0xFFF2EEFB),
       eyebrow: '03 · Nồi lẩu tự sôi',
       title: 'Trò chuyện đủ\nấm, mới chốt kèo.',
-      body: 'Vibe check từng bước — từ chat đến bữa ăn thật. Điểm tin cậy minh bạch, không sến, không lo.',
+      body:
+          'Vibe check từng bước — từ chat đến bữa ăn thật. Điểm tin cậy minh bạch, không sến, không lo.',
       illustration: const _Step3Illustration(),
     );
   }
@@ -652,12 +842,14 @@ class _HotpotPainter extends CustomPainter {
     canvas.drawPath(lidPath, lidPaint);
 
     // Handle knob
-    final knobPaint = Paint()..color = AppColors.mint..style = PaintingStyle.fill;
+    final knobPaint = Paint()
+      ..color = AppColors.mint
+      ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(w * 0.5, h * 0.2), 10, knobPaint);
 
     // Steam lines (wisteria)
     final steamPaint = Paint()
-      ..color = AppColors.wisteria.withOpacity(0.6)
+      ..color = AppColors.wisteria.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
@@ -666,9 +858,12 @@ class _HotpotPainter extends CustomPainter {
       final path = Path()
         ..moveTo(w * x, h * 0.15)
         ..cubicTo(
-          w * (x - 0.04), h * 0.08,
-          w * (x + 0.04), h * 0.04,
-          w * x, h * -0.02,
+          w * (x - 0.04),
+          h * 0.08,
+          w * (x + 0.04),
+          h * 0.04,
+          w * x,
+          h * -0.02,
         );
       canvas.drawPath(path, steamPaint);
     }
@@ -713,7 +908,7 @@ class _VibeBarSimple extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: AppColors.wisteria.withOpacity(0.2),
+            color: AppColors.wisteria.withValues(alpha: 0.2),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -725,10 +920,7 @@ class _VibeBarSimple extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'VIBE CHECK',
-                style: AppTextStyles.eyebrow(),
-              ),
+              Text('VIBE CHECK', style: AppTextStyles.eyebrow()),
               RichText(
                 text: TextSpan(
                   children: [
@@ -742,7 +934,10 @@ class _VibeBarSimple extends StatelessWidget {
                     ),
                     TextSpan(
                       text: '/100',
-                      style: AppTextStyles.mono(size: 11, color: AppColors.ink50),
+                      style: AppTextStyles.mono(
+                        size: 11,
+                        color: AppColors.ink50,
+                      ),
                     ),
                   ],
                 ),
@@ -761,7 +956,11 @@ class _VibeBarSimple extends StatelessWidget {
                 child: Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.ocean, AppColors.wisteria, AppColors.berry],
+                      colors: [
+                        AppColors.ocean,
+                        AppColors.wisteria,
+                        AppColors.berry,
+                      ],
                     ),
                   ),
                 ),
