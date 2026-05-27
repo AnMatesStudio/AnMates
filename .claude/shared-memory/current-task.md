@@ -1,6 +1,6 @@
 # Current Task
 
-**Status:** in-progress (FE-UI-007 ✅ Screen 03 done — next: FE-UI-008 Screen 04)
+**Status:** in-progress (FE-UI-007 ✅ Screen 03 in-review — next: FE-UI-008 Screen 04)
 **Owner:** main-assistant
 **Started at:** 2026-05-26
 **Last updated:** 2026-05-27
