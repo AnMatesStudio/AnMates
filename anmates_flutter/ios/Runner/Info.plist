@@ -2,6 +2,14 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Location usage descriptions — required by iOS before any permission request.
+	     Without these keys the app crashes with NSException on requestPermission(). -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>AnMates dùng vị trí để xác minh bạn đang trên đường đến điểm hẹn — chỉ bật 45 phút trước giờ hẹn.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AnMates cần vị trí nền để xác minh cả hai đang trên đường — chỉ 45 phút trước giờ hẹn, không bao giờ chia sẻ vị trí thô.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>AnMates cần vị trí nền để xác minh cả hai đang trên đường đến quán.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
