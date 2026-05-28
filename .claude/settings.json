@@ -8,7 +8,9 @@
       "mcp__claude_ai_Atlassian_Rovo__addCommentToJiraIssue",
       "PowerShell(netstat -ano)",
       "Bash(cd /tmp)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Read(//c//**)",
+      "PowerShell(& \"C:\\\\src\\\\flutter\\\\bin\\\\flutter.bat\" analyze \"C:\\\\AnM\\\\AnMates\\\\anmates_flutter\\\\lib\\\\views\\\\onboarding\\\\onboarding_view.dart\" 2>&1)"
     ]
   }
 }
