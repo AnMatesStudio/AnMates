@@ -39,7 +39,7 @@ These are forward-looking architectural choices: choosing wrong locks in fragmen
 
 ### Decision
 
-**Three principles, encoded:**
+**Four principles, encoded:**
 
 1. **Never merge CI and CD into the same workflow file.**
    They differ on ≥3 of {concurrency policy, permissions, secret access, trigger event, re-run semantics, branch-protection role, failure blast radius}. Mixing them produces god files that are hard to reason about, hard to permission correctly, and dangerous to re-run.
@@ -53,6 +53,9 @@ These are forward-looking architectural choices: choosing wrong locks in fragmen
 
 3. **Reusable workflows only at rule-of-three.**
    1-2 duplications → leave duplicated. 3+ duplications → extract `_*.yml` reusable invoked via `workflow_call`. Mobile (iOS+Android) is when we cross that threshold.
+
+4. **Version build artifacts by SHA, release artifacts by semver.** (added 2026-05-27, user-driven)
+   Decided to keep `github.sha` as the Cloud Run container image tag, NOT a pretty `v1.<run_number>.<attempt>`. Deciding question = *who reads this identifier?* Machine-facing plumbing (container images, build bundles, deploy manifests) → SHA, because the only useful question at incident time is "which commit is running?" and `run_number` is not idempotent (re-runs mint new numbers for identical code). Human-facing release artifacts (mobile app on App Store/Play) → semver `v1.47.2`, because users/reviewers read it and stores require monotonic increase. Semver therefore belongs in `cd.flutter-{android,ios}.yml` (release-gated), never in the continuously-deployed backend. Full reasoning: WORKFLOW-ARCHITECTURE.md principle #6.
 
 ### Consequences
 

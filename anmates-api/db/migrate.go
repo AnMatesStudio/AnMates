@@ -13,9 +13,31 @@ import (
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
+// migrationLockID is a fixed advisory lock key used to serialise concurrent migration runs.
+const migrationLockID = 8742935791023456
+
 // Migrate applies any *.sql files in migrations/ that haven't been recorded
 // in schema_migrations. Files run in lexicographic order inside a single tx each.
+// A pg_try_advisory_lock on a dedicated connection prevents two instances from
+// running migrations concurrently on startup (advisory locks are session/connection-scoped).
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire conn for advisory lock: %w", err)
+	}
+	defer conn.Release()
+
+	var acquired bool
+	if err := conn.QueryRow(ctx,
+		"SELECT pg_try_advisory_lock($1)", migrationLockID,
+	).Scan(&acquired); err != nil {
+		return fmt.Errorf("advisory lock: %w", err)
+	}
+	if !acquired {
+		return fmt.Errorf("migrations already running on another instance (pg_try_advisory_lock returned false)")
+	}
+	defer conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", migrationLockID) //nolint:errcheck // best-effort unlock; connection drop releases it automatically
+
 	if _, err := pool.Exec(ctx, `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version text PRIMARY KEY,

@@ -64,13 +64,20 @@ jobs:
         id: build
         working-directory: anmates-api
         run: |
-          IMAGE_TAG="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}:${{ github.sha }}"
-          IMAGE_LATEST="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}:latest"
-          gcloud builds submit \
-            --tag "$IMAGE_TAG" \
-            --quiet
-          # Also tag as :latest for traceability (Artifact Registry supports multi-tag)
-          gcloud artifacts docker tags add "$IMAGE_TAG" "$IMAGE_LATEST"
+          # Build on the runner and push straight to Artifact Registry.
+          # We intentionally do NOT use `gcloud builds submit` (Cloud Build):
+          # it streams logs to the terminal and that requires the caller to be
+          # project Viewer/Owner — which our least-privilege SA is not, so the
+          # command exits 1 even though the build itself succeeds. Building here
+          # is also faster (no tarball upload/queue) and cheaper (no CB minutes).
+          # The `gcloud auth configure-docker` step above set up the credential
+          # helper, so `docker push` to AR just works with the SA's token.
+          AR_BASE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}"
+          IMAGE_TAG="${AR_BASE}:${{ github.sha }}"
+          IMAGE_LATEST="${AR_BASE}:latest"
+          docker build -t "$IMAGE_TAG" -t "$IMAGE_LATEST" .
+          docker push "$IMAGE_TAG"
+          docker push "$IMAGE_LATEST"
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
       - name: Capture previous Cloud Run revision (for rollback)

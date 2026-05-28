@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/anmates/api/models"
+	"github.com/anmates/api/internal/httputil"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/time/rate"
 )
@@ -41,7 +41,7 @@ func (rl *RateLimit) Handler() fiber.Handler {
 		allowed := v.limiter.Allow()
 		v.mu.Unlock()
 		if !allowed {
-			return models.Err(c, fiber.StatusTooManyRequests, models.ErrRateLimited, "rate limit exceeded")
+			return httputil.Err(c, fiber.StatusTooManyRequests, httputil.ErrRateLimited, "rate limit exceeded")
 		}
 		return c.Next()
 	}

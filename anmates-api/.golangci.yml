@@ -1,0 +1,72 @@
+version: "2"
+
+run:
+  timeout: 3m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - errcheck       # unchecked errors (critical for DB + HTTP calls)
+    - govet          # go vet checks
+    - staticcheck    # SA* rules — most valuable static analysis suite
+    - unused         # exported/unexported symbols never referenced
+    - bodyclose      # HTTP response bodies not closed
+    - noctx          # http.NewRequest without context
+    - revive         # golint replacement — naming, exports, comments
+    - gocritic       # 100+ style + correctness checks
+    - misspell       # typos in comments and string literals
+    - nolintlint     # validates //nolint: directives are accurate
+
+  settings:
+    errcheck:
+      exclude-functions:
+        - (*github.com/jackc/pgx/v5/pgxpool.Pool).Close
+        - (*github.com/jackc/pgx/v5.Tx).Rollback
+        - (net/http.Response.Body).Close
+
+    revive:
+      rules:
+        - name: var-naming
+        - name: blank-imports
+        - name: context-as-argument
+        - name: error-return
+        - name: error-strings
+        - name: increment-decrement
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: unused-parameter
+          severity: warning
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+      disabled-checks:
+        - paramTypeCombine
+
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA1019"
+        - "-ST1000"
+
+  exclusions:
+    rules:
+      - path: db/migrate\.go
+        linters: [errcheck]
+        text: "pg_advisory_unlock"
+
+      - path: smoke/
+        linters: [bodyclose, noctx, errcheck]
+
+      - path: internal/httputil/
+        linters: [revive]
+        text: "interface\\{\\}"
+
+issues:
+  uniq-by-line: true
+  max-issues-per-linter: 0
+  max-same-issues: 0

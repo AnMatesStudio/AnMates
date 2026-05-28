@@ -23,14 +23,14 @@ type MessageHandler func(matchID, senderID uuid.UUID, env Envelope) (Envelope, e
 // Client wraps one WebSocket connection. read/write run as goroutines.
 type Client struct {
 	conn    *websocket.Conn
-	hub     *Hub
+	hub     HubI
 	matchID uuid.UUID
 	userID  uuid.UUID
 	send    chan []byte
 	onMsg   MessageHandler
 }
 
-func NewClient(conn *websocket.Conn, hub *Hub, matchID, userID uuid.UUID, onMsg MessageHandler) *Client {
+func NewClient(conn *websocket.Conn, hub HubI, matchID, userID uuid.UUID, onMsg MessageHandler) *Client {
 	return &Client{
 		conn:    conn,
 		hub:     hub,
@@ -43,9 +43,9 @@ func NewClient(conn *websocket.Conn, hub *Hub, matchID, userID uuid.UUID, onMsg 
 
 // Run blocks until the connection closes. Spawns the writer; reader runs inline.
 func (c *Client) Run() {
-	c.hub.join(c.matchID, c)
+	c.hub.Join(c.matchID, c)
 	defer func() {
-		c.hub.leave(c.matchID, c)
+		c.hub.Leave(c.matchID, c)
 		_ = c.conn.Close()
 	}()
 
@@ -81,7 +81,7 @@ func (c *Client) readLoop() {
 			continue
 		}
 		if out.Type != "" {
-			c.hub.Broadcast(c.matchID, c, out)
+			c.hub.Broadcast(c.matchID, c.userID, out)
 		}
 	}
 }

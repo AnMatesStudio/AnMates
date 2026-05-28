@@ -57,8 +57,9 @@ gcloud services enable \
   sts.googleapis.com \
   run.googleapis.com \
   artifactregistry.googleapis.com \
-  cloudbuild.googleapis.com \
   --quiet
+# cloudbuild.googleapis.com intentionally NOT enabled — images are built on
+# the GitHub runner (docker build/push), not Cloud Build. See cd.go-api.yml.
 ok "APIs enabled"
 
 # ───────────────── Workload Identity Pool ─────────────────────
@@ -118,13 +119,14 @@ ok "Impersonation binding set"
 log "Granting deploy roles to service account..."
 ROLES=(
   "roles/run.admin"                          # deploy/update Cloud Run services
-  "roles/artifactregistry.writer"            # push Docker images
-  "roles/cloudbuild.builds.editor"           # submit Cloud Build jobs
-  "roles/storage.admin"                      # Cloud Build staging bucket
+  "roles/artifactregistry.writer"            # push Docker images (docker push to AR)
   "roles/iam.serviceAccountUser"             # actAs Cloud Run runtime SA
   "roles/firebasehosting.admin"              # Firebase Hosting deploy
   "roles/firebase.viewer"                    # required by firebase-tools auth
   "roles/serviceusage.serviceUsageConsumer"  # firebase-tools API enablement
+  # NOTE: cloudbuild.builds.editor + storage.admin removed — we build images
+  # on the GitHub runner with `docker build/push`, not `gcloud builds submit`.
+  # See .github/workflows/cd.go-api.yml "Build + push image" step for why.
 )
 for role in "${ROLES[@]}"; do
   gcloud projects add-iam-policy-binding "$PROJECT_ID" \

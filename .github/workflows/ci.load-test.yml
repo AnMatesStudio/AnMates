@@ -1,0 +1,107 @@
+name: CI · Load Test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'anmates-api/**'
+      - 'load-test/**'
+      - '.github/workflows/ci.load-test.yml'
+
+concurrency:
+  group: ci.load-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load-test:
+    name: k6 stress test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ── Detect which API handlers changed → run only those scenarios ──────
+      - name: Detect changed handlers
+        id: handlers
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.sha }}"
+
+          CHANGED=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" -- anmates-api/ 2>/dev/null || true)
+          echo "Changed files under anmates-api/:"
+          echo "${CHANGED:-  (none)}"
+
+          TARGETS=""
+          CROSS_CUTTING=false
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              anmates-api/handlers/auth.go|anmates-api/services/auth.go)
+                TARGETS="$TARGETS auth" ;;
+              anmates-api/handlers/user.go|anmates-api/services/user.go)
+                TARGETS="$TARGETS user" ;;
+              anmates-api/handlers/wishlist.go|anmates-api/services/wishlist.go)
+                TARGETS="$TARGETS wishlist" ;;
+              anmates-api/handlers/matching.go|anmates-api/services/matching.go|\
+              anmates-api/handlers/noi_lau.go|anmates-api/services/noi_lau.go|\
+              anmates-api/handlers/chat.go|anmates-api/services/chat.go)
+                TARGETS="$TARGETS matching" ;;
+              anmates-api/main.go|\
+              anmates-api/config/*|\
+              anmates-api/middleware/*|\
+              anmates-api/db/*|\
+              anmates-api/models/*|\
+              anmates-api/ws/*)
+                CROSS_CUTTING=true ;;
+            esac
+          done <<< "$CHANGED"
+
+          if [ "$CROSS_CUTTING" = "true" ] || [ -z "$(echo "$TARGETS" | tr -d ' ')" ]; then
+            echo "target_handlers=all" >> "$GITHUB_OUTPUT"
+            echo "→ Running: all handlers"
+          else
+            UNIQUE=$(echo "$TARGETS" | tr ' ' '\n' | sort -u | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
+            echo "target_handlers=$UNIQUE" >> "$GITHUB_OUTPUT"
+            echo "→ Running: $UNIQUE"
+          fi
+
+      # ── Build + run k6 against a real DB + API ────────────────────────────
+      - name: Run load test (CI — ${{ steps.handlers.outputs.target_handlers }})
+        id: k6
+        env:
+          CI_MODE: "true"
+          PEAK_VUS: "50"
+          USER_POOL: "50"
+          TARGET_HANDLERS: ${{ steps.handlers.outputs.target_handlers }}
+          K6_WEB_DASHBOARD: "false"
+        run: |
+          mkdir -p load-test/results
+          touch load-test/results/raw.json load-test/results/report.html
+          chmod -R 777 load-test/results
+          cd load-test
+          docker compose up --build --exit-code-from k6
+
+      # ── Human-readable summary (runs even if k6 thresholds failed) ────────
+      - name: Parse and display results
+        if: always()
+        run: python3 load-test/parse_results.py load-test/results/raw.json
+
+      # ── Save artifacts for post-mortem ────────────────────────────────────
+      - name: Upload k6 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results-${{ github.run_id }}
+          path: |
+            load-test/results/raw.json
+            load-test/results/report.html
+          if-no-files-found: ignore
+
+      # ── Always clean up containers ────────────────────────────────────────
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f load-test/docker-compose.yml down --remove-orphans --volumes

@@ -112,6 +112,41 @@ Anti-pattern: CI builds → tests pass → CD builds again → deploys.
 
 We do this partially in `ci.flutter-web.yml` (uploads `build/web` artifact). The reusable refactor will formalize this.
 
+### 6. Version build artifacts by SHA, release artifacts by semver
+
+This is the principle that decides **how we tag a container image vs. how we version the mobile app**. They look like the same question ("what number do I put on this?") but they are not.
+
+**The deciding question: who reads this identifier, a human or a machine?**
+
+| | Release artifact | Build artifact |
+|---|---|---|
+| Examples | Mobile app on App Store / Play, a published SDK, a GitHub Release | Docker/OCI container image, `build/web` bundle, a CI cache key |
+| Who consumes it | **Humans** — users, support, marketing, the reviewer at Apple | **Machines** — Cloud Run revision config, `docker-compose.yml`, deploy manifests |
+| What they need from it | Reason about compatibility, read a changelog, answer "which version am I on?" | An immutable pointer that traces back to exact source |
+| Best identifier | **Semver** `v1.47.2` (or a git tag) | **Git SHA** (ideally pinned by digest `@sha256:…`) |
+| How often a human looks at it | Every release, in public | Almost never — it's plumbing |
+
+**Why the backend container uses `github.sha` and NOT `v1.47.2`:**
+
+1. **Traceability beats prettiness for plumbing.** At 3am with prod down, the only question that matters is "what commit is running?" A SHA tag answers instantly (`git show abc1234`). `v1.47` forces you to open the Actions UI and reverse-map run #47 → commit. Nobody browses Artifact Registry to admire tag names.
+2. **SHA is idempotent; `run_number` is not.** The same commit always produces the same SHA. `github.run_number` drifts if the workflow is deleted/recreated, and a re-run from the UI mints a *new* number (`v1.47.2`) for *identical* code — a lie about what changed.
+3. **A continuously-deployed backend has no semver.** Semver encodes a compatibility contract for consumers. A service deployed on every push to `main` has exactly one meaningful version: "whatever `main` points to right now." Forcing semver onto it is ceremony with no reader.
+4. **The truly immutable form is the digest.** Tags (even SHA tags) can technically be moved; `@sha256:…` cannot. SHA tag is the pragmatic balance between human-skim-ability and immutability; pin by digest when you need hard guarantees (e.g. GitOps).
+
+**Where semver `v1.47.2` *does* belong — and we will use it there:**
+
+The mobile app **is** a release artifact. App Store and Play Console **require** a user-visible version that increases monotonically, and a real human (the user, the reviewer) reads it. So semver lands precisely in `cd.flutter-android.yml` / `cd.flutter-ios.yml`, which are **release-gated by a git tag** (principle 4) — not in the continuously-deployed backend.
+
+**The clean project-wide model:**
+
+```
+Backend (Cloud Run)      → SHA tag,      continuous deploy on push to main
+Flutter web (Hosting)    → SHA / none,   continuous deploy on push to main
+Flutter mobile (Store)   → semver v1.47.2, release-gated by git tag v*.*.*
+```
+
+This is the same continuous-vs-release-gated split from principle 4, viewed through the versioning lens. If you ever feel the urge to make the backend image tag "prettier," re-read this section: it's intentional.
+
 ---
 
 ## End-state architecture (target ~Q4 2026)

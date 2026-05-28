@@ -35,7 +35,7 @@ class AuthService {
     String name = '',
   }) async {
     final res = await http.post(
-      Uri.parse('$_baseUrl/api/auth/phone-verify'),
+      Uri.parse('$_baseUrl/api/v1/auth/phone-verify'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'firebase_token': firebaseToken, 'name': name}),
     );
@@ -49,7 +49,7 @@ class AuthService {
     return data;
   }
 
-  /// Dev-only: skip Firebase OTP via `/api/auth/dev-login`.
+  /// Dev-only: skip Firebase OTP via `/api/v1/auth/dev-login`.
   /// Backend gates the route with `DEV_MODE=true` + matching `DEV_BYPASS_SECRET`.
   Future<Map<String, dynamic>> devLogin({
     required String secret,
@@ -57,7 +57,7 @@ class AuthService {
     String name = 'Dev User',
   }) async {
     final res = await http.post(
-      Uri.parse('$_baseUrl/api/auth/dev-login'),
+      Uri.parse('$_baseUrl/api/v1/auth/dev-login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'secret': secret, 'phone': phone, 'name': name}),
     );
@@ -73,7 +73,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> login(String email, String password) async {
     final res = await http.post(
-      Uri.parse('$_baseUrl/api/auth/login'),
+      Uri.parse('$_baseUrl/api/v1/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
@@ -92,7 +92,7 @@ class AuthService {
     String name,
   ) async {
     final res = await http.post(
-      Uri.parse('$_baseUrl/api/auth/register'),
+      Uri.parse('$_baseUrl/api/v1/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password, 'name': name}),
     );
@@ -111,7 +111,7 @@ class AuthService {
     final token = prefs.getString('access_token');
     if (token != null) {
       await http.post(
-        Uri.parse('$_baseUrl/api/auth/logout'),
+        Uri.parse('$_baseUrl/api/v1/auth/logout'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

@@ -97,7 +97,7 @@ class MatchService {
   final _api = ApiClient();
 
   Future<List<MatchCandidate>> getCandidates() async {
-    final data = await _api.get('/api/matches') as List;
+    final data = await _api.get('/api/v1/matches') as List;
     return data
         .map((e) => MatchCandidate.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -106,12 +106,13 @@ class MatchService {
   // accept takes the OTHER USER's UUID, not a match id.
   Future<Map<String, dynamic>> acceptMatch(String userId) async {
     final data =
-        await _api.post('/api/matches/$userId/accept') as Map<String, dynamic>;
+        await _api.post('/api/v1/matches/$userId/accept')
+            as Map<String, dynamic>;
     return data;
   }
 
   Future<List<ApiMatch>> getConversations() async {
-    final data = await _api.get('/api/conversations') as List;
+    final data = await _api.get('/api/v1/conversations') as List;
     return data
         .map((e) => ApiMatch.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -119,7 +120,8 @@ class MatchService {
 
   Future<List<ApiMessage>> getHistory(String matchId, {int limit = 50}) async {
     final data =
-        await _api.get('/api/matches/$matchId/messages?limit=$limit') as List;
+        await _api.get('/api/v1/matches/$matchId/messages?limit=$limit')
+            as List;
     return data
         .map((e) => ApiMessage.fromJson(e as Map<String, dynamic>))
         .toList()

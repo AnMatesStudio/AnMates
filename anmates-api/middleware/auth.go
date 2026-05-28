@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anmates/api/models"
+	"github.com/anmates/api/internal/httputil"
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -63,11 +63,11 @@ func ValidateBearer(c *fiber.Ctx, secret []byte) error {
 		}
 	}
 	if !strings.HasPrefix(raw, "Bearer ") {
-		return models.Err(c, fiber.StatusUnauthorized, models.ErrUnauthorized, "missing bearer token")
+		return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "missing bearer token")
 	}
 	uid, err := parseToken(raw[len("Bearer "):], secret)
 	if err != nil {
-		return models.Err(c, fiber.StatusUnauthorized, models.ErrUnauthorized, "invalid token")
+		return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "invalid token")
 	}
 	c.Locals(ctxUserIDKey, uid)
 	return nil

@@ -13,6 +13,7 @@ class AppColors {
   static const glaucous = Color(0xFF7D8CC4);
   static const mint = Color(0xFFF1FFF8);
   static const mintWarm = Color(0xFFFAF6F0);
+
   /// Soft berry-tinted background — Screen 03 Social Proof bg (#FAF1F5)
   static const berryTint = Color(0xFFFAF1F5);
 

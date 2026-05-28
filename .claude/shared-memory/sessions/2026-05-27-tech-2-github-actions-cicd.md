@@ -62,6 +62,7 @@ push to main
 
 ## Notable choices
 
+- **Build image on the runner (`docker build`+`docker push`), NOT `gcloud builds submit`** — First CD run failed at "Build + push image": `gcloud builds submit` streams logs to terminal, which requires the caller to be project Viewer/Owner. Our least-privilege SA only has `cloudbuild.builds.editor`, so submit succeeded but the log-stream poll exited 1 (false failure). Switched to building on the GitHub runner + `docker push` to AR via the `gcloud auth configure-docker` credential helper. Bonus: removed now-unneeded roles (`cloudbuild.builds.editor`, `storage.admin`) + `cloudbuild.googleapis.com` API from `setup-wif.sh`. Faster (no GCS tarball upload/queue) + cheaper (0 Cloud Build minutes). Error string: `This tool can only stream logs if you are Viewer/Owner of the project`.
 - **Excluded `smoke/` package from CI go test** — that suite makes HTTP calls to a live server, would always fail in CI.
 - **`dart format` step is `continue-on-error: true`** for now — existing codebase has 20 unformatted files. Flip to hard fail after a one-shot `dart format .` cleanup commit.
 - **Revision suffix `sha-XXXXXXX`** on Cloud Run deploy — traces revision back to git commit.

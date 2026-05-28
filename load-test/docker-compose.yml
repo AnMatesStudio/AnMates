@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: loadtest
+      POSTGRES_DB: anmates
+      POSTGRES_USER: postgres
+    command: >
+      postgres
+        -c shared_buffers=64MB
+        -c effective_cache_size=192MB
+        -c work_mem=2MB
+        -c max_connections=20
+        -c log_min_duration_statement=200
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d anmates"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  api:
+    build:
+      context: ../anmates-api
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://postgres:loadtest@db:5432/anmates
+      JWT_SECRET: loadtest-jwt-secret-at-least-32-bytes-long!!
+      DEV_MODE: "true"
+      DEV_BYPASS_SECRET: loadtest-secret-2026
+      DISABLE_RATE_LIMIT: "1"   # lift rate limit so k6 isn't blocked
+      LOG_LEVEL: warn            # suppress debug noise during test
+      GOMAXPROCS: "1"            # mirror 1-vCPU Cloud Run instance
+      GOMEMLIMIT: 900MiB
+      PG_MAX_CONNS: "4"
+      PG_MIN_CONNS: "1"
+      CORS_ORIGINS: "*"
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"       # hard cap at 1 vCPU — matches GCP instance
+          memory: 1024M
+
+  k6:
+    image: grafana/k6:latest
+    user: root
+    depends_on:
+      - api
+    ports:
+      - "5665:5665"
+    volumes:
+      - ./k6-script.js:/scripts/k6-script.js:ro
+      - ./results:/results
+    environment:
+      BASE_URL: http://api:8080
+      DEV_SECRET: loadtest-secret-2026
+      USER_POOL: "${USER_POOL:-500}"
+      PEAK_VUS: "${PEAK_VUS:-500}"
+      CI_MODE: "${CI_MODE:-false}"
+      TARGET_HANDLERS: "${TARGET_HANDLERS:-all}"
+      K6_WEB_DASHBOARD: "${K6_WEB_DASHBOARD:-true}"
+      K6_WEB_DASHBOARD_EXPORT: /results/report.html
+    command: run --out json=/results/raw.json /scripts/k6-script.js
+    deploy:
+      resources:
+        limits:
+          memory: 256M

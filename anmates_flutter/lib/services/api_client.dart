@@ -59,6 +59,15 @@ class ApiClient {
     return _parse(res);
   }
 
+  Future<dynamic> delete(String path) async {
+    final token = await _token();
+    final res = await http.delete(
+      Uri.parse('$_baseUrl$path'),
+      headers: _headers(token),
+    );
+    return _parse(res);
+  }
+
   dynamic _parse(http.Response res) {
     final body = jsonDecode(res.body);
     if (res.statusCode >= 200 && res.statusCode < 300) {

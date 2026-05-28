@@ -19,6 +19,7 @@ package smoke
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,7 +59,9 @@ type envelope struct {
 	} `json:"error"`
 }
 
-func do(t *testing.T, method, path string, token string, body any) (*http.Response, envelope) {
+// do fires one HTTP request and returns (statusCode, parsed envelope).
+// The response body is fully consumed and closed before returning.
+func do(t *testing.T, method, path string, token string, body any) (int, envelope) {
 	t.Helper()
 	var rdr io.Reader
 	if body != nil {
@@ -68,7 +71,7 @@ func do(t *testing.T, method, path string, token string, body any) (*http.Respon
 		}
 		rdr = bytes.NewReader(b)
 	}
-	req, err := http.NewRequest(method, baseURL()+path, rdr)
+	req, err := http.NewRequestWithContext(context.Background(), method, baseURL()+path, rdr)
 	if err != nil {
 		t.Fatalf("build req %s %s: %v", method, path, err)
 	}
@@ -87,17 +90,17 @@ func do(t *testing.T, method, path string, token string, body any) (*http.Respon
 	var env envelope
 	_ = json.Unmarshal(raw, &env)
 	t.Logf("%s %s → %d  %s", method, path, resp.StatusCode, truncate(string(raw), 240))
-	return resp, env
+	return resp.StatusCode, env
 }
 
-func assertStatus(t *testing.T, resp *http.Response, want ...int) {
+func assertStatus(t *testing.T, status int, want ...int) {
 	t.Helper()
 	for _, w := range want {
-		if resp.StatusCode == w {
+		if status == w {
 			return
 		}
 	}
-	t.Fatalf("%s %s: got %d, want %v", resp.Request.Method, resp.Request.URL.Path, resp.StatusCode, want)
+	t.Fatalf("got status %d, want one of %v", status, want)
 }
 
 func truncate(s string, n int) string {
@@ -111,8 +114,8 @@ func truncate(s string, n int) string {
 
 // TestHealth is the canary — if this fails the rest of the suite is meaningless.
 func TestHealth(t *testing.T) {
-	resp, env := do(t, http.MethodGet, "/health", "", nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env := do(t, http.MethodGet, "/health", "", nil)
+	assertStatus(t, status,http.StatusOK)
 	if !env.Success {
 		t.Fatalf("health: success=false: %+v", env.Error)
 	}
@@ -125,12 +128,12 @@ func TestAuthEmail(t *testing.T) {
 	password := "supersecret-123"
 
 	// register
-	resp, env := do(t, http.MethodPost, "/api/auth/register", "", map[string]any{
+	status, env := do(t, http.MethodPost, "/api/v1/auth/register", "", map[string]any{
 		"email":    email,
 		"password": password,
 		"name":     "Smoke Test",
 	})
-	assertStatus(t, resp, http.StatusCreated)
+	assertStatus(t, status,http.StatusCreated)
 	var reg struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -146,16 +149,16 @@ func TestAuthEmail(t *testing.T) {
 	}
 
 	// register again → 409
-	resp, _ = do(t, http.MethodPost, "/api/auth/register", "", map[string]any{
+	status, _ = do(t, http.MethodPost, "/api/v1/auth/register", "", map[string]any{
 		"email": email, "password": password, "name": "Dup",
 	})
-	assertStatus(t, resp, http.StatusConflict)
+	assertStatus(t, status,http.StatusConflict)
 
 	// login
-	resp, env = do(t, http.MethodPost, "/api/auth/login", "", map[string]any{
+	status, env = do(t, http.MethodPost, "/api/v1/auth/login", "", map[string]any{
 		"email": email, "password": password,
 	})
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, status,http.StatusOK)
 	var login struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -166,16 +169,16 @@ func TestAuthEmail(t *testing.T) {
 	}
 
 	// bad password → 401
-	resp, _ = do(t, http.MethodPost, "/api/auth/login", "", map[string]any{
+	status, _ = do(t, http.MethodPost, "/api/v1/auth/login", "", map[string]any{
 		"email": email, "password": "wrong",
 	})
-	assertStatus(t, resp, http.StatusUnauthorized)
+	assertStatus(t, status,http.StatusUnauthorized)
 
 	// refresh
-	resp, env = do(t, http.MethodPost, "/api/auth/refresh", "", map[string]any{
+	status, env = do(t, http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{
 		"refresh_token": login.RefreshToken,
 	})
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, status,http.StatusOK)
 	var refreshed struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -186,16 +189,16 @@ func TestAuthEmail(t *testing.T) {
 	}
 
 	// old refresh now invalid → 401
-	resp, _ = do(t, http.MethodPost, "/api/auth/refresh", "", map[string]any{
+	status, _ = do(t, http.MethodPost, "/api/v1/auth/refresh", "", map[string]any{
 		"refresh_token": login.RefreshToken,
 	})
-	assertStatus(t, resp, http.StatusUnauthorized)
+	assertStatus(t, status,http.StatusUnauthorized)
 
 	// logout
-	resp, _ = do(t, http.MethodPost, "/api/auth/logout", "", map[string]any{
+	status, _ = do(t, http.MethodPost, "/api/v1/auth/logout", "", map[string]any{
 		"refresh_token": refreshed.RefreshToken,
 	})
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, status,http.StatusOK)
 }
 
 // TestFullFlow walks dev-login → profile → wishlist → matches → conversations
@@ -207,17 +210,17 @@ func TestFullFlow(t *testing.T) {
 	b := devLogin(t, fmt.Sprintf("+8488%013d", stamp%10000000000000), "Bob Smoke")
 
 	// Profile
-	resp, env := do(t, http.MethodGet, "/api/profile", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env := do(t, http.MethodGet, "/api/v1/profile", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 	if !env.Success {
 		t.Fatalf("profile: %+v", env.Error)
 	}
 
-	resp, _ = do(t, http.MethodPut, "/api/profile", a.access, map[string]any{
+	status, _ = do(t, http.MethodPut, "/api/v1/profile", a.access, map[string]any{
 		"name": "Alice Updated",
 		"bio":  "I love pho",
 	})
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, status,http.StatusOK)
 
 	// Wishlist — A and B share 2 foods (pho, com), differ on a 3rd.
 	addWishlist(t, a.access, "Phở Bát Đàn", "pho")
@@ -229,17 +232,17 @@ func TestFullFlow(t *testing.T) {
 	addWishlist(t, b.access, "Bún bò Huế", "bun")
 
 	// invalid category → 400
-	resp, _ = do(t, http.MethodPost, "/api/wishlist", a.access, map[string]any{
+	status, _ = do(t, http.MethodPost, "/api/v1/wishlist", a.access, map[string]any{
 		"food_name": "nope", "food_category": "bogus",
 	})
-	assertStatus(t, resp, http.StatusBadRequest)
+	assertStatus(t, status,http.StatusBadRequest)
 
 	// List wishlist (auth required, unauth → 401)
-	resp, _ = do(t, http.MethodGet, "/api/wishlist", "", nil)
-	assertStatus(t, resp, http.StatusUnauthorized)
+	status, _ = do(t, http.MethodGet, "/api/v1/wishlist", "", nil)
+	assertStatus(t, status,http.StatusUnauthorized)
 
-	resp, env = do(t, http.MethodGet, "/api/wishlist", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env = do(t, http.MethodGet, "/api/v1/wishlist", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 	var items []map[string]any
 	_ = json.Unmarshal(env.Data, &items)
 	if len(items) < 3 {
@@ -249,21 +252,21 @@ func TestFullFlow(t *testing.T) {
 	// Delete one wishlist item
 	firstID, _ := items[0]["id"].(string)
 	if firstID != "" {
-		resp, _ = do(t, http.MethodDelete, "/api/wishlist/"+firstID, a.access, nil)
-		assertStatus(t, resp, http.StatusOK)
+		status, _ = do(t, http.MethodDelete, "/api/v1/wishlist/"+firstID, a.access, nil)
+		assertStatus(t, status,http.StatusOK)
 	}
 
 	// Matches — A should now see B as a candidate (≥2 overlap).
 	// Note: matches may be empty if other users in the DB already share more
 	// foods — we treat "API responds 200 with array" as the smoke contract.
-	resp, env = do(t, http.MethodGet, "/api/matches", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env = do(t, http.MethodGet, "/api/v1/matches", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 	var candidates []map[string]any
 	_ = json.Unmarshal(env.Data, &candidates)
 
 	// Accept B explicitly (idempotent — works whether B is in the candidate list or not).
-	resp, env = do(t, http.MethodPost, "/api/matches/"+b.userID+"/accept", a.access, nil)
-	assertStatus(t, resp, http.StatusCreated, http.StatusOK)
+	status, env = do(t, http.MethodPost, "/api/v1/matches/"+b.userID+"/accept", a.access, nil)
+	assertStatus(t, status,http.StatusCreated, http.StatusOK)
 	var match struct {
 		ID string `json:"id"`
 	}
@@ -273,12 +276,12 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Idempotent: second call returns the same match.
-	resp, _ = do(t, http.MethodPost, "/api/matches/"+b.userID+"/accept", a.access, nil)
-	assertStatus(t, resp, http.StatusCreated, http.StatusOK)
+	status, _ = do(t, http.MethodPost, "/api/v1/matches/"+b.userID+"/accept", a.access, nil)
+	assertStatus(t, status,http.StatusCreated, http.StatusOK)
 
 	// Conversations
-	resp, env = do(t, http.MethodGet, "/api/conversations", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env = do(t, http.MethodGet, "/api/v1/conversations", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 	var convos []map[string]any
 	_ = json.Unmarshal(env.Data, &convos)
 	found := false
@@ -293,16 +296,16 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Chat history (empty for fresh match)
-	resp, _ = do(t, http.MethodGet, "/api/matches/"+match.ID+"/messages", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, _ = do(t, http.MethodGet, "/api/v1/matches/"+match.ID+"/messages", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 
 	// Chat history pagination params
-	resp, _ = do(t, http.MethodGet, "/api/matches/"+match.ID+"/messages?limit=10", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, _ = do(t, http.MethodGet, "/api/v1/matches/"+match.ID+"/messages?limit=10", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 
 	// Nồi Lẩu progress (level 1, points 0)
-	resp, env = do(t, http.MethodGet, "/api/matches/"+match.ID+"/progress", a.access, nil)
-	assertStatus(t, resp, http.StatusOK)
+	status, env = do(t, http.MethodGet, "/api/v1/matches/"+match.ID+"/progress", a.access, nil)
+	assertStatus(t, status,http.StatusOK)
 	var prog struct {
 		Level  int `json:"level"`
 		Points int `json:"points"`
@@ -313,22 +316,22 @@ func TestFullFlow(t *testing.T) {
 	}
 
 	// Unauth on a protected route → 401
-	resp, _ = do(t, http.MethodGet, "/api/profile", "", nil)
-	assertStatus(t, resp, http.StatusUnauthorized)
+	status, _ = do(t, http.MethodGet, "/api/v1/profile", "", nil)
+	assertStatus(t, status,http.StatusUnauthorized)
 
 	// Garbage uuid → 400
-	resp, _ = do(t, http.MethodPost, "/api/matches/not-a-uuid/accept", a.access, nil)
-	assertStatus(t, resp, http.StatusBadRequest)
+	status, _ = do(t, http.MethodPost, "/api/v1/matches/not-a-uuid/accept", a.access, nil)
+	assertStatus(t, status,http.StatusBadRequest)
 }
 
 // TestDevLoginGate verifies the secret is enforced. Wrong secret → 403.
 func TestDevLoginGate(t *testing.T) {
-	resp, _ := do(t, http.MethodPost, "/api/auth/dev-login", "", map[string]any{
+	status, _ := do(t, http.MethodPost, "/api/v1/auth/dev-login", "", map[string]any{
 		"secret": "definitely-wrong",
 		"phone":  "+84999999998",
 		"name":   "Hack",
 	})
-	assertStatus(t, resp, http.StatusForbidden)
+	assertStatus(t, status,http.StatusForbidden)
 }
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
@@ -341,15 +344,15 @@ type session struct {
 
 func devLogin(t *testing.T, phone, name string) session {
 	t.Helper()
-	resp, env := do(t, http.MethodPost, "/api/auth/dev-login", "", map[string]any{
+	status, env := do(t, http.MethodPost, "/api/v1/auth/dev-login", "", map[string]any{
 		"secret": devSecret(),
 		"phone":  phone,
 		"name":   name,
 	})
-	if resp.StatusCode == http.StatusForbidden {
+	if status == http.StatusForbidden {
 		t.Skipf("dev-login disabled (DEV_MODE off or wrong secret) — skipping. body=%+v", env.Error)
 	}
-	assertStatus(t, resp, http.StatusOK)
+	assertStatus(t, status, http.StatusOK)
 	var s struct {
 		AccessToken  string `json:"access_token"`
 		RefreshToken string `json:"refresh_token"`
@@ -368,10 +371,10 @@ func devLogin(t *testing.T, phone, name string) session {
 
 func addWishlist(t *testing.T, token, name, category string) {
 	t.Helper()
-	resp, _ := do(t, http.MethodPost, "/api/wishlist", token, map[string]any{
+	status, _ := do(t, http.MethodPost, "/api/v1/wishlist", token, map[string]any{
 		"food_name":     name,
 		"food_category": category,
 	})
 	// 201 fresh, 409 if already added — both are "OK" for a re-runnable smoke test.
-	assertStatus(t, resp, http.StatusCreated, http.StatusConflict)
+	assertStatus(t, status,http.StatusCreated, http.StatusConflict)
 }

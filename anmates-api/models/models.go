@@ -75,7 +75,7 @@ type Conversation struct {
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
-// Nồi Lẩu thresholds — index = level - 1 (level 1 starts at 0 points).
+// NoiLauThresholds maps level index to minimum point threshold (level 1 = 0 pts, level 5 = 100 pts).
 var NoiLauThresholds = []int{0, 10, 30, 60, 100}
 
 // LevelForPoints returns the level (1..5) for a given point total.

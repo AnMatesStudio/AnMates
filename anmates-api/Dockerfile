@@ -11,5 +11,13 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /app/api ./api
+
+# Tune Go runtime for 1 vCPU / 1 GB Cloud Run instance.
+# Override both in Cloud Run env vars when scaling up.
+# GOMAXPROCS: Go doesn't read this from env automatically — main.go reads it.
+# GOMEMLIMIT: Go 1.19+ reads this automatically; keep GC pressure below OOM threshold.
+ENV GOMAXPROCS=1 \
+    GOMEMLIMIT=900MiB
+
 EXPOSE 8080
 ENTRYPOINT ["/app/api"]

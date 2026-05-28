@@ -37,12 +37,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: dart format check (warning only)
-        continue-on-error: true
-        run: |
-          # Existing codebase not yet fully formatted (see TECH-2 follow-up).
-          # Flip continue-on-error to false after running `dart format .` once and committing.
-          dart format --output=none --set-exit-if-changed .
+      - name: dart format check
+        run: dart format --output=none --set-exit-if-changed .
 
       - name: flutter analyze
         run: flutter analyze --no-fatal-infos

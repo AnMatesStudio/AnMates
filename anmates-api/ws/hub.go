@@ -13,8 +13,20 @@ type Envelope struct {
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
+// HubI is the broadcast backplane interface. The local Hub is single-process;
+// swap to RedisHub (ws/redis_hub.go) for multi-instance deployments.
+type HubI interface {
+	Join(matchID uuid.UUID, c *Client)
+	Leave(matchID uuid.UUID, c *Client)
+	// Broadcast sends env to every client in the room except the sender.
+	// senderID is used instead of *Client so Redis-backed hubs can exclude
+	// the originating user across nodes.
+	Broadcast(matchID, senderID uuid.UUID, env Envelope)
+	CloseAll()
+}
+
 // Hub multiplexes connections by match (room). Single-instance only — no
-// cross-node backplane. For >1 VPS you'd need a pub/sub layer.
+// cross-node backplane. Swap to RedisHub for >1 instance.
 type Hub struct {
 	mu    sync.RWMutex
 	rooms map[uuid.UUID]map[*Client]struct{}
@@ -24,7 +36,7 @@ func NewHub() *Hub {
 	return &Hub{rooms: make(map[uuid.UUID]map[*Client]struct{})}
 }
 
-func (h *Hub) join(matchID uuid.UUID, c *Client) {
+func (h *Hub) Join(matchID uuid.UUID, c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	room, ok := h.rooms[matchID]
@@ -35,7 +47,7 @@ func (h *Hub) join(matchID uuid.UUID, c *Client) {
 	room[c] = struct{}{}
 }
 
-func (h *Hub) leave(matchID uuid.UUID, c *Client) {
+func (h *Hub) Leave(matchID uuid.UUID, c *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if room, ok := h.rooms[matchID]; ok {
@@ -46,15 +58,14 @@ func (h *Hub) leave(matchID uuid.UUID, c *Client) {
 	}
 }
 
-// Broadcast sends env to every client currently in the room. Sender is excluded
-// when not nil — useful for "echo to others" semantics. Slow clients are dropped
-// rather than blocking the broadcast.
-func (h *Hub) Broadcast(matchID uuid.UUID, sender *Client, env Envelope) {
+// Broadcast sends env to every client in the room except the one whose userID
+// matches senderID. Slow clients are dropped rather than blocking the broadcast.
+func (h *Hub) Broadcast(matchID, senderID uuid.UUID, env Envelope) {
 	h.mu.RLock()
 	room := h.rooms[matchID]
 	clients := make([]*Client, 0, len(room))
 	for c := range room {
-		if c != sender {
+		if c.userID != senderID {
 			clients = append(clients, c)
 		}
 	}

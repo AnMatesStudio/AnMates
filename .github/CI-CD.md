@@ -13,7 +13,7 @@ Liên quan: ticket [TECH-2](https://anmatesstudio.atlassian.net/browse/TECH-2), 
 | [`ci.flutter-web.yml`](workflows/ci.flutter-web.yml) | PR → `main`, path `anmates_flutter/**` | analyze, test, build web, **deploy preview channel** | `pr-N` preview URL (7d expiry) |
 | [`ci.go-api.yml`](workflows/ci.go-api.yml) | PR → `main`, path `anmates-api/**` | gofmt, vet, build, test, docker build (no push) | — |
 | [`cd.flutter-web.yml`](workflows/cd.flutter-web.yml) | push `main`, path `anmates_flutter/**` | analyze, test, build web, deploy | `https://anmates-studio.web.app` |
-| [`cd.go-api.yml`](workflows/cd.go-api.yml) | push `main`, path `anmates-api/**` | vet, test, Cloud Build, Cloud Run deploy, smoke check, auto-rollback | `https://anmates-api-492509819332.asia-southeast1.run.app` |
+| [`cd.go-api.yml`](workflows/cd.go-api.yml) | push `main`, path `anmates-api/**` | vet, test, docker build + push, Cloud Run deploy, smoke check, auto-rollback | `https://anmates-api-492509819332.asia-southeast1.run.app` |
 
 > Naming convention: `<lifecycle>.<service>-<platform>.yml`. Xem [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) cho rationale + migration plan khi add Android/iOS.
 
@@ -99,7 +99,7 @@ Vào `Settings → Branches → Add rule` cho `main`:
 │
 └─ anmates-api/** ──────→ cd.go-api.yml
     ├─ capture previous revision name
-    ├─ gcloud builds submit (build image, push Artifact Registry)
+    ├─ docker build + docker push → Artifact Registry (on the runner, not Cloud Build)
     ├─ gcloud run deploy --revision-suffix sha-XXXXXXX
     ├─ curl smoke check /health (6 attempts × 10s)
     └─ if smoke fails → auto-rollback traffic to previous revision
@@ -163,6 +163,9 @@ Thường do thiếu env vars (`DATABASE_URL`/`JWT_SECRET`). Check GitHub secret
 
 ### CI Flutter báo `Skipped: deploy preview channel` ở fork PR
 → Đây là chủ ý — fork PR không có quyền access secrets vì lý do bảo mật. Maintainer phải approve hoặc rebase trong repo.
+
+### `gcloud builds submit` fail: `This tool can only stream logs if you are Viewer/Owner`
+→ Đây là lý do `cd.go-api.yml` **không dùng** `gcloud builds submit`. Cloud Build mặc định stream log về terminal, và việc đó đòi identity gọi phải là Viewer/Owner của project. SA `github-actions@` theo least-privilege không có `roles/viewer`, nên build submit OK nhưng gcloud không tail được log → exit 1 (dù build có thể đã chạy xong). **Giải pháp đang dùng:** build image thẳng trên GitHub runner bằng `docker build` + `docker push` (nhanh hơn, rẻ hơn, ít quyền hơn). Nếu vì lý do nào đó bạn buộc phải dùng Cloud Build, thêm flag `--suppress-logs` (hoặc cấp SA `roles/viewer` — không khuyến khích).
 
 ---
 
