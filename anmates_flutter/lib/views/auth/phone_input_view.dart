@@ -34,7 +34,6 @@ class PhoneInputView extends StatefulWidget {
 
 class _PhoneInputViewState extends State<PhoneInputView> {
   final _phoneCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
   bool _loading = false;
 
   /// Web-only. Per Firebase docs, the verifier must be re-created on retry —
@@ -45,7 +44,6 @@ class _PhoneInputViewState extends State<PhoneInputView> {
   @override
   void dispose() {
     _phoneCtrl.dispose();
-    _nameCtrl.dispose();
     _clearVerifier();
     super.dispose();
   }
@@ -75,8 +73,7 @@ class _PhoneInputViewState extends State<PhoneInputView> {
     );
   }
 
-  bool get _canSubmit =>
-      _phoneCtrl.text.trim().length >= 9 && _nameCtrl.text.trim().isNotEmpty;
+  bool get _canSubmit => _phoneCtrl.text.trim().length >= 9;
 
   String _normalizePhone(String raw) {
     final cleaned = raw.replaceAll(RegExp(r'\s+'), '');
@@ -166,7 +163,7 @@ class _PhoneInputViewState extends State<PhoneInputView> {
       MaterialPageRoute(
         builder: (_) => OtpView(
           phone: phone,
-          name: _nameCtrl.text.trim(),
+          name: '',
           verificationId: verificationId ?? '',
           autoIdToken: autoIdToken,
           confirmationResult: confirmationResult,
@@ -179,9 +176,7 @@ class _PhoneInputViewState extends State<PhoneInputView> {
   Future<void> _devSkipOtp() async {
     if (_loading) return;
     setState(() => _loading = true);
-    final name = _nameCtrl.text.trim().isEmpty
-        ? _devTestName
-        : _nameCtrl.text.trim();
+    const name = _devTestName;
     try {
       await AuthService().devLogin(
         secret: _devBypassSecret,
@@ -222,62 +217,63 @@ class _PhoneInputViewState extends State<PhoneInputView> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: ListenableBuilder(
-              listenable: Listenable.merge([_phoneCtrl, _nameCtrl]),
-              builder: (context, _) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 40),
-                    const LogoMark(size: 64, float: true),
-                    const SizedBox(height: 24),
-                    ScreenTitle(
-                      title: 'Va Mates, ăn miết.',
-                      subtitle:
-                          'Nhập SĐT để đăng ký hoặc đăng nhập — không cần mật khẩu.',
-                      align: TextAlign.center,
-                    ),
-                    const SizedBox(height: 36),
-                    _InputField(
-                      controller: _nameCtrl,
-                      hint: 'Tên của bạn',
-                      icon: Icons.person_outline_rounded,
-                      keyboardType: TextInputType.name,
-                    ),
-                    const SizedBox(height: 12),
-                    _PhoneField(controller: _phoneCtrl),
-                    const SizedBox(height: 20),
-                    AnmCTA(
-                      label: _loading ? 'Đang gửi mã…' : 'Gửi mã OTP',
-                      onTap: (_canSubmit && !_loading) ? _sendOtp : null,
-                      background: (_canSubmit && !_loading)
-                          ? AppColors.berry
-                          : AppColors.ink30,
-                    ),
-                    if (kDebugMode) ...[
-                      const SizedBox(height: 12),
-                      _DevModeButton(
-                        loading: _loading,
-                        onTap: _loading ? null : _devSkipOtp,
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    Text(
-                      'Tiếp tục đồng nghĩa với việc bạn đồng ý với\nĐiều khoản dịch vụ và Chính sách quyền riêng tư của ĂnMates.',
-                      style: GoogleFonts.beVietnamPro(
-                        fontSize: 11,
-                        color: AppColors.ink50,
-                        height: 1.6,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 32),
-                  ],
-                );
-              },
-            ),
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: ListenableBuilder(
+                    listenable: _phoneCtrl,
+                    builder: (context, _) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 40),
+                          const LogoMark(size: 64, float: true),
+                          const SizedBox(height: 24),
+                          ScreenTitle(
+                            title: 'Va Mates, ăn miết.',
+                            subtitle:
+                                'Nhập SĐT để đăng ký hoặc đăng nhập — không cần mật khẩu.',
+                            align: TextAlign.center,
+                          ),
+                          const SizedBox(height: 36),
+                          _PhoneField(controller: _phoneCtrl),
+                          const SizedBox(height: 20),
+                          AnmCTA(
+                            label: _loading ? 'Đang gửi mã…' : 'Gửi mã OTP',
+                            onTap: (_canSubmit && !_loading) ? _sendOtp : null,
+                            background: (_canSubmit && !_loading)
+                                ? AppColors.berry
+                                : AppColors.ink30,
+                          ),
+                          if (kDebugMode) ...[
+                            const SizedBox(height: 12),
+                            _DevModeButton(
+                              loading: _loading,
+                              onTap: _loading ? null : _devSkipOtp,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                child: Text(
+                  'Tiếp tục đồng nghĩa với việc bạn đồng ý với\nĐiều khoản dịch vụ và Chính sách quyền riêng tư của ĂnMates.',
+                  style: GoogleFonts.beVietnamPro(
+                    fontSize: 11,
+                    color: AppColors.ink50,
+                    height: 1.6,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -342,173 +338,82 @@ class _DevModeButton extends StatelessWidget {
   }
 }
 
-// ─── Phone field với prefix +84 ───────────────────────────────────────────────
-class _PhoneField extends StatefulWidget {
+// ─── Phone field với prefix 🇻🇳 +84 ────────────────────────────────────────────
+class _PhoneField extends StatelessWidget {
   final TextEditingController controller;
   const _PhoneField({required this.controller});
 
   @override
-  State<_PhoneField> createState() => _PhoneFieldState();
-}
-
-class _PhoneFieldState extends State<_PhoneField> {
-  bool _focused = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (f) => setState(() => _focused = f),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: _focused ? AppColors.berry : AppColors.ink10,
-            width: _focused ? 1.5 : 1,
+    const radius = BorderRadius.all(Radius.circular(14));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x14000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
           ),
-          boxShadow: [
-            if (_focused)
-              BoxShadow(
-                color: AppColors.berry.withValues(alpha: 0.12),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              )
-            else
-              const BoxShadow(
-                color: AppColors.ink10,
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                '🇻🇳 +84',
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.ink70,
-                ),
-              ),
-            ),
-            Container(width: 1, height: 24, color: AppColors.ink10),
-            Expanded(
-              child: TextField(
-                controller: widget.controller,
-                keyboardType: TextInputType.phone,
-                inputFormatters: kIsWeb
-                    ? null
-                    : [FilteringTextInputFormatter.digitsOnly],
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.ink,
-                ),
-                decoration: InputDecoration(
-                  hintText: '912 345 678',
-                  hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    color: AppColors.ink30,
-                  ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(
-                    vertical: 18,
-                    horizontal: 12,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
-    );
-  }
-}
-
-// ─── Generic input field ──────────────────────────────────────────────────────
-class _InputField extends StatefulWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-  final TextInputType keyboardType;
-
-  const _InputField({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    this.keyboardType = TextInputType.text,
-  });
-
-  @override
-  State<_InputField> createState() => _InputFieldState();
-}
-
-class _InputFieldState extends State<_InputField> {
-  bool _focused = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      onFocusChange: (f) => setState(() => _focused = f),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: _focused ? AppColors.berry : AppColors.ink10,
-            width: _focused ? 1.5 : 1,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+        child: TextField(
+          controller: controller,
+          keyboardType: TextInputType.phone,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          style: GoogleFonts.plusJakartaSans(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.ink,
           ),
-          boxShadow: [
-            if (_focused)
-              BoxShadow(
-                color: AppColors.berry.withValues(alpha: 0.12),
-                blurRadius: 14,
-                offset: const Offset(0, 4),
-              )
-            else
-              const BoxShadow(
-                color: AppColors.ink10,
-                blurRadius: 6,
-                offset: Offset(0, 2),
-              ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Icon(widget.icon, size: 20, color: AppColors.ink50),
-            ),
-            Expanded(
-              child: TextField(
-                controller: widget.controller,
-                keyboardType: widget.keyboardType,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.ink,
-                ),
-                decoration: InputDecoration(
-                  hintText: widget.hint,
-                  hintStyle: GoogleFonts.plusJakartaSans(
-                    fontSize: 15,
-                    color: AppColors.ink30,
+          decoration: InputDecoration(
+            isDense: true,
+            prefixIcon: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🇻🇳', style: TextStyle(fontSize: 16, height: 1)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '+84',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.ink70,
+                    ),
                   ),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 18),
-                ),
+                ],
               ),
             ),
-          ],
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 0,
+              minHeight: 0,
+            ),
+            hintText: '912 345 678',
+            hintStyle: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: AppColors.ink30,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(vertical: 18),
+            border: const OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: const OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: const OutlineInputBorder(
+              borderRadius: radius,
+              borderSide: BorderSide(color: AppColors.berry, width: 1.5),
+            ),
+          ),
         ),
       ),
     );
