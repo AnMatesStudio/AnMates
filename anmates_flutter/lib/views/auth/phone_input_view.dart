@@ -375,10 +375,7 @@ class _PhoneField extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    '🇻🇳',
-                    style: TextStyle(fontSize: 16, height: 1),
-                  ),
+                  const Text('🇻🇳', style: TextStyle(fontSize: 16, height: 1)),
                   const SizedBox(width: 8),
                   Text(
                     '+84',
