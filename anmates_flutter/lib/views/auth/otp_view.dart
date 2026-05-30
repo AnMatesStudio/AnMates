@@ -320,12 +320,19 @@ class _OtpViewState extends State<OtpView> {
                     const SizedBox(height: 10),
                     Text(
                       'Nhập mã 6 số',
-                      style: AppTextStyles.display(size: 36, weight: FontWeight.w800),
+                      style: AppTextStyles.display(
+                        size: 36,
+                        weight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'Vừa gửi tới ${widget.phone}. Mã có hiệu lực 90 giây.',
-                      style: AppTextStyles.body(size: 15, color: AppColors.ink70, height: 1.4),
+                      style: AppTextStyles.body(
+                        size: 15,
+                        color: AppColors.ink70,
+                        height: 1.4,
+                      ),
                     ),
                   ],
                 ),
