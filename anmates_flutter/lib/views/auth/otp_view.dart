@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_auth_platform_interface/firebase_auth_platform_interface.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -40,6 +41,7 @@ class _OtpViewState extends State<OtpView> {
   bool _loading = false;
   int _secondsLeft = _resendTimeout.inSeconds;
   Timer? _timer;
+  final FocusNode _keyboardFocusNode = FocusNode();
 
   /// Web-only: held so we can `clear()` it on dispose.
   RecaptchaVerifier? _resendVerifier;
@@ -48,19 +50,39 @@ class _OtpViewState extends State<OtpView> {
   void initState() {
     super.initState();
     _startTimer();
-    // Android instant-verify finished before this view mounted.
-    if (widget.autoIdToken != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _keyboardFocusNode.requestFocus();
+      // Android instant-verify finished before this view mounted.
+      if (widget.autoIdToken != null) {
         _verifyWithBackend(widget.autoIdToken!);
-      });
-    }
+      }
+    });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _resendVerifier?.clear();
+    _keyboardFocusNode.dispose();
     super.dispose();
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode _, KeyEvent event) {
+    if (event is! KeyDownEvent || _loading) return KeyEventResult.ignored;
+
+    final char = event.character;
+    if (char != null && RegExp(r'^[0-9]$').hasMatch(char)) {
+      _onKeyTap(char);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.backspace ||
+        event.logicalKey == LogicalKeyboardKey.delete) {
+      _onKeyTap('⌫');
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
   }
 
   void _startTimer() {
@@ -252,7 +274,10 @@ class _OtpViewState extends State<OtpView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return Focus(
+      focusNode: _keyboardFocusNode,
+      onKeyEvent: _handleKeyEvent,
+      child: Scaffold(
       backgroundColor: AppColors.mint,
       body: SafeArea(
         child: Column(
@@ -364,6 +389,7 @@ class _OtpViewState extends State<OtpView> {
             ],
           ],
         ),
+      ),
       ),
     );
   }
