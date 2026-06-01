@@ -27,6 +27,19 @@ class AuthService {
     return prefs.getString('user_id');
   }
 
+  /// Whether the signed-in user has finished post-OTP onboarding (Screens 08+09).
+  /// Defaults to false when unknown so new users are routed through onboarding.
+  Future<bool> isOnboardingDone() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('onboarding_done') ?? false;
+  }
+
+  /// Locally marks onboarding as complete (called after Screen 09 persists).
+  Future<void> setOnboardingDone(bool done) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_done', done);
+  }
+
   /// Xác thực Firebase ID token với backend, trả về JWT.
   /// [firebaseToken] — ID token từ Firebase Auth sau khi verify OTP.
   /// [name] — Tên hiển thị, dùng khi tạo tài khoản mới.
@@ -124,6 +137,7 @@ class AuthService {
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');
     await prefs.remove('user_id');
+    await prefs.remove('onboarding_done');
   }
 
   Future<void> _saveTokens(Map<String, dynamic> data) async {
@@ -134,11 +148,16 @@ class AuthService {
     if (data['refresh_token'] != null) {
       await prefs.setString('refresh_token', data['refresh_token'] as String);
     }
-    final userId =
-        data['user_id'] as String? ??
-        (data['user'] as Map<String, dynamic>?)?['id'] as String?;
+    final user = data['user'] as Map<String, dynamic>?;
+    final userId = data['user_id'] as String? ?? user?['id'] as String?;
     if (userId != null) {
       await prefs.setString('user_id', userId);
+    }
+    // Persist server-reported onboarding state so the splash + auth flows can
+    // route returning users straight to the main app.
+    final onboardingDone = user?['onboarding_done'] as bool?;
+    if (onboardingDone != null) {
+      await prefs.setBool('onboarding_done', onboardingDone);
     }
   }
 }

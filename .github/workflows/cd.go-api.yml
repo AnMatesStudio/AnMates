@@ -28,7 +28,7 @@ jobs:
       contents: read
       id-token: write
     environment:
-      name: production-api
+      name: production
       url: https://anmates-api-492509819332.asia-southeast1.run.app
     steps:
       - uses: actions/checkout@v4

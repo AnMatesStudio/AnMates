@@ -1,8 +1,15 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
     "allow": [
-      "Bash(flutter analyze *)"
-    ]
+      "Bash(flutter analyze *)",
+      "Bash(go build *)",
+      "Bash(echo \"BUILD_EXIT=$?\")",
+      "Read(//private/tmp/**)",
+      "Bash(go vet *)",
+      "Bash(echo \"VET_EXIT=$?\")",
+      "Bash(echo \"exit=$?\")",
+      "Read(//tmp/**)"
+    ],
+    "defaultMode": "bypassPermissions"
   }
 }

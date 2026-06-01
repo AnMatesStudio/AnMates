@@ -91,7 +91,7 @@ func run(log *slog.Logger) error {
 	app.Use(recover.New())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders: "Content-Type,Authorization",
 	}))
 	app.Use(middleware.RequestLogger(log))
@@ -148,6 +148,9 @@ func run(log *slog.Logger) error {
 	auth := api.Use(jwtMW)
 	auth.Get("/profile", userH.GetProfile)
 	auth.Put("/profile", userH.UpdateProfile)
+	auth.Patch("/profile/onboarding", userH.UpdateOnboarding)
+	auth.Patch("/profile/preferences", userH.UpdatePreferences)
+	auth.Patch("/profile/complete-onboarding", userH.CompleteOnboarding)
 
 	auth.Get("/wishlist", wlH.List)
 	auth.Post("/wishlist", wlH.Create)

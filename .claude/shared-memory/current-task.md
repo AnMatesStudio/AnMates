@@ -1,5 +1,31 @@
 # Current Task
 
+**Status:** done — CI→dev deploy running. R-005 written.
+**Owner:** main-assistant
+**Started at:** 2026-06-01
+**Last updated:** 2026-06-01
+**Goal:** CI deploy lên GitHub Environment `dev` để test branch/PR trên URL thật. `ci.flutter-web.yml` + `ci.go-api.yml` thêm job `deploy-dev` (same-repo PR only) → `environment: dev` (web: dev-anmates-studio.web.app, api: shared Cloud Run anmates-api ENV=dev, API_BASE_URL chung). `cd.*` giữ nguyên — tách production (Cloud Run riêng + Cloud SQL + Secret Manager) là follow-up tương lai. User chọn **1 env `dev`**. ⚠️ Setup thủ công còn lại: tạo env `dev`, tạo Firebase site `dev-anmates-studio`. See sessions/2026-06-01-ci-dev-environment-deploy.md.
+**Jira:** TECH-7 (current branch)
+
+---
+
+## Previous task (archived)
+
+**Status:** done — onboarding flow 08→09→10→11 fully working. R-004 written.
+**Goal:** Refactor onboarding submit flow: Screens 08/09 store to client draft (no API), NEW Screen 10 photo upload (Firebase Storage), "Hoàn tất" validates all 3 + one-shot `PATCH /profile/complete-onboarding`, Screen 11 GETs profile (nickname+avatar). New `user_photos` table. See sessions/2026-05-31-onboarding-flow-refactor-screen08-09-10-11.md + R-004.
+
+---
+
+## Previous task (archived)
+
+**Status:** done — UI confirmed by user, nav bug fixed, R-003 written.
+**Goal:** Implement post-OTP onboarding: Screen 08 (Thông Tin Cá Nhân, 3/5) + Screen 09 (Gú Ẩm Thực, 4/5). See R-003 + sessions/2026-05-31-screen08-ui-polish.md.
+**Jira:** TECH-7 (Screen 08) in epic TECH-6 (Auth & Profile UI/UX)
+
+---
+
+## Previous task (archived)
+
 **Status:** in-progress (FE-UI-007 ✅ Screen 03 in-review — next: FE-UI-008 Screen 04)
 **Owner:** main-assistant
 **Started at:** 2026-05-26

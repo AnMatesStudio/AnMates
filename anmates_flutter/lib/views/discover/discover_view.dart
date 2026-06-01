@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
@@ -13,6 +14,34 @@ class DiscoverView extends StatefulWidget {
 
 class _DiscoverViewState extends State<DiscoverView> {
   final Set<String> _activeVibes = {'❄️ Máy lạnh'};
+
+  // Loaded from GET /profile (Screen 11). Falls back to defaults while loading.
+  String _greetingName = 'bạn';
+  String? _avatarUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final u = await ProfileService().getProfile();
+      if (!mounted) return;
+      setState(() {
+        final nick = (u['nickname'] as String?)?.trim();
+        final name = (u['name'] as String?)?.trim();
+        _greetingName = (nick != null && nick.isNotEmpty)
+            ? nick
+            : (name != null && name.isNotEmpty ? name : 'bạn');
+        final avatar = (u['avatar_url'] as String?)?.trim();
+        _avatarUrl = (avatar != null && avatar.isNotEmpty) ? avatar : null;
+      });
+    } catch (_) {
+      // Offline / not-yet-onboarded — keep the placeholder greeting.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -61,17 +90,32 @@ class _DiscoverViewState extends State<DiscoverView> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Hôm nay ăn gì, Vy?',
+                  'Hôm nay ăn gì, $_greetingName?',
                   style: AppTextStyles.body(
                     size: 15,
                     weight: FontWeight.w700,
                     color: AppColors.ink,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
-          TrustRing(score: 96, size: 42),
+          _avatarUrl != null
+              ? Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppColors.ocean, width: 2),
+                    image: DecorationImage(
+                      image: NetworkImage(_avatarUrl!),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                )
+              : TrustRing(score: 96, size: 42),
         ],
       ),
     );

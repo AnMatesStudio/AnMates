@@ -1,122 +1,126 @@
-# Plan — Phase 0 (Foundation) + Phase 1 (Onboarding screens 01-07)
+# Plan — Post-OTP Onboarding Flow (Screens 08 + 09)
 
 **Owner:** team-leader → coder → qa
-**Date:** 2026-05-26
-**Velocity preference:** ship phase-end (not screen-end). QA runs once at end of Phase 1.
+**Date:** 2026-05-30
+**Jira:** (Phase 2 onboarding — profile setup)
+**Velocity preference:** ship both screens + backend in one coder pass, then QA.
 
 ---
 
-## Phase 0 — Foundation (no screens; ships primitives + theme)
+## Goal
 
-### Step P0.1 — Pubspec + asset folder
+After OTP verification, route NEW users through 2 onboarding screens before MainTabView:
+- **Screen 08** (step 3/5): User Profile — Thông Tin Cá Nhân
+- **Screen 09** (step 4/5): Food Preferences — Gú Ẩm Thực
 
-- Add `flutter_svg: ^2.0.10+1` to `pubspec.yaml` dependencies (keep existing deps untouched).
-- DO NOT add `lottie` this session — Sparkle uses CustomPainter or inline SVG.
-- Add asset declarations:
-  ```yaml
-  flutter:
-    uses-material-design: true
-    assets:
-      - assets/sparkles/
-      - assets/logo/
-  ```
-- Create folders: `assets/sparkles/`, `assets/logo/` (empty placeholders OK — Sparkle will fall back to CustomPainter).
+Both persist to the Go backend. RETURNING users (onboarding_done=true) skip straight to MainTabView.
 
-### Step P0.2 — Theme extension
-
-In `lib/theme/app_theme.dart`:
-
-- Add `AppSpacing` class with constants `xs=4`, `sm=8`, `md=12`, `lg=16`, `xl=24`, `xxl=32`, `xxxl=48`.
-- Add `AppSemanticColors` class: `success=#00A86B`, `warning=#FFA500`, `error=#E74C3C`, `neutral=#95A5A6`.
-- Add `AppRadius` class: `sm=8`, `md=12`, `lg=16`, `xl=20`, `pill=999`.
-- Add `AppShadows` class with elevation presets (card, button, modal).
-- Keep existing `AppColors`, `AppTextStyles`, `AppTheme` untouched — extend, do not break.
-
-### Step P0.3 — Services (reduce-motion + haptic)
-
-Create:
-- `lib/services/motion_service.dart` — `MotionService` singleton with `ValueNotifier<bool> reduceMotion`. Defaults `false`; reads from `MediaQuery.of(context).disableAnimations` when widget tree available.
-- `lib/services/haptic_service.dart` — `HapticService` with `light()`, `medium()`, `success()`, `error()` methods. Uses `HapticFeedback.lightImpact()` etc. No-ops on web (Flutter HapticFeedback is mobile-only).
-- `lib/services/app_loader_service.dart` — Provider-based stack-aware loader controller. API per design-system.md §AppLoader: `show({mode, caption, determinate})`, `setProgress(tokenId, value)`, `hide(tokenId)`, `withLoader(Future)` helper.
-
-### Step P0.4 — Primitives (in `lib/widgets/anm/`)
-
-Create folder `lib/widgets/anm/` + barrel file `anm.dart` that re-exports everything.
-
-1. `sparkle.dart` — `Sparkle` widget. Props: `size`, `color`, `delayMs`, `durationMs`. Twinkle animation 1500-2500ms randomized + 0-2000ms delay. CustomPainter draws 4-point or 6-point star. Reduce-motion = opacity-only pulse.
-2. `app_loader.dart` — `AppLoader` widget with `LoaderMode` enum (splash / overlay / topBar). Each mode renders horizontal pill bar per spec. Provider-driven for overlay/topBar; `splash` is direct widget.
-3. `app_button.dart` — `AppButton` with `AppButtonVariant` enum (primary/secondary/outline/danger/ghost). Tap scale 0.97 micro-feedback. Disabled state opacity 50%. Hit target ≥44×44.
-4. `app_chip.dart` — `AppChip` with `AppChipVariant` (filter/tag/mood/state). Selectable mode with white check ✓ on select. Spring scale on tap.
-5. `app_input.dart` — `AppInput` with `AppInputType` (text/phone/otp/search). Focus = 2px Berry Crush border (150ms morph). Error = shake animation + red text.
-6. `app_card.dart` — `AppCard` base + `RestaurantCard`, `MateCard`, `BookingCard` variants. Tap scale 0.97. Shared element hero tag support.
-7. `avatar.dart` — `Avatar` widget with optional `TrustBadge` ring. Sizes: 32/48/64/96/128.
-8. `vibe_ring.dart` — `VibeRing` circular progress 0-100. Sizes: small (28-32) / hero (64-80) / xl (180 for Screen 04). Wisteria→Berry Crush gradient fill. Animated draw on value change (600ms ease-out). Unlock pulse at 70.
-9. `trust_badge.dart` — `TrustBadge` widget; renders Perfect Mate (≥90, gold ✨) / Trusted (80-89, Glaucous ✓) / Limited (<80, Caviar ⚠).
-
-### Step P0.5 — Reduce-motion + haptic verification
-
-- All primitives MUST check `MotionService.reduceMotion` before running animations.
-- All tap-feedback widgets MUST call `HapticService.light()` on tap (no-op gracefully on web).
+New flow:
+```
+OtpView.onVerified → read onboarding_done from SharedPreferences (saved by _saveTokens)
+  false → UserProfileView (3/5) → FoodPreferencesView (4/5) → MainTabView
+  true  → MainTabView
+```
 
 ---
 
-## Phase 1 — Onboarding screens 01-07
+## BACKEND (Go Fiber) — coder pass
 
-For EACH screen: open `plan/lastest/design/<file>.html` side-by-side; match layout/colors/typography pixel-close; implement animation timeline from `design-system.md`; build all 5 states (default/loading/empty/error/success) where applicable.
+### B1. Migration `anmates-api/db/migrations/003_onboarding.sql` (CREATE)
+ALTER users: add nickname TEXT, birth_date DATE, personality_score SMALLINT,
+food_tags TEXT[] NOT NULL DEFAULT '{}', vibe_tags TEXT[] NOT NULL DEFAULT '{}',
+onboarding_done BOOLEAN NOT NULL DEFAULT FALSE. (All `IF NOT EXISTS`.)
 
-### Step P1.1 — Screen 01 Splash (`lib/views/splash/splash_screen.dart` — REPLACE)
+### B2. `models/models.go` (MODIFY)
+Add to User: Nickname *string, BirthDate *time.Time, PersonalityScore *int16,
+FoodTags []string, VibeTags []string, OnboardingDone bool. (json tags per spec.)
 
-Reference: `plan/lastest/design/01 _ Splash.html` + design-system.md §"Splash Screen (Screen 01) — Full Animation Spec".
+### B3. `handlers/auth.go` (MODIFY)
+Add `OnboardingDone bool json:"onboarding_done"` to userOut struct + toUserOut().
 
-Implement timeline t=0 → t=1500ms entrance + idle loop (logo breathing, sparkle twinkle, loader indeterminate) + exit fade. 6-8 sparkles in upper 60%. Wisteria glow radial gradient over Berry Crush. AppLoader.splash with caption "Đang nhóm lửa nồi lẩu...".
+### B4. `services/interfaces.go` (MODIFY)
+Add to UserServicer:
+- UpdateOnboardingProfile(ctx, userID, name, nickname string, birthDate *time.Time, personalityScore *int16) (*User, error)
+- UpdatePreferences(ctx, userID, foodTags, vibeTags []string) (*User, error)
 
-### Step P1.2 — Screens 02/03/04 Onboard carousel (`lib/views/onboarding/onboarding_view.dart` — REPLACE)
+### B5. `services/user.go` (MODIFY)
+- Implement both methods (UPDATE ... RETURNING all new columns).
+- UpdatePreferences sets onboarding_done = TRUE.
+- Fix GetProfile + UpdateProfile RETURNING clauses to include new columns (and their Scan targets) so existing queries don't break.
 
-References:
-- `02 _ Onboard _ Ch_n qu_n.html` (Chọn quán — 4 genre cards drop in)
-- `03 _ Onboard _ Social proof.html` (15 người đang thèm — counter tick)
-- `04 _ Onboard _ N_i l_u.html` (Vibe ring unlock @ 70%)
+### B6. `handlers/user.go` (MODIFY)
+Add 2 handlers:
+- PATCH /api/v1/profile/onboarding — onboardingProfileReq{name,nickname,birth_date "YYYY-MM-DD",personality_score *int16}. Parse birth_date → *time.Time. Get userID from JWT context. Return toUserOut.
+- PATCH /api/v1/profile/preferences — preferencesReq{food_tags,vibe_tags}. Return toUserOut.
 
-Common framework: page indicator (3 dots, active morphs to 24×8 pill), "Bỏ qua" + "Tiếp tục →" / "Bắt đầu →" CTA with arrow nudge. Page-to-page slide+fade transition (350ms). All entrance timelines from design-system.md §"Onboarding Edu Carousel".
+### B7. `main.go` (MODIFY)
+- Add "PATCH" to CORS AllowMethods.
+- Register auth.Patch("/profile/onboarding", ...) + auth.Patch("/profile/preferences", ...).
 
-### Step P1.3 — Screen 05 Đăng nhập (`lib/views/auth/auth_view.dart` + `phone_input_view.dart` — REPLACE)
-
-Reference: `05 _ _ng nh_p.html` + design-system.md §"Screen 05 — Đăng nhập".
-
-CRITICAL: preserve Firebase Phone Auth wiring from R-001. `PhoneInputView` keeps existing service calls but UI is rewritten. Inherit bg gradient from splash (no re-paint flash). Headline "Va Mates, ăn miết." + body + phone Input (focus border morph) + primary CTA "Gửi mã xác minh" + "HOẶC" divider + Apple button + footnote.
-
-### Step P1.4 — Screen 06 OTP (`lib/views/auth/otp_view.dart` — REPLACE UI, keep wiring)
-
-Reference: `06 _ OTP.html` + design-system.md §"Screen 06 — OTP Entry".
-
-6 digit slots with scale-in entrance + auto-advance underline focus migration. Per-digit haptic light. Auto-submit on 6th. Countdown timer "Gửi lại (00:62)" → resend at 00:00. Success = green ✓ cell flip. Failure = shake + red underline + clear. Preserve Firebase signInWithCredential.
-
-### Step P1.5 — Screen 07 Face verify (NEW: `lib/views/auth/face_verify_view.dart`)
-
-Reference: `07 _ Face verify.html` + design-system.md §"Screen 07 — Face verify".
-
-UI ONLY (no real ML — mock 4-step liveness flow: look straight → blink → turn left → turn right). Circular camera frame placeholder + ring progress 0→100% in 25% steps. Auto-advance with mock 1.5s timer per step. Completion → 8 sparkles burst + "Xác minh thành công ✨" + AppLoader.overlay → navigate to Screen 08 (placeholder; Phase 2 will implement).
-
-### Step P1.6 — Router/navigation glue
-
-Update `lib/main.dart` initial route logic. Splash → onboarding (if not done) → auth → otp → face verify → home placeholder. Add `assets/` declarations to pubspec if not done in P0.
+### B8. Update `api-contracts.md` with the 2 new PATCH endpoints.
 
 ---
 
-## Dispatch order (this session)
+## FLUTTER — coder pass
 
-1. **coder pass 1**: Phase 0 (P0.1 → P0.5) — foundation only, no screens yet
-2. **coder pass 2**: Phase 1 (P1.1 → P1.6) — all 7 screens + router glue
-3. **qa pass**: scope = Phase 0 primitives + Phase 1 screens 01-07. Run `flutter analyze`, `flutter test`, manual visual walk through screens, compare to HTML refs. Report to `qa-reports/2026-05-26-phase-0-1.md`.
-4. Loop coder→qa max 3 times if fail
-5. On pass: update `current-task.md` → status `done` (this session); summarize Phase 2-7 remaining to user
+### F1. `lib/services/auth_service.dart` (MODIFY)
+In _saveTokens persist `onboarding_done` to SharedPreferences. Add isOnboardingDone() helper.
 
-## Risks / mitigations
+### F2. `lib/services/profile_service.dart` (CREATE)
+Singleton. saveOnboardingProfile({name,nickname,birthDate,personalityScore}) → PATCH /profile/onboarding.
+savePreferences({foodTags,vibeTags}) → PATCH /profile/preferences, then set onboarding_done=true in prefs.
+Use existing apiBaseUrl constant (confirm name in codebase — auth_service uses it).
 
-| Risk | Mitigation |
-|------|-----------|
-| Sparkle SVG assets missing | Coder uses CustomPainter to draw 4-point + 6-point stars inline |
-| HapticFeedback no-op on web breaks runtime | Wrap in `if (!kIsWeb)` guard inside HapticService |
-| Existing Firebase wiring lost during rewrite | Coder must read existing `phone_input_view.dart` + `otp_view.dart` BEFORE replacing; preserve all service calls + error handling |
-| `flutter analyze` warnings from new code | Coder runs analyze locally + cleans warnings before handoff |
-| QA can't run on Windows easily | qa accepts `flutter analyze` + `flutter test` + manual code-vs-HTML walk-through if Playwright screenshots not feasible on Windows |
+### F3. `lib/utils/astrology.dart` (CREATE)
+Pure Dart: zodiacSign, zodiacDateRange, lifePathNumber, napAm (30-entry table), heavenlyStem.
+Use the exact Nạp Âm + zodiac + life-path-label tables from the task spec.
+
+### F4. `lib/views/onboarding/user_profile_view.dart` (CREATE — Screen 08)
+Match media/AnMates_Screens_PNG/08_ThongTinCaNhan.png. White bg. Top bar (back + THÔNG TIN CÁ NHÂN + 3/5).
+Form: full name, nickname (+helper), DOB 3 dark-purple wheel cards (day 1-31 / month 01-12 / year 1960-2009),
+auto-detect section (zodiac / nạp âm / numerology) AnimatedOpacity after DOB selected,
+personality slider (gradient track, pink + thumb, 0-100 default 50, label Introvert/Ambivert/Extrovert).
+Bottom AnmCTA "Tiếp tục →" enabled when name+nickname+dob set → saveOnboardingProfile → push FoodPreferencesView.
+
+### F5. `lib/views/onboarding/food_preferences_view.dart` (CREATE — Screen 09)
+Match media/AnMates_Screens_PNG/09_GuAmThuc.png. Top bar (back + GÚ ẨM THỰC + 4/5).
+Food chips (12, multi-select) + vibe chips (5). Chip style per spec (berry selected / white unselected).
+Fixed bottom bar: "N/5 đã chọn" counter + AnmCTA "Tiếp tục →" enabled when food >= 5 → savePreferences → widget.onComplete().
+
+### F6. `lib/views/onboarding/onboarding_view.dart` (MODIFY — _navigateAway only)
+Keep onAuthenticated as VoidCallback. In callback: read AuthService().isOnboardingDone();
+true → pushAndRemoveUntil MainTabView; false → pushReplacement UserProfileView(onComplete: → MainTabView).
+DO NOT break Firebase OTP wiring (R-001) or PhoneInputView/OtpView signatures.
+
+---
+
+## Constraints (HARD)
+1. Don't break existing Firebase OTP wiring — OtpView + PhoneInputView still work.
+2. Don't modify AppColors / AppTextStyles — use existing tokens.
+3. Keep onAuthenticated as VoidCallback — read onboarding_done from SharedPreferences.
+4. CORS AllowMethods must include PATCH.
+5. DOB year range 1960–2009.
+6. Slider default 50. Label: 0-33 Introvert / 34-66 Ambivert / 67-100 Extrovert.
+7. All new Go SQL RETURNING clauses include ALL new columns.
+8. food_tags / vibe_tags are TEXT[] — pgx array scanning.
+
+## Acceptance criteria
+- [ ] `go build ./...` clean in anmates-api
+- [ ] `flutter analyze --no-fatal-warnings` clean (0 errors) in anmates_flutter
+- [ ] New user after OTP → Screen 08 → Screen 09 → MainTabView
+- [ ] Returning user (onboarding_done=true) → MainTabView directly
+- [ ] DOB wheels work; auto-detect (zodiac/nạp âm/numerology) appears after DOB selected
+- [ ] Personality slider 0-100, label updates live
+- [ ] Screen 09 requires >= 5 food tags to continue; counter live
+- [ ] Both screens persist via PATCH endpoints (200 OK)
+- [ ] Firebase OTP wiring preserved (no R-001 regression)
+- [ ] api-contracts.md updated with 2 new endpoints
+- [ ] QA report saved to qa-reports/2026-05-30-onboarding-08-09.md
+
+## Dispatch order
+1. coder pass: backend (B1-B8) + flutter (F1-F6) together. Verify go build + flutter analyze before handoff.
+2. qa pass: scope = onboarding screens 08/09 + routing + backend endpoints. Report to qa-reports/2026-05-30-onboarding-08-09.md.
+3. Loop coder→qa max 3 times if fail; then escalate.
+
+## Loop policy
+Max 3 coder→qa cycles. If still failing after 3, mark blocked and escalate to user.

@@ -25,7 +25,7 @@ jobs:
       contents: read
       id-token: write
     environment:
-      name: production-web
+      name: production
       url: https://anmates-studio.web.app
     steps:
       - uses: actions/checkout@v4
@@ -65,8 +65,9 @@ jobs:
 
       - name: Deploy to Firebase Hosting (live)
         run: |
-          firebase deploy \
-            --only hosting \
+          firebase target:apply hosting production anmates-studio \
+            --project anmates-studio
+          firebase deploy --only hosting:production \
             --project anmates-studio \
             --non-interactive \
             --message "GH Actions: ${{ github.sha }}"
