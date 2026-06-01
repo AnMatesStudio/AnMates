@@ -12,6 +12,10 @@ concurrency:
   group: ci.load-test-${{ github.ref }}
   cancel-in-progress: true
 
+# Opt into Node.js 24 runtime for JavaScript actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   load-test:
     name: k6 stress test
@@ -19,7 +23,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 

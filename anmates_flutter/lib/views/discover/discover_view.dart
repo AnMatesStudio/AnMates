@@ -14,31 +14,117 @@ class DiscoverView extends StatefulWidget {
 class _DiscoverViewState extends State<DiscoverView> {
   final Set<String> _activeVibes = {'❄️ Máy lạnh'};
 
+  // Hardcoded for now — will become a Bloc-driven List<Place> in Phase 4c
+  // (DiscoverBloc + repository). Once that lands, this becomes:
+  //   final places = context.watch<DiscoverBloc>().state.places;
+  static final List<_RestaurantData> _hotNearby = [
+    _RestaurantData(
+      name: 'Tiệm mì Ramen Q1',
+      tag: '🍜 Mì · Lẩu',
+      dist: '0.4km',
+      peopleCraving: 15,
+      hot: false,
+    ),
+    _RestaurantData(
+      name: 'Bò tơ nướng đá tảng',
+      tag: '🥩 Nướng · Bia',
+      dist: '1.2km',
+      peopleCraving: 8,
+      hot: true,
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mint,
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildTopBar(),
-            const SizedBox(height: 12),
-            _buildSearchBar(),
-            const SizedBox(height: 24),
-            _buildGenreSection(),
-            const SizedBox(height: 24),
-            _buildVibeSection(),
-            const SizedBox(height: 24),
-            _buildHotNearbySection(),
-            const SizedBox(height: 120),
-          ],
-        ),
+      // CustomScrollView + slivers replaces SingleChildScrollView + Column.
+      // Why: slivers participate directly in the scroll viewport, so each
+      // section's layout is computed lazily as it scrolls into view. This
+      // eliminates the "compute every child's intrinsic height up front"
+      // cost of SingleChildScrollView + Column.
+      body: CustomScrollView(
+        slivers: [
+          const SliverToBoxAdapter(child: _TopBar()),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          const SliverToBoxAdapter(child: _SearchBar()),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          const SliverToBoxAdapter(child: _GenreSection()),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          SliverToBoxAdapter(
+            child: _VibeSection(
+              activeVibes: _activeVibes,
+              onToggle: (vibe) {
+                setState(() {
+                  if (_activeVibes.contains(vibe)) {
+                    _activeVibes.remove(vibe);
+                  } else {
+                    _activeVibes.add(vibe);
+                  }
+                });
+              },
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          // "Hot Nearby" heading
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Eyebrow('HOT QUANH BẠN · 18:00'),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+          // Restaurant rows — SliverList.builder so future Bloc-driven list
+          // pagination plugs in without refactoring the scroll architecture.
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            sliver: SliverList.separated(
+              itemCount: _hotNearby.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final place = _hotNearby[index];
+                return _RestaurantRow(
+                  name: place.name,
+                  tag: place.tag,
+                  dist: place.dist,
+                  peopleCraving: place.peopleCraving,
+                  hot: place.hot,
+                );
+              },
+            ),
+          ),
+          // Bottom safe-area for the tab bar overlap.
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+        ],
       ),
     );
   }
+}
 
-  Widget _buildTopBar() {
+/// Plain data holder for the hardcoded list. Replaced by Place entity in Phase 4c.
+class _RestaurantData {
+  final String name;
+  final String tag;
+  final String dist;
+  final int peopleCraving;
+  final bool hot;
+
+  const _RestaurantData({
+    required this.name,
+    required this.tag,
+    required this.dist,
+    required this.peopleCraving,
+    required this.hot,
+  });
+}
+
+// ─── Section widgets (extracted from build() for clarity + const-ness) ──────
+
+class _TopBar extends StatelessWidget {
+  const _TopBar();
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 56, 20, 0),
       child: Row(
@@ -71,13 +157,18 @@ class _DiscoverViewState extends State<DiscoverView> {
               ],
             ),
           ),
-          TrustRing(score: 96, size: 42),
+          const TrustRing(score: 96, size: 42),
         ],
       ),
     );
   }
+}
 
-  Widget _buildSearchBar() {
+class _SearchBar extends StatelessWidget {
+  const _SearchBar();
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -111,8 +202,13 @@ class _DiscoverViewState extends State<DiscoverView> {
       ),
     );
   }
+}
 
-  Widget _buildGenreSection() {
+class _GenreSection extends StatelessWidget {
+  const _GenreSection();
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -120,7 +216,7 @@ class _DiscoverViewState extends State<DiscoverView> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              Eyebrow('BẠN THÈM GENRE GÌ?'),
+              const Eyebrow('BẠN THÈM GENRE GÌ?'),
               const Spacer(),
               Text(
                 'Xem tất cả',
@@ -180,20 +276,29 @@ class _DiscoverViewState extends State<DiscoverView> {
       ],
     );
   }
+}
 
-  Widget _buildVibeSection() {
-    final vibes = [
-      '❄️ Máy lạnh',
-      '🌿 Vỉa hè',
-      '🔇 Khuất hẻm',
-      '✨ Sang chảnh',
-      '🌙 Ngồi khuya',
-    ];
+class _VibeSection extends StatelessWidget {
+  final Set<String> activeVibes;
+  final void Function(String vibe) onToggle;
+
+  const _VibeSection({required this.activeVibes, required this.onToggle});
+
+  static const _vibes = [
+    '❄️ Máy lạnh',
+    '🌿 Vỉa hè',
+    '🔇 Khuất hẻm',
+    '✨ Sang chảnh',
+    '🌙 Ngồi khuya',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
           child: Eyebrow('… HAY MUỐN VIBE NÀO?'),
         ),
         const SizedBox(height: 12),
@@ -202,21 +307,13 @@ class _DiscoverViewState extends State<DiscoverView> {
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
-            children: vibes.map((v) {
-              final active = _activeVibes.contains(v);
+            children: _vibes.map((v) {
+              final active = activeVibes.contains(v);
               return AnmChip(
                 label: v,
                 active: active,
                 color: AppColors.ocean,
-                onTap: () {
-                  setState(() {
-                    if (active) {
-                      _activeVibes.remove(v);
-                    } else {
-                      _activeVibes.add(v);
-                    }
-                  });
-                },
+                onTap: () => onToggle(v),
               );
             }).toList(),
           ),
@@ -224,42 +321,9 @@ class _DiscoverViewState extends State<DiscoverView> {
       ],
     );
   }
-
-  Widget _buildHotNearbySection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Eyebrow('HOT QUANH BẠN · 18:00'),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            children: [
-              _RestaurantRow(
-                name: 'Tiệm mì Ramen Q1',
-                tag: '🍜 Mì · Lẩu',
-                dist: '0.4km',
-                peopleCraving: 15,
-                hot: false,
-              ),
-              const SizedBox(height: 10),
-              _RestaurantRow(
-                name: 'Bò tơ nướng đá tảng',
-                tag: '🥩 Nướng · Bia',
-                dist: '1.2km',
-                peopleCraving: 8,
-                hot: true,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 }
+
+// ─── Genre carousel (unchanged from previous implementation) ────────────────
 
 class _HorizontalDraggableGenreList extends StatefulWidget {
   final List<(String label, String emoji, LinearGradient gradient)> items;
@@ -504,7 +568,7 @@ class _RestaurantRowState extends State<_RestaurantRow> {
         ),
         child: Row(
           children: [
-            PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+            const PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -525,7 +589,7 @@ class _RestaurantRowState extends State<_RestaurantRow> {
                         ),
                       ),
                       if (widget.hot)
-                        Text('🔥', style: const TextStyle(fontSize: 14)),
+                        const Text('🔥', style: TextStyle(fontSize: 14)),
                     ],
                   ),
                   const SizedBox(height: 3),
@@ -546,7 +610,7 @@ class _RestaurantRowState extends State<_RestaurantRow> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Sparkle(size: 9, color: AppColors.berry),
+                        const Sparkle(size: 9, color: AppColors.berry),
                         const SizedBox(width: 4),
                         Text(
                           '${widget.peopleCraving} người đang thèm',

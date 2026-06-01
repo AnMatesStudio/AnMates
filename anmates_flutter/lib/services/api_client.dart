@@ -1,7 +1,18 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:http/http.dart' as http;
+
+import '../core/di/injection.dart';
+import '../core/storage/secure_storage_service.dart';
+
+/// Legacy HTTP client retained for views that have not yet migrated to
+/// [core/network/api_client.dart] (Dio + interceptor chain).
+///
+/// Token storage has been migrated from plaintext [SharedPreferences] to
+/// the encrypted [SecureStorageService] so this path is no longer the
+/// security hole flagged in the audit. New code MUST use the Dio-based
+/// client; this stays only to keep the legacy auth flow alive during the
+/// view migration.
 const _baseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: 'https://anmates-api-492509819332.asia-southeast1.run.app',
@@ -20,10 +31,15 @@ class ApiClient {
   ApiClient._();
   factory ApiClient() => _instance;
 
-  Future<String?> _token() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
-  }
+  /// Resolved lazily so tests/tooling can replace the registration before
+  /// the first call. Falls back to a directly-constructed instance when
+  /// DI is not bootstrapped (e.g., during isolated unit tests).
+  SecureStorageService get _storage =>
+      getIt.isRegistered<SecureStorageService>()
+      ? getIt<SecureStorageService>()
+      : SecureStorageService();
+
+  Future<String?> _token() => _storage.accessToken;
 
   Map<String, String> _headers(String? token) => {
     'Content-Type': 'application/json',
@@ -77,13 +93,15 @@ class ApiClient {
     throw ApiException(res.statusCode, msg);
   }
 
-  // Returns the raw token string for WebSocket use.
+  /// Token getter for WebSocket use — reads from the encrypted store.
   static Future<String?> accessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
+    final storage = getIt.isRegistered<SecureStorageService>()
+        ? getIt<SecureStorageService>()
+        : SecureStorageService();
+    return storage.accessToken;
   }
 
-  // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
+  /// Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {
     final wsBase = _baseUrl
         .replaceFirst('https://', 'wss://')

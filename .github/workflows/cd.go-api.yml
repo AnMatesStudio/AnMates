@@ -18,6 +18,8 @@ env:
   SERVICE_NAME: anmates-api
   AR_REPO: anmates-api
   AR_IMAGE: api
+  # Opt into Node.js 24 runtime for JavaScript actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
   deploy:
@@ -31,7 +33,7 @@ jobs:
       name: production-api
       url: https://anmates-api-492509819332.asia-southeast1.run.app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go (validate + test)
         uses: actions/setup-go@v5
