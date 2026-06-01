@@ -11,6 +11,10 @@ concurrency:
   group: ci.go-api-${{ github.ref }}
   cancel-in-progress: true
 
+# Opt into Node.js 24 runtime for JavaScript actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 defaults:
   run:
     working-directory: anmates-api
@@ -21,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -51,7 +55,7 @@ jobs:
     timeout-minutes: 10
     needs: lint-test
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

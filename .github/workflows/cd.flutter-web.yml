@@ -12,6 +12,10 @@ concurrency:
   group: cd.flutter-web-main
   cancel-in-progress: false
 
+# Opt into Node.js 24 runtime for JavaScript actions
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 defaults:
   run:
     working-directory: anmates_flutter
@@ -28,7 +32,7 @@ jobs:
       name: production-web
       url: https://anmates-studio.web.app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2

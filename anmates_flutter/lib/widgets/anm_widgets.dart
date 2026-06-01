@@ -33,49 +33,67 @@ class _AnmCTAState extends State<AnmCTA> {
   @override
   Widget build(BuildContext context) {
     final isBerry = widget.background == AppColors.berry;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: widget.onTap != null
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.forbidden,
-      child: AnimatedScale(
-        scale: (_hovered && widget.onTap != null) ? 1.025 : 1.0,
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOut,
-        child: AnimatedContainer(
+    // Explicit Semantics wrapper — ElevatedButton already provides some
+    // semantics, but we set `button: true` + `enabled` + `label` explicitly
+    // so screen readers announce "Gửi mã OTP, button, disabled" cleanly.
+    return Semantics(
+      button: true,
+      enabled: widget.onTap != null,
+      label: widget.label,
+      excludeSemantics: true, // Hide inner Text semantics — we use our label.
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: widget.onTap != null
+            ? SystemMouseCursors.click
+            : SystemMouseCursors.forbidden,
+        child: AnimatedScale(
+          scale: (_hovered && widget.onTap != null) ? 1.025 : 1.0,
           duration: const Duration(milliseconds: 160),
-          width: widget.fullWidth ? double.infinity : null,
-          height: widget.height ?? 56,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: isBerry
-                ? [
-                    BoxShadow(
-                      color: AppColors.berry.withValues(
-                        alpha: (_hovered && widget.onTap != null) ? 0.50 : 0.35,
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            width: widget.fullWidth ? double.infinity : null,
+            // Minimum 56pt height — exceeds the 48pt material guidance and the
+            // 44pt iOS guidance for tap targets.
+            height: widget.height ?? 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: isBerry
+                  ? [
+                      BoxShadow(
+                        color: AppColors.berry.withValues(
+                          alpha: (_hovered && widget.onTap != null)
+                              ? 0.50
+                              : 0.35,
+                        ),
+                        blurRadius: (_hovered && widget.onTap != null)
+                            ? 36
+                            : 24,
+                        offset: (_hovered && widget.onTap != null)
+                            ? const Offset(0, 12)
+                            : const Offset(0, 8),
                       ),
-                      blurRadius: (_hovered && widget.onTap != null) ? 36 : 24,
-                      offset: (_hovered && widget.onTap != null)
-                          ? const Offset(0, 12)
-                          : const Offset(0, 8),
-                    ),
-                  ]
-                : const [],
-          ),
-          child: ElevatedButton(
-            onPressed: widget.onTap,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: widget.background,
-              foregroundColor: widget.foreground,
-              shape: const StadiumBorder(),
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 0),
-              elevation: 0,
-              shadowColor: Colors.transparent,
-            ).copyWith(overlayColor: WidgetStateProperty.all(Colors.white12)),
-            child: Text(
-              widget.label,
-              style: AppTextStyles.cta(color: widget.foreground),
+                    ]
+                  : const [],
+            ),
+            child: ElevatedButton(
+              onPressed: widget.onTap,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: widget.background,
+                foregroundColor: widget.foreground,
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 0,
+                ),
+                elevation: 0,
+                shadowColor: Colors.transparent,
+              ).copyWith(overlayColor: WidgetStateProperty.all(Colors.white12)),
+              child: Text(
+                widget.label,
+                style: AppTextStyles.cta(color: widget.foreground),
+              ),
             ),
           ),
         ),
@@ -155,44 +173,57 @@ class _AnmChipState extends State<AnmChip> {
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 6)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      cursor: SystemMouseCursors.click,
-      child: AnimatedScale(
-        scale: _hovered ? 1.05 : 1.0,
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            padding: padding,
-            decoration: BoxDecoration(
-              color: widget.active
-                  ? activeColor
-                  : _hovered
-                  ? (widget.dark
-                        ? Colors.white.withValues(alpha: 0.18)
-                        : activeColor.withValues(alpha: 0.08))
-                  : (widget.dark ? Colors.white12 : Colors.white),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
+    return Semantics(
+      // Chips are tappable filter toggles, so semantically they're checkboxes:
+      // a screen reader announces "Cay 3, checked" or "Cay 3, not checked".
+      button: widget.onTap != null,
+      enabled: widget.onTap != null,
+      label: widget.label,
+      selected: widget.active,
+      excludeSemantics: true,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: AnimatedScale(
+          scale: _hovered ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOut,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            // Use opaque hit-test so the entire chip area (incl. padding)
+            // is tappable — matches the visual affordance and keeps the
+            // tap target ≥44pt diagonally even on .sm chips.
+            behavior: HitTestBehavior.opaque,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 140),
+              padding: padding,
+              decoration: BoxDecoration(
                 color: widget.active
-                    ? Colors.transparent
+                    ? activeColor
                     : _hovered
                     ? (widget.dark
-                          ? Colors.white38
-                          : activeColor.withValues(alpha: 0.35))
-                    : (widget.dark ? Colors.white24 : AppColors.ink10),
-                width: 1,
+                          ? Colors.white.withValues(alpha: 0.18)
+                          : activeColor.withValues(alpha: 0.08))
+                    : (widget.dark ? Colors.white12 : Colors.white),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: widget.active
+                      ? Colors.transparent
+                      : _hovered
+                      ? (widget.dark
+                            ? Colors.white38
+                            : activeColor.withValues(alpha: 0.35))
+                      : (widget.dark ? Colors.white24 : AppColors.ink10),
+                  width: 1,
+                ),
               ),
-            ),
-            child: Text(
-              widget.label,
-              style: AppTextStyles.chip(
-                active: widget.active,
-                color: widget.dark ? Colors.white : null,
+              child: Text(
+                widget.label,
+                style: AppTextStyles.chip(
+                  active: widget.active,
+                  color: widget.dark ? Colors.white : null,
+                ),
               ),
             ),
           ),

@@ -31,6 +31,10 @@ class AppColors {
 }
 
 // ─── Typography ─────────────────────────────────────────────────────────────
+// NOTE: GoogleFonts fetches fonts from the network on first use. To bundle
+// fonts locally (saves 200-500ms cold start), download the TTF files into
+// assets/fonts/ and uncomment the font declarations in pubspec.yaml, then
+// replace these GoogleFonts.X() calls with TextStyle(fontFamily: 'X', ...).
 class AppTextStyles {
   // Display / UI — Plus Jakarta Sans
   static TextStyle display({

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_widgets.dart';
 
@@ -12,12 +13,27 @@ class SwipeView extends StatefulWidget {
   State<SwipeView> createState() => _SwipeViewState();
 }
 
-class _SwipeViewState extends State<SwipeView>
-    with SingleTickerProviderStateMixin {
+class _SwipeViewState extends State<SwipeView> with TickerProviderStateMixin {
+  // Drag-tracked offset of the front card. During an active pan gesture this
+  // is updated via setState. During a fling-out animation it's driven by
+  // _flingCtrl through _flingAnim.
   Offset _dragOffset = Offset.zero;
   bool _isDragging = false;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+
+  // Heart-button pulse animation (unchanged from before).
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+
+  // Fling-out animation that physically slides the card off-screen.
+  // Replaces the previous setState(_dragOffset = (600, 0)) instant jump
+  // which relied on an AnimatedContainer to do the interpolation.
+  // Using a real AnimationController gives us:
+  //   * smooth easeOutCubic deceleration (feels like inertia)
+  //   * deterministic onComplete callback for deck advancement
+  //   * Future support for AnimationController.fling(velocity:) if we want
+  //     to carry the gesture's exit velocity into the animation
+  late final AnimationController _flingCtrl;
+  Animation<Offset>? _flingAnim;
 
   @override
   void initState() {
@@ -29,15 +45,23 @@ class _SwipeViewState extends State<SwipeView>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+
+    _flingCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    );
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _flingCtrl.dispose();
     super.dispose();
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
+    // If a fling is in flight, ignore drag updates — the user already let go.
+    if (_flingCtrl.isAnimating) return;
     setState(() {
       _isDragging = true;
       _dragOffset += Offset(details.delta.dx, details.delta.dy * 0.3);
@@ -47,10 +71,11 @@ class _SwipeViewState extends State<SwipeView>
   void _handleDragEnd(DragEndDetails details) {
     final velocity = details.velocity.pixelsPerSecond.dx;
     if (_dragOffset.dx > 120 || velocity > 400) {
-      _animateOut(true);
+      _flingOut(liked: true);
     } else if (_dragOffset.dx < -120 || velocity < -400) {
-      _animateOut(false);
+      _flingOut(liked: false);
     } else {
+      // Snap back to centre.
       setState(() {
         _dragOffset = Offset.zero;
         _isDragging = false;
@@ -58,18 +83,35 @@ class _SwipeViewState extends State<SwipeView>
     }
   }
 
-  void _animateOut(bool liked) {
-    setState(() {
-      _dragOffset = Offset(liked ? 600 : -600, 0);
+  /// Fling the front card off-screen with proper deceleration physics, then
+  /// reset for the next card. Replaces the previous setState-jump-and-wait
+  /// pattern with a real animation controller driving an Offset tween.
+  void _flingOut({required bool liked}) {
+    final start = _dragOffset;
+    final end = Offset(liked ? 600.0 : -600.0, start.dy);
+
+    // Listener removed from any previous fling tween before installing a new
+    // one — guards against stacked listeners when the user double-taps.
+    _flingAnim?.removeListener(_onFlingTick);
+
+    _flingAnim = Tween<Offset>(begin: start, end: end).animate(
+      CurvedAnimation(parent: _flingCtrl, curve: Curves.easeOutCubic),
+    )..addListener(_onFlingTick);
+
+    HapticFeedback.mediumImpact();
+
+    _flingCtrl.forward(from: 0).whenComplete(() {
+      if (!mounted) return;
+      setState(() {
+        _dragOffset = Offset.zero;
+        _isDragging = false;
+      });
     });
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) {
-        setState(() {
-          _dragOffset = Offset.zero;
-          _isDragging = false;
-        });
-      }
-    });
+  }
+
+  void _onFlingTick() {
+    if (!mounted) return;
+    setState(() => _dragOffset = _flingAnim!.value);
   }
 
   @override
@@ -184,41 +226,51 @@ class _SwipeViewState extends State<SwipeView>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Back card 2
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 16.0, 0.0, 1.0)
-              ..rotateZ(3 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.5,
-              child: _buildCard(isInteractive: false),
-            ),
-          ),
-          // Back card 1
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 8.0, 0.0, 1.0)
-              ..rotateZ(1.5 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.75,
-              child: _buildCard(isInteractive: false),
-            ),
-          ),
-          // Front card (interactive)
-          GestureDetector(
-            onPanUpdate: _handleDragUpdate,
-            onPanEnd: _handleDragEnd,
-            child: AnimatedContainer(
-              duration: _isDragging
-                  ? Duration.zero
-                  : const Duration(milliseconds: 300),
+          // Back card 2 — static behind the front card; isolate from
+          // front-card repaints via RepaintBoundary so it doesn't burn
+          // GPU cycles redrawing on every drag frame.
+          RepaintBoundary(
+            child: Transform(
               transform: Matrix4.identity()
-                ..translateByDouble(_dragOffset.dx, _dragOffset.dy, 0.0, 1.0)
-                ..rotateZ(rotation),
-              alignment: Alignment.center,
-              child: _buildCard(isInteractive: true),
+                ..translateByDouble(0.0, 16.0, 0.0, 1.0)
+                ..rotateZ(3 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.5,
+                child: _buildCard(isInteractive: false),
+              ),
+            ),
+          ),
+          // Back card 1 — same rationale as back card 2.
+          RepaintBoundary(
+            child: Transform(
+              transform: Matrix4.identity()
+                ..translateByDouble(0.0, 8.0, 0.0, 1.0)
+                ..rotateZ(1.5 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.75,
+                child: _buildCard(isInteractive: false),
+              ),
+            ),
+          ),
+          // Front card (interactive) — repaints every frame during drag,
+          // but kept isolated so the rest of the screen (top bar, action
+          // buttons, gradient bg) doesn't re-rasterise.
+          RepaintBoundary(
+            child: GestureDetector(
+              onPanUpdate: _handleDragUpdate,
+              onPanEnd: _handleDragEnd,
+              child: AnimatedContainer(
+                duration: _isDragging
+                    ? Duration.zero
+                    : const Duration(milliseconds: 300),
+                transform: Matrix4.identity()
+                  ..translateByDouble(_dragOffset.dx, _dragOffset.dy, 0.0, 1.0)
+                  ..rotateZ(rotation),
+                alignment: Alignment.center,
+                child: _buildCard(isInteractive: true),
+              ),
             ),
           ),
         ],
@@ -479,7 +531,7 @@ class _SwipeViewState extends State<SwipeView>
         children: [
           // Pass button
           GestureDetector(
-            onTap: () => _animateOut(false),
+            onTap: () => _flingOut(liked: false),
             child: Container(
               width: 56,
               height: 56,
@@ -527,7 +579,7 @@ class _SwipeViewState extends State<SwipeView>
           const SizedBox(width: 16),
           // Like button with pulse
           GestureDetector(
-            onTap: () => _animateOut(true),
+            onTap: () => _flingOut(liked: true),
             child: AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (context, child) {
