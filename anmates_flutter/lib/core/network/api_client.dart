@@ -12,8 +12,7 @@ const _baseUrl = String.fromEnvironment(
 /// Typed API result: Either success with data or typed Failure
 typedef ApiResult<T> = ({bool success, T? data, Failure? error});
 
-ApiResult<T> _success<T>(T data) =>
-    (success: true, data: data, error: null);
+ApiResult<T> _success<T>(T data) => (success: true, data: data, error: null);
 
 ApiResult<T> _failure<T>(Failure error) =>
     (success: false, data: null, error: error);
@@ -95,10 +94,7 @@ class ApiClient {
     }
   }
 
-  T _parse<T>(
-    dynamic data,
-    T Function(Map<String, dynamic>)? fromJson,
-  ) {
+  T _parse<T>(dynamic data, T Function(Map<String, dynamic>)? fromJson) {
     if (fromJson != null) {
       return fromJson(data as Map<String, dynamic>);
     }
