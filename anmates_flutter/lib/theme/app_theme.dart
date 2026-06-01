@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // ─── ANM Brand Tokens ───────────────────────────────────────────────────────
 class AppColors {
@@ -30,16 +31,19 @@ class AppColors {
 }
 
 // ─── Typography ─────────────────────────────────────────────────────────────
+// NOTE: GoogleFonts fetches fonts from the network on first use. To bundle
+// fonts locally (saves 200-500ms cold start), download the TTF files into
+// assets/fonts/ and uncomment the font declarations in pubspec.yaml, then
+// replace these GoogleFonts.X() calls with TextStyle(fontFamily: 'X', ...).
 class AppTextStyles {
-  // Display / UI — Plus Jakarta Sans (bundled, no network fetch)
+  // Display / UI — Plus Jakarta Sans
   static TextStyle display({
     double size = 44,
     FontWeight weight = FontWeight.w800,
     Color color = AppColors.ink,
     double letterSpacing = -1.5,
     double? height,
-  }) => TextStyle(
-    fontFamily: 'PlusJakartaSans',
+  }) => GoogleFonts.plusJakartaSans(
     fontSize: size,
     fontWeight: weight,
     color: color,
@@ -47,28 +51,26 @@ class AppTextStyles {
     height: height,
   );
 
-  // Body / Vietnamese — Be Vietnam Pro (bundled, no network fetch)
+  // Body / Vietnamese — Be Vietnam Pro
   static TextStyle body({
     double size = 15,
     FontWeight weight = FontWeight.w400,
     Color color = AppColors.ink,
     double? height,
-  }) => TextStyle(
-    fontFamily: 'BeVietnamPro',
+  }) => GoogleFonts.beVietnamPro(
     fontSize: size,
     fontWeight: weight,
     color: color,
     height: height ?? 1.55,
   );
 
-  // Mono / Data — JetBrains Mono (bundled, no network fetch)
+  // Mono / Data — JetBrains Mono
   static TextStyle mono({
     double size = 11,
     FontWeight weight = FontWeight.w500,
     Color color = AppColors.ink50,
     double letterSpacing = 1.5,
-  }) => TextStyle(
-    fontFamily: 'JetBrainsMono',
+  }) => GoogleFonts.jetBrainsMono(
     fontSize: size,
     fontWeight: weight,
     color: color,
@@ -105,12 +107,12 @@ class AppTextStyles {
     letterSpacing: -0.3,
   );
 
-  static TextStyle chip({bool active = false, Color? color}) => TextStyle(
-    fontFamily: 'BeVietnamPro',
-    fontSize: 13,
-    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-    color: active ? Colors.white : (color ?? AppColors.ink),
-  );
+  static TextStyle chip({bool active = false, Color? color}) =>
+      GoogleFonts.beVietnamPro(
+        fontSize: 13,
+        fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+        color: active ? Colors.white : (color ?? AppColors.ink),
+      );
 }
 
 // ─── Theme ───────────────────────────────────────────────────────────────────

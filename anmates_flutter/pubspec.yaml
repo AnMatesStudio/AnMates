@@ -61,6 +61,16 @@ dependencies:
   # Connectivity
   connectivity_plus: ^5.0.0
 
+  # Legacy — to be removed phase-by-phase as views migrate to BLoC + bundled fonts
+  # provider: kept until main.dart migrates to BlocProvider (Phase 2)
+  # google_fonts: kept until splash_screen + anm_widgets refactor (Phase 1/2 polish)
+  # shared_preferences: kept until services/api_client + auth_service replaced by core/network (Phase 2)
+  # http: kept until services/api_client replaced by core/network ApiClient (Phase 2)
+  provider: ^6.1.2
+  google_fonts: ^8.1.0
+  shared_preferences: ^2.3.3
+  http: ^1.2.2
+
   # Existing (kept)
   web_socket_channel: ^3.0.1
   flutter_map: ^8.3.0
@@ -99,34 +109,8 @@ flutter:
   assets:
     - assets/food/
     - assets/avatars/
-    - assets/fonts/
 
-  fonts:
-    - family: PlusJakartaSans
-      fonts:
-        - asset: assets/fonts/PlusJakartaSans-Regular.ttf
-        - asset: assets/fonts/PlusJakartaSans-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/PlusJakartaSans-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/PlusJakartaSans-Bold.ttf
-          weight: 700
-        - asset: assets/fonts/PlusJakartaSans-ExtraBold.ttf
-          weight: 800
-
-    - family: BeVietnamPro
-      fonts:
-        - asset: assets/fonts/BeVietnamPro-Regular.ttf
-        - asset: assets/fonts/BeVietnamPro-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/BeVietnamPro-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/BeVietnamPro-Bold.ttf
-          weight: 700
-
-    - family: JetBrainsMono
-      fonts:
-        - asset: assets/fonts/JetBrainsMono-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/JetBrainsMono-Bold.ttf
-          weight: 700
+  # Font bundling: declarations to be re-enabled once TTF files are placed
+  # in assets/fonts/ (download from Google Fonts).
+  # See PHASE_1_FOUNDATION.md for the list of required weights.
+  # Until then, AppTextStyles falls back to GoogleFonts (network fetch).
