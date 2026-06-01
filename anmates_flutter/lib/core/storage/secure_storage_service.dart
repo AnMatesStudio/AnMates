@@ -41,6 +41,16 @@ class SecureStorageService {
   Future<void> updateAccessToken(String newToken) =>
       _storage.write(key: _accessTokenKey, value: newToken);
 
+  /// Generic read of any secure key.
+  Future<String?> read(String key) => _storage.read(key: key);
+
+  /// Generic write of any secure key.
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
+
+  /// Generic delete of any secure key.
+  Future<void> delete(String key) => _storage.delete(key: key);
+
   /// Clear all stored tokens on logout
   Future<void> clearAll() => _storage.deleteAll();
 }
