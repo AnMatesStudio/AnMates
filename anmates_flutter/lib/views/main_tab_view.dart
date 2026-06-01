@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../shared/widgets/connectivity_banner.dart';
 import '../shared/widgets/lazy_indexed_stack.dart';
 import '../theme/app_theme.dart';
 import '../widgets/anm_widgets.dart';
@@ -31,7 +32,11 @@ class _MainTabViewState extends State<MainTabView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mint,
-      body: LazyIndexedStack(index: _selectedIndex, builders: _tabBuilders),
+      // ConnectivityBanner wraps the tab content so the offline indicator
+      // slides in above whichever tab is currently active.
+      body: ConnectivityBanner(
+        child: LazyIndexedStack(index: _selectedIndex, builders: _tabBuilders),
+      ),
       bottomNavigationBar: AnmTabBar(
         activeIndex: _selectedIndex,
         onTap: (i) => setState(() => _selectedIndex = i),

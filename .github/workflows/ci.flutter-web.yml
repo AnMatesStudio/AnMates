@@ -49,8 +49,31 @@ jobs:
       - name: flutter analyze
         run: flutter analyze --no-fatal-infos
 
-      - name: flutter test
-        run: flutter test --reporter=expanded
+      - name: flutter test (with coverage)
+        run: flutter test --coverage --reporter=expanded
+
+      # Report coverage to the job summary. No threshold-gate yet — let the
+      # coverage numbers ratchet up naturally as feature views get wired to
+      # the Cubits. When we hit 60% overall we can flip this to enforce.
+      - name: Report coverage
+        if: always()
+        run: |
+          if [ ! -f coverage/lcov.info ]; then
+            echo "::warning::coverage/lcov.info missing — no coverage report"
+            exit 0
+          fi
+          TOTAL=$(awk -F: '/^LF:/{lf+=$2} /^LH:/{lh+=$2} END {if (lf==0) print 0; else printf "%.1f", (lh/lf)*100}' coverage/lcov.info)
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Total line coverage: **$TOTAL%**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ github.event.pull_request.number }}
+          path: anmates_flutter/coverage/lcov.info
+          retention-days: 7
 
       - name: flutter build web
         id: build
