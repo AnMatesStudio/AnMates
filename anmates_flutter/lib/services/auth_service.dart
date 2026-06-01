@@ -1,9 +1,12 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 
-// Backend base URL. Override at build/run time:
-//   flutter run --dart-define=API_BASE_URL=http://192.168.1.216:8080
+import 'package:http/http.dart' as http;
+
+import '../core/di/injection.dart';
+import '../core/storage/secure_storage_service.dart';
+
+/// Backend base URL. Override at build/run time:
+///   flutter run --dart-define=API_BASE_URL=http://192.168.1.216:8080
 const _baseUrl = String.fromEnvironment(
   'API_BASE_URL',
   defaultValue: 'https://anmates-api-492509819332.asia-southeast1.run.app',
@@ -12,20 +15,29 @@ const _baseUrl = String.fromEnvironment(
 /// Public copy for tests + dev-only flows (e.g. dev-login button).
 const apiBaseUrl = _baseUrl;
 
+/// Legacy auth service retained for views not yet migrated to AuthCubit.
+///
+/// All token I/O now goes through [SecureStorageService] (encrypted) —
+/// the previous SharedPreferences-based path was the plaintext-JWT
+/// vulnerability flagged in the security audit.
 class AuthService {
   static final AuthService _instance = AuthService._();
   AuthService._();
   factory AuthService() => _instance;
 
+  SecureStorageService get _storage =>
+      getIt.isRegistered<SecureStorageService>()
+      ? getIt<SecureStorageService>()
+      : SecureStorageService();
+
+  static const _userIdKey = 'user_id';
+
   Future<bool> isLoggedIn() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey('access_token');
+    final token = await _storage.accessToken;
+    return token != null && token.isNotEmpty;
   }
 
-  Future<String?> currentUserId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('user_id');
-  }
+  Future<String?> currentUserId() => _storage.read(_userIdKey);
 
   /// Xác thực Firebase ID token với backend, trả về JWT.
   /// [firebaseToken] — ID token từ Firebase Auth sau khi verify OTP.
@@ -107,8 +119,8 @@ class AuthService {
   }
 
   Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('access_token');
+    final token = await _storage.accessToken;
+    final refresh = await _storage.refreshToken;
     if (token != null) {
       await http.post(
         Uri.parse('$_baseUrl/api/v1/auth/logout'),
@@ -116,29 +128,23 @@ class AuthService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
-        body: jsonEncode({
-          'refresh_token': prefs.getString('refresh_token') ?? '',
-        }),
+        body: jsonEncode({'refresh_token': refresh ?? ''}),
       );
     }
-    await prefs.remove('access_token');
-    await prefs.remove('refresh_token');
-    await prefs.remove('user_id');
+    await _storage.clearAll();
   }
 
   Future<void> _saveTokens(Map<String, dynamic> data) async {
-    final prefs = await SharedPreferences.getInstance();
-    if (data['access_token'] != null) {
-      await prefs.setString('access_token', data['access_token'] as String);
-    }
-    if (data['refresh_token'] != null) {
-      await prefs.setString('refresh_token', data['refresh_token'] as String);
+    final access = data['access_token'] as String?;
+    final refresh = data['refresh_token'] as String?;
+    if (access != null) {
+      await _storage.saveTokens(accessToken: access, refreshToken: refresh);
     }
     final userId =
         data['user_id'] as String? ??
         (data['user'] as Map<String, dynamic>?)?['id'] as String?;
     if (userId != null) {
-      await prefs.setString('user_id', userId);
+      await _storage.write(_userIdKey, userId);
     }
   }
 }

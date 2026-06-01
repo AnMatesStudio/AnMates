@@ -1,3 +1,5 @@
+import 'dart:io' show HttpDate;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
@@ -32,7 +34,14 @@ class ApiClient {
       ),
     );
 
+    // Interceptor chain order:
+    //   1. AuthInterceptor    — attach Bearer token from SecureStorage
+    //   2. RefreshInterceptor — on 401, exchange refresh-token, retry once
+    //   3. RetryInterceptor   — exponential backoff (honours Retry-After)
+    //   4. LoggingInterceptor — debug-only, scrubs Authorization header
+    //   5. ErrorInterceptor   — terminal mapping
     _dio.interceptors.add(AuthInterceptor());
+    _dio.interceptors.add(RefreshInterceptor());
     _dio.interceptors.add(RetryInterceptor());
     if (kDebugMode) {
       _dio.interceptors.add(LoggingInterceptor());
@@ -134,7 +143,7 @@ class ApiClient {
   Dio get client => _dio;
 }
 
-/// Interceptor: Attach JWT bearer token to outgoing requests
+/// Interceptor: Attach JWT bearer token to outgoing requests.
 class AuthInterceptor extends Interceptor {
   final _secureStorage = SecureStorageService();
 
@@ -151,7 +160,95 @@ class AuthInterceptor extends Interceptor {
   }
 }
 
-/// Interceptor: Retry failed requests with exponential backoff
+/// Interceptor: On 401, exchange the refresh token for a new access token
+/// via `/api/v1/auth/refresh`, then replay the original request exactly
+/// once. If refresh itself fails the user gets a clean AuthFailure so the
+/// app can navigate to login — never a stuck spinner.
+///
+/// Single-flight: concurrent 401s queue behind one refresh attempt; all of
+/// them retry with the same new token.
+class RefreshInterceptor extends Interceptor {
+  static const _refreshPath = '/api/v1/auth/refresh';
+
+  final _storage = SecureStorageService();
+  Future<bool>? _inFlight;
+
+  @override
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final isUnauthorized = err.response?.statusCode == 401;
+    final alreadyRefreshed = err.requestOptions.extra['didRefresh'] == true;
+    final isRefreshCall = err.requestOptions.path == _refreshPath;
+
+    if (!isUnauthorized || alreadyRefreshed || isRefreshCall) {
+      handler.next(err);
+      return;
+    }
+
+    final refreshedOk = await (_inFlight ??= _performRefresh());
+    _inFlight = null;
+
+    if (!refreshedOk) {
+      handler.next(err);
+      return;
+    }
+
+    // Replay the original request with the new token.
+    try {
+      final newToken = await _storage.accessToken;
+      final cloned = err.requestOptions
+        ..extra['didRefresh'] = true
+        ..headers['Authorization'] = newToken != null
+            ? 'Bearer $newToken'
+            : null;
+      final response = await ApiClient().client.fetch<dynamic>(cloned);
+      handler.resolve(response);
+    } catch (_) {
+      handler.next(err);
+    }
+  }
+
+  Future<bool> _performRefresh() async {
+    final refreshToken = await _storage.refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    try {
+      // Build a one-shot Dio call without the interceptor chain — avoids
+      // infinite recursion if the refresh endpoint itself 401s.
+      final raw = Dio(
+        BaseOptions(
+          baseUrl: _baseUrl,
+          headers: {'Content-Type': 'application/json'},
+          connectTimeout: const Duration(seconds: 15),
+        ),
+      );
+      final res = await raw.post<Map<String, dynamic>>(
+        _refreshPath,
+        data: {'refresh_token': refreshToken},
+      );
+      final data = res.data?['data'] as Map<String, dynamic>?;
+      final newAccess = data?['access_token'] as String?;
+      final newRefresh = data?['refresh_token'] as String? ?? refreshToken;
+      if (newAccess == null) return false;
+      await _storage.saveTokens(
+        accessToken: newAccess,
+        refreshToken: newRefresh,
+      );
+      return true;
+    } on DioException catch (_) {
+      // Refresh failed (token expired / revoked) — clear local state so
+      // the next AuthCubit.checkStatus() routes the user to login.
+      await _storage.clearAll();
+      return false;
+    }
+  }
+}
+
+/// Interceptor: Retry failed requests with exponential backoff. Honours
+/// the server-supplied `Retry-After` header on 429 / 503 responses so we
+/// don't hammer rate-limited endpoints — RFC 7231 §7.1.3 compliance.
 class RetryInterceptor extends Interceptor {
   static const _maxRetries = 3;
   static const _retryableStatusCodes = {408, 429, 500, 502, 503, 504};
@@ -176,8 +273,12 @@ class RetryInterceptor extends Interceptor {
 
     err.requestOptions.extra['retryCount'] = retryCount + 1;
 
-    // Exponential backoff: 1s, 2s, 4s
-    final delayMs = 1000 * (1 << retryCount);
+    // Honour Retry-After when present (server is explicit about backoff).
+    // Falls back to exponential backoff: 1s, 2s, 4s.
+    final retryAfter = _parseRetryAfter(
+      err.response?.headers.value('retry-after'),
+    );
+    final delayMs = retryAfter ?? 1000 * (1 << retryCount);
     await Future<void>.delayed(Duration(milliseconds: delayMs));
 
     try {
@@ -189,17 +290,50 @@ class RetryInterceptor extends Interceptor {
       handler.next(err);
     }
   }
+
+  /// Parses an HTTP `Retry-After` header value into milliseconds.
+  /// Supports both delta-seconds ("120") and HTTP-date formats.
+  /// Returns null for unparseable values so the caller can fall back to
+  /// its own backoff math.
+  int? _parseRetryAfter(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    // Delta-seconds form (most common).
+    final seconds = int.tryParse(raw);
+    if (seconds != null && seconds >= 0) {
+      // Clamp at 60s — we don't want a misconfigured server to freeze the
+      // app for hours.
+      return seconds.clamp(0, 60) * 1000;
+    }
+    // HTTP-date form (RFC 1123).
+    try {
+      final date = HttpDate.parse(raw);
+      final diff = date.difference(DateTime.now()).inMilliseconds;
+      if (diff < 0) return 0;
+      return diff.clamp(0, 60000);
+    } catch (_) {
+      return null;
+    }
+  }
 }
 
-/// Interceptor: Log requests/responses in debug mode (strip PII)
+/// Interceptor: Log requests/responses in debug mode (strip PII).
+/// Authorization headers are NEVER printed — even at debug level — so a
+/// stray screenshot or shared log can't leak a Bearer token.
 class LoggingInterceptor extends Interceptor {
+  static const _sensitiveHeaders = {
+    'authorization',
+    'cookie',
+    'set-cookie',
+    'x-api-key',
+  };
+
   @override
   Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
     debugPrint('➜ ${options.method} ${options.path}');
-    debugPrint('  Headers: ${options.headers}');
+    debugPrint('  Headers: ${_scrubHeaders(options.headers)}');
     if (options.data != null) {
       final data = options.data.toString();
       debugPrint('  Body: ${_stripPii(data)}');
@@ -216,11 +350,30 @@ class LoggingInterceptor extends Interceptor {
     handler.next(response);
   }
 
+  /// Returns a map suitable for printing where any sensitive header value
+  /// has been replaced with `***`.
+  Map<String, dynamic> _scrubHeaders(Map<String, dynamic> headers) {
+    return headers.map((k, v) {
+      if (_sensitiveHeaders.contains(k.toLowerCase())) {
+        return MapEntry(k, '***');
+      }
+      return MapEntry(k, v);
+    });
+  }
+
   String _stripPii(String data) {
     return data
         .replaceAll(RegExp(r'"phone":"[^"]*"'), '"phone":"***"')
         .replaceAll(RegExp(r'"password":"[^"]*"'), '"password":"***"')
-        .replaceAll(RegExp(r'"token":"[^"]*"'), '"token":"***"');
+        .replaceAll(RegExp(r'"token":"[^"]*"'), '"token":"***"')
+        .replaceAll(
+          RegExp(r'"firebase_token":"[^"]*"'),
+          '"firebase_token":"***"',
+        )
+        .replaceAll(
+          RegExp(r'"refresh_token":"[^"]*"'),
+          '"refresh_token":"***"',
+        );
   }
 }
 
