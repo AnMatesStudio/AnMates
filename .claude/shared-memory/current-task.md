@@ -1,11 +1,18 @@
 # Current Task
 
-**Status:** done — onboarding flow 08→09→10→11 fully working. R-004 written.
+**Status:** code+docs done; GitHub env `dev`+`production` đã tạo (user-confirmed, env cũ production-web/api đã xoá). Còn lại để verify end-to-end: tạo Firebase site `dev-anmates-studio` + mở 1 PR thử chạy luồng deploy CI→dev.
 **Owner:** main-assistant
-**Started at:** 2026-05-31
-**Last updated:** 2026-05-31
-**Goal:** Refactor onboarding submit flow: Screens 08/09 store to client draft (no API), NEW Screen 10 photo upload (Firebase Storage), "Hoàn tất" validates all 3 + one-shot `PATCH /profile/complete-onboarding`, Screen 11 GETs profile (nickname+avatar). New `user_photos` table. Flutter `flutter analyze` clean; Go build UNVERIFIED (no Go toolchain on Windows box). ⚠️ Needs Firebase Storage enabled+rules in Console. See sessions/2026-05-31-onboarding-flow-refactor-screen08-09-10-11.md.
-**Jira:** TECH-5 (current branch)
+**Started at:** 2026-06-01
+**Last updated:** 2026-06-01
+**Goal:** CI deploy lên GitHub Environment `dev` để test branch/PR trên URL thật. `ci.flutter-web.yml` + `ci.go-api.yml` thêm job `deploy-dev` (same-repo PR only) → `environment: dev` (web: dev-anmates-studio.web.app, api: shared Cloud Run anmates-api ENV=dev, API_BASE_URL chung). `cd.*` giữ nguyên — tách production (Cloud Run riêng + Cloud SQL + Secret Manager) là follow-up tương lai. User chọn **1 env `dev`**. ⚠️ Setup thủ công còn lại: tạo env `dev`, tạo Firebase site `dev-anmates-studio`. See sessions/2026-06-01-ci-dev-environment-deploy.md.
+**Jira:** TECH-7 (current branch)
+
+---
+
+## Previous task (archived)
+
+**Status:** done — onboarding flow 08→09→10→11 fully working. R-004 written.
+**Goal:** Refactor onboarding submit flow: Screens 08/09 store to client draft (no API), NEW Screen 10 photo upload (Firebase Storage), "Hoàn tất" validates all 3 + one-shot `PATCH /profile/complete-onboarding`, Screen 11 GETs profile (nickname+avatar). New `user_photos` table. See sessions/2026-05-31-onboarding-flow-refactor-screen08-09-10-11.md + R-004.
 
 ---
 

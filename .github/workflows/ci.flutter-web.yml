@@ -46,21 +46,28 @@ jobs:
       - name: flutter test
         run: flutter test --reporter=expanded
 
+      # Bake the shared dev API base URL into the bundle so the PR build hits the
+      # live dev Cloud Run backend (https://anmates-api-...run.app). Override via
+      # the repo variable API_BASE_URL when the URL changes.
       - name: flutter build web
         id: build
-        run: flutter build web --release --base-href /
-        env:
-          API_BASE_URL: ${{ vars.API_BASE_URL || 'https://anmates-api-492509819332.asia-southeast1.run.app' }}
+        run: |
+          flutter build web --release \
+            --base-href / \
+            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://anmates-api-492509819332.asia-southeast1.run.app' }}
 
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
         with:
-          name: flutter-web-${{ github.event.pull_request.number }}
+          name: flutter-web-${{ github.run_id }}
           path: anmates_flutter/build/web
           retention-days: 7
 
-  preview-deploy:
-    name: Deploy preview channel
+  # Deploy the PR build to the shared `dev` environment so reviewers/devs can test
+  # the branch directly at https://dev-anmates-studio.web.app. Skipped on fork PRs
+  # (they cannot access deploy secrets — by design).
+  deploy-dev:
+    name: Deploy → dev (Firebase Hosting)
     runs-on: ubuntu-latest
     needs: analyze-test-build
     timeout-minutes: 10
@@ -69,13 +76,16 @@ jobs:
       id-token: write
       pull-requests: write
     if: github.event.pull_request.head.repo.full_name == github.repository
+    environment:
+      name: dev
+      url: https://dev-anmates-studio.web.app
     steps:
       - uses: actions/checkout@v4
 
       - name: Download web artifact
         uses: actions/download-artifact@v4
         with:
-          name: flutter-web-${{ github.event.pull_request.number }}
+          name: flutter-web-${{ github.run_id }}
           path: anmates_flutter/build/web
 
       - name: Authenticate to Google Cloud (WIF)
@@ -99,18 +109,24 @@ jobs:
             --project anmates-studio \
             --non-interactive
 
-      - name: Comment preview URL on PR
+      - name: Comment dev URL on PR
         uses: actions/github-script@v7
         with:
           script: |
             const url = 'https://dev-anmates-studio.web.app';
-            const body = `Preview deployed: ${url}`;
+            const api = 'https://anmates-api-492509819332.asia-southeast1.run.app';
+            const body = [
+              `🚀 **Dev deployed** — test this branch live:`,
+              ``,
+              `- Web: ${url}`,
+              `- API: \`${api}\``,
+            ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            const existing = comments.find(c => c.user.type === 'Bot' && c.body.startsWith('Preview deployed:'));
+            const existing = comments.find(c => c.user.type === 'Bot' && c.body.startsWith('🚀 **Dev deployed**'));
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,

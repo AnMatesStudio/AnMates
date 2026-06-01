@@ -10,14 +10,25 @@ Liên quan: ticket [TECH-2](https://anmatesstudio.atlassian.net/browse/TECH-2), 
 
 | Workflow | Trigger | Job chính | Deploy đến |
 |---|---|---|---|
-| [`ci.flutter-web.yml`](workflows/ci.flutter-web.yml) | PR → `main`, path `anmates_flutter/**` | analyze, test, build web, **deploy preview channel** | `pr-N` preview URL (7d expiry) |
-| [`ci.go-api.yml`](workflows/ci.go-api.yml) | PR → `main`, path `anmates-api/**` | gofmt, vet, build, test, docker build (no push) | — |
-| [`cd.flutter-web.yml`](workflows/cd.flutter-web.yml) | push `main`, path `anmates_flutter/**` | analyze, test, build web, deploy | `https://anmates-studio.web.app` |
-| [`cd.go-api.yml`](workflows/cd.go-api.yml) | push `main`, path `anmates-api/**` | vet, test, docker build + push, Cloud Run deploy, smoke check, auto-rollback | `https://anmates-api-492509819332.asia-southeast1.run.app` |
+| [`ci.flutter-web.yml`](workflows/ci.flutter-web.yml) | PR → `main`, path `anmates_flutter/**` | analyze, test, build web, **deploy → `dev`** | `https://dev-anmates-studio.web.app` (env `dev`) |
+| [`ci.go-api.yml`](workflows/ci.go-api.yml) | PR → `main`, path `anmates-api/**` | lint, build, test, docker build (gate), **deploy → `dev`** | `https://anmates-api-...run.app` (env `dev`, shared Cloud Run) |
+| [`cd.flutter-web.yml`](workflows/cd.flutter-web.yml) | push `main`, path `anmates_flutter/**` | analyze, test, build web, deploy | `https://anmates-studio.web.app` (env `production`) |
+| [`cd.go-api.yml`](workflows/cd.go-api.yml) | push `main`, path `anmates-api/**` | vet, test, docker build + push, Cloud Run deploy, smoke check, auto-rollback | `https://anmates-api-492509819332.asia-southeast1.run.app` (env `production`) |
 
 > Naming convention: `<lifecycle>.<service>-<platform>.yml`. Xem [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) cho rationale + migration plan khi add Android/iOS.
 
 Mọi workflow đều có **path filter** — không lãng phí runner minutes khi đổi file ngoài scope.
+
+### Môi trường (GitHub Environments)
+
+| Environment | Dùng bởi | URL | Mục đích |
+|---|---|---|---|
+| `dev` | `ci.*` (trên PR) | web: `https://dev-anmates-studio.web.app` · api: shared Cloud Run | Test branch/PR trực tiếp trên URL thật trước khi merge |
+| `production` | `cd.flutter-web.yml` + `cd.go-api.yml` | web: `https://anmates-studio.web.app` · api: `https://anmates-api-...run.app` | Live sau khi merge `main` |
+
+> Cả web lẫn api dùng chung **1 env `production`** (mirror cách `dev` gộp 1 env). Mỗi `cd.*` job set `url:` riêng trên cùng env. Tách thành `production-web`/`production-api` chỉ khi cần protection rule per-platform riêng (xem WORKFLOW-ARCHITECTURE.md).
+
+> **Lưu ý transitional:** `dev` và production **đang dùng chung 1 Cloud Run `anmates-api` + 1 DB**. Mỗi same-repo PR có thay đổi backend sẽ **deploy đè 100% traffic** lên service chung này. Đây là trạng thái tạm thời — kế hoạch tách production (Cloud Run mới + Cloud SQL + Secret Manager) ghi trong [WORKFLOW-ARCHITECTURE.md](WORKFLOW-ARCHITECTURE.md) § "Dev environment (transitional)".
 
 ---
 
@@ -57,11 +68,34 @@ Vào `Settings → Secrets and variables → Actions → Variables → New repos
 |---|---|---|
 | `API_BASE_URL` | `https://anmates-api-492509819332.asia-southeast1.run.app` | Override khi đổi Cloud Run URL |
 
-### Bước 4: Branch protection cho `main`
+### Bước 4: Tạo GitHub Environments `dev` + `production`
+
+Workflows deploy vào 2 environment: **`dev`** (`ci.*` trên PR) và **`production`** (`cd.*` trên push `main`). Phải tạo trước, nếu không job deploy lỗi `Value '<name>' is not valid`.
+
+> ⚠️ Trước đây dùng `production-web` + `production-api` (2 env). Đã gộp thành **1 env `production`** (giống cách `dev` gộp 1). Sau khi tạo `production`, có thể xoá 2 env cũ trong `Settings → Environments`.
+
+**Cách 1 — UI:** `Settings → Environments → New environment` → tạo lần lượt `dev` và `production` → Configure.
+- KHÔNG set required reviewers (giai đoạn này auto-deploy, không cần approve).
+- KHÔNG giới hạn deployment branches.
+
+**Cách 2 — CLI (`gh`):**
+```bash
+repo=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+gh api --method PUT "repos/$repo/environments/dev"
+gh api --method PUT "repos/$repo/environments/production"
+# (tuỳ chọn) dọn env cũ:
+# gh api --method DELETE "repos/$repo/environments/production-web"
+# gh api --method DELETE "repos/$repo/environments/production-api"
+```
+
+> Environment-scoped secrets là **tuỳ chọn** ở giai đoạn này — cả `dev` lẫn `production` đang xài chung repo-level secrets (`DATABASE_URL`, `JWT_SECRET`, ...) và chung hạ tầng (1 Cloud Run + 1 DB). Khi tách production riêng (xem WORKFLOW-ARCHITECTURE.md), chuyển secret prod vào env `production` và để secret dev riêng trong env `dev`.
+
+### Bước 5: Branch protection cho `main`
 
 Vào `Settings → Branches → Add rule` cho `main`:
 - ✅ Require a pull request before merging
 - ✅ Require status checks to pass before merging — chọn `Analyze + Test + Build web`, `Lint + Test`, `Docker build (no push)`
+  - ⚠️ **KHÔNG** chọn `Deploy → dev (...)` làm required check — deploy phụ thuộc secrets/hạ tầng ngoài, dễ flaky; gate phải là các job test/build không cần secret (chạy được cả trên fork PR).
 - ✅ Require branches to be up to date before merging
 - ✅ Do not allow bypassing the above settings
 
@@ -69,7 +103,7 @@ Vào `Settings → Branches → Add rule` cho `main`:
 
 ## Workflow flow
 
-### PR mở ra (CI)
+### PR mở ra (CI → deploy `dev`)
 
 ```
 ┌── PR opened/updated ──┐
@@ -77,15 +111,21 @@ Vào `Settings → Branches → Add rule` cho `main`:
 ├─ anmates_flutter/** ──→ ci.flutter-web.yml
 │   ├─ flutter analyze
 │   ├─ flutter test
-│   ├─ flutter build web (artifact)
-│   └─ deploy preview channel pr-N → comment URL on PR
+│   ├─ flutter build web (--dart-define API_BASE_URL, artifact)
+│   └─ [same-repo PR] deploy → env dev (dev-anmates-studio.web.app)
+│         └─ comment dev URL on PR
 │
 └─ anmates-api/** ──────→ ci.go-api.yml
-    ├─ gofmt -l
-    ├─ go vet
-    ├─ go test -race
-    └─ docker build (verify Dockerfile)
+    ├─ golangci-lint
+    ├─ go build + go test -race
+    ├─ docker build (verify Dockerfile — required gate, no secrets)
+    └─ [same-repo PR] deploy → env dev (shared Cloud Run anmates-api)
+          ├─ docker build + push :dev-<sha>
+          ├─ gcloud run deploy --set-env-vars ENV=dev
+          └─ curl /health smoke check
 ```
+
+> Fork PR: chỉ chạy các job test/build (không deploy) vì không có quyền access secrets — đúng chủ ý bảo mật.
 
 ### PR merged → main (CD)
 
@@ -161,8 +201,14 @@ gcloud run services logs read anmates-api --region=asia-southeast1 --limit=50
 ```
 Thường do thiếu env vars (`DATABASE_URL`/`JWT_SECRET`). Check GitHub secrets được set đúng.
 
-### CI Flutter báo `Skipped: deploy preview channel` ở fork PR
-→ Đây là chủ ý — fork PR không có quyền access secrets vì lý do bảo mật. Maintainer phải approve hoặc rebase trong repo.
+### CI báo `Skipped: Deploy → dev (...)` ở fork PR
+→ Đây là chủ ý — fork PR không có quyền access secrets vì lý do bảo mật. Maintainer phải approve hoặc rebase trong repo để branch deploy lên `dev`.
+
+### Job deploy lỗi `Value 'dev' is not valid` / `Environment 'dev' not found`
+→ Chưa tạo GitHub Environment `dev`. Xem [One-time setup Bước 4](#bước-4-tạo-github-environment-dev). Lỗi này cũng hiện trong VS Code (GitHub Actions extension) như một warning cho tới khi env được tạo trên repo.
+
+### Hai PR cùng đổi backend → đè nhau trên `dev`
+→ Đúng như thiết kế hiện tại: `dev` và production **share 1 Cloud Run**. PR deploy sau ghi đè revision của PR trước (100% traffic). `concurrency: cancel-in-progress` serialize trong cùng 1 PR, nhưng **khác PR thì không**. Nếu cần test song song nhiều PR → đó là tín hiệu nên tách dev service riêng (xem WORKFLOW-ARCHITECTURE.md § "Dev environment (transitional)").
 
 ### `gcloud builds submit` fail: `This tool can only stream logs if you are Viewer/Owner`
 → Đây là lý do `cd.go-api.yml` **không dùng** `gcloud builds submit`. Cloud Build mặc định stream log về terminal, và việc đó đòi identity gọi phải là Viewer/Owner của project. SA `github-actions@` theo least-privilege không có `roles/viewer`, nên build submit OK nhưng gcloud không tail được log → exit 1 (dù build có thể đã chạy xong). **Giải pháp đang dùng:** build image thẳng trên GitHub runner bằng `docker build` + `docker push` (nhanh hơn, rẻ hơn, ít quyền hơn). Nếu vì lý do nào đó bạn buộc phải dùng Cloud Build, thêm flag `--suppress-logs` (hoặc cấp SA `roles/viewer` — không khuyến khích).

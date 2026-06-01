@@ -25,7 +25,7 @@ jobs:
       contents: read
       id-token: write
     environment:
-      name: production-web
+      name: production
       url: https://anmates-studio.web.app
     steps:
       - uses: actions/checkout@v4

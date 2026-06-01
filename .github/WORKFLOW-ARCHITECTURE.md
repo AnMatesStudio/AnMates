@@ -149,6 +149,63 @@ This is the same continuous-vs-release-gated split from principle 4, viewed thro
 
 ---
 
+## Dev environment (transitional)
+
+**Added:** 2026-06-01. **Status:** transitional — read the "Future split" subsection before extending.
+
+### What it is
+
+A single GitHub Environment named **`dev`** that the **CI** workflows deploy to on every same-repo PR, so a reviewer/dev can test the branch on a real URL **before** merge:
+
+- **Web** → `https://dev-anmates-studio.web.app` (Firebase Hosting target `dev`)
+- **API** → `https://anmates-api-492509819332.asia-southeast1.run.app` (Cloud Run `anmates-api`)
+
+Both `ci.flutter-web.yml` and `ci.go-api.yml` reference `environment: { name: dev, url: ... }`. The web build bakes the shared `API_BASE_URL` (the dev Cloud Run) via `--dart-define`, so the PR web build talks to the PR's deployed backend.
+
+### Why CI deploys (an intentional bend of principle 1)
+
+Principle 1 says "separate CI from CD." The dev deploy lives in `ci.*` (not a new `cd.*`) on purpose:
+
+- The trigger is `pull_request` (CI's event), not `push`/`tag` (CD's). Putting a `pull_request`-triggered deploy in a `cd.` file would lie about the lifecycle.
+- It is **not** a required status check — the required gates (`Analyze + Test + Build web`, `Lint + Test`, `Docker build (no push)`) are secret-free and run on forks too. The deploy job is additive and same-repo-only.
+- Blast radius is the **dev** environment, never production. Production stays gated behind `cd.*` on `push` to `main`.
+
+So the CI-vs-CD split is preserved at the level that matters (trigger event, required-check status, prod blast radius); the deploy is "CI that happens to publish to a throwaway env."
+
+### The one risky property: dev and prod share infra (for now)
+
+Today there is **one** Cloud Run service (`anmates-api`) and **one** database, used by both the `dev` and `production` environments. Consequences while this holds:
+
+- A same-repo PR touching `anmates-api/**` deploys its (unreviewed) backend to the shared service at **100% traffic** — production effectively runs PR code until the next deploy.
+- Two open PRs editing the backend clobber each other on `dev`.
+- The dev DB *is* the prod DB — migrations from a PR run against real data.
+
+This is acceptable **only** because we are pre-MVP with a tiny team. It is the single biggest reason to do the split below before onboarding more contributors or real users.
+
+### Future split (production-mvp) — planned, not yet done
+
+When we cut over to a dedicated production tier:
+
+1. **New Cloud Run service** for production (e.g. `anmates-api-prod`), separate from `anmates-api` which becomes dev-only.
+2. **Cloud SQL (GCP)** for the production DB, separate from the dev DB. Dev keeps the cheaper/shared Postgres.
+3. **GCP Secret Manager + Cloud Run service config** inject prod `DATABASE_URL`/`JWT_SECRET`/`FIREBASE_WEB_API_KEY` (and friends) — the `cd.*` workflows stop passing these via `--set-env-vars` from GitHub repo secrets and instead reference Secret Manager / the service's own configuration. The `cd.*` files keep the current "ENV inject shared with dev" approach **until** this lands.
+4. **Env-scoped secrets**: move prod secrets into the `production-*` GitHub Environments; give `dev` its own (pointing at dev infra). This finishes Phase 4's "Env-scoped secrets" item.
+
+Until step 1–3 ship, the `cd.flutter-web.yml` / `cd.go-api.yml` env-var injection is intentionally unchanged — see their inline comments.
+
+### One env per tier: `dev` and `production` (not split per platform)
+
+Each tier uses **one** GitHub Environment shared by web + api:
+
+- `dev` ← `ci.flutter-web.yml` + `ci.go-api.yml`
+- `production` ← `cd.flutter-web.yml` + `cd.go-api.yml`
+
+We deliberately do **not** split into `dev-web`/`dev-api`/`production-web`/`production-api` (an earlier draft did). Rationale: there are no approval gates or per-platform branch rules to separate yet, and one env per tier keeps the "this whole branch is deployed here" mental model simple. Each job still sets its own `url:` on the shared env, so the Deployments UI shows the right link per deploy.
+
+**Split a tier into `<tier>-web` / `<tier>-api` only when** that tier needs per-platform protection rules — e.g. production gets required reviewers for the API but not the web bundle, or web and api diverge onto different branch filters. That is the Phase 4 trigger (below), not today.
+
+---
+
 ## End-state architecture (target ~Q4 2026)
 
 This is what the workflow directory looks like after Android/iOS land:
@@ -198,7 +255,7 @@ This is what the workflow directory looks like after Android/iOS land:
 **What we deliberately did NOT do:**
 - No reusable workflows yet (rule of three).
 - No mobile workflows yet (no Apple/Play accounts ready).
-- No environments / approval gates (overkill for solo dev).
+- No **approval gates** (overkill for solo dev). We *do* now use GitHub Environments (`dev`, `production`) as deploy targets, but without required reviewers — see § "Dev environment (transitional)".
 
 ### Phase 2 (when adding 5th workflow): extract reusables
 
@@ -238,7 +295,7 @@ This is what the workflow directory looks like after Android/iOS land:
 
 **Trigger event:** team grows past 1 person, or you have paying users.
 
-- **GitHub Environments**: `production-web`, `production-api`, `production-android`, `production-ios`, plus `staging-*` mirrors
+- **GitHub Environments**: split the consolidated `production` env into per-platform envs (`production-web`, `production-api`, and later `production-android`, `production-ios`), plus `staging-*` mirrors — this is the point where the per-platform split (deferred today, see § "One env per tier") finally pays off
   - Each env: required reviewers (≥1 approval to deploy), wait timer (cooling-off), restrict to specific branches
   - Env-scoped secrets (DB URL prod vs staging different)
 - **OIDC fine-grained**: separate GCP service account per service per env (not 1 god SA)
