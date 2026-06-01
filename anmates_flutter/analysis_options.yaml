@@ -51,7 +51,6 @@ linter:
     prefer_if_on_single_line: true
     prefer_int_literals: true
     prefer_inlined_adds: true
-    prefer_int_literals: true
     prefer_iterable_whereType: true
     prefer_mixin: true
     prefer_null_aware_operators: true
