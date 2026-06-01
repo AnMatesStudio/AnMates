@@ -23,6 +23,11 @@ Base URL: `http://localhost:8080/api/v1` (dev) · `https://api.anmates.io/api/v1
 | POST | `/auth/otp/verify` | none | `{request_id, code}` | `{access_token, refresh_token, user_id, onboarding_step}` | 5 attempts max |
 | POST | `/auth/refresh` | refresh | `{refresh_token}` | `{access_token, refresh_token}` | rotates refresh |
 
+| PATCH | `/profile/onboarding` | access | `{name, nickname, birth_date "YYYY-MM-DD", personality_score}` | `userOut` (incl. `onboarding_done`) | Screen 08 — name required; score clamped 0-100 |
+| PATCH | `/profile/preferences` | access | `{food_tags:[], vibe_tags:[]}` | `userOut` (`onboarding_done`=true) | Screen 09 — sets onboarding_done=TRUE |
+
+> ✅ Implemented + build-verified 2026-05-30 (`GO111MODULE=on go build ./...` rc=0; `go vet` rc=0; `flutter analyze` 0 errors). Functional QA still pending.
+>
 > Add rows above as endpoints ship. Match exact path + body shape from `api-contracts-summary.md`.
 
 ## Update Protocol

@@ -141,9 +141,9 @@ func (s *AuthService) UpsertPhoneUser(ctx context.Context, uid, phone, name stri
 	var u models.User
 
 	err := s.pool.QueryRow(ctx, `
-		SELECT id, name, email, phone, avatar_url, bio, created_at
+		SELECT id, name, email, phone, avatar_url, bio, onboarding_done, created_at
 		FROM users WHERE firebase_uid = $1
-	`, uid).Scan(&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.CreatedAt)
+	`, uid).Scan(&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.OnboardingDone, &u.CreatedAt)
 	if err == nil {
 		if u.Phone == nil || *u.Phone != phone {
 			_, _ = s.pool.Exec(ctx, `UPDATE users SET phone = $1 WHERE id = $2`, phone, u.ID)
@@ -156,9 +156,9 @@ func (s *AuthService) UpsertPhoneUser(ctx context.Context, uid, phone, name stri
 	}
 
 	err = s.pool.QueryRow(ctx, `
-		SELECT id, name, email, phone, avatar_url, bio, created_at
+		SELECT id, name, email, phone, avatar_url, bio, onboarding_done, created_at
 		FROM users WHERE phone = $1
-	`, phone).Scan(&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.CreatedAt)
+	`, phone).Scan(&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.OnboardingDone, &u.CreatedAt)
 	if err == nil {
 		_, _ = s.pool.Exec(ctx, `UPDATE users SET firebase_uid = $1 WHERE id = $2`, uid, u.ID)
 		return &u, nil
@@ -170,9 +170,9 @@ func (s *AuthService) UpsertPhoneUser(ctx context.Context, uid, phone, name stri
 	err = s.pool.QueryRow(ctx, `
 		INSERT INTO users (firebase_uid, phone, name)
 		VALUES ($1, $2, $3)
-		RETURNING id, name, email, phone, avatar_url, bio, created_at
+		RETURNING id, name, email, phone, avatar_url, bio, onboarding_done, created_at
 	`, uid, phone, name).Scan(
-		&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.CreatedAt)
+		&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio, &u.OnboardingDone, &u.CreatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("insert user: %w", err)
 	}
@@ -203,11 +203,11 @@ func (s *AuthService) RotateRefreshToken(ctx context.Context, rawToken string) (
 	h := hashToken(rawToken)
 	var u models.User
 	err := s.pool.QueryRow(ctx, `
-		SELECT u.id, u.email, u.name, u.phone, u.avatar_url, u.bio, u.created_at
+		SELECT u.id, u.email, u.name, u.phone, u.avatar_url, u.bio, u.onboarding_done, u.created_at
 		FROM refresh_tokens rt
 		JOIN users u ON u.id = rt.user_id
 		WHERE rt.token_hash = $1 AND rt.expires_at > now()
-	`, h).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.AvatarURL, &u.Bio, &u.CreatedAt)
+	`, h).Scan(&u.ID, &u.Email, &u.Name, &u.Phone, &u.AvatarURL, &u.Bio, &u.OnboardingDone, &u.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil, ErrUnauthorized
 	}

@@ -20,6 +20,7 @@ If a query matches, **read the full resolution file** before proposing a new fix
 |----|-------|------|----------|----------|------|--------------|------|
 | R-001 | Firebase Phone OTP `INVALID_APP_CREDENTIAL` on web localhost | `firebase`, `phone-auth`, `otp`, `recaptcha`, `authorized-domains`, `127.0.0.1`, `localhost`, `web-dev` | web | blocker | 2026-05-26 | user | [R-001-firebase-phone-otp-web-127001.md](R-001-firebase-phone-otp-web-127001.md) |
 | R-002 | Deploy Flutter Web → Firebase Hosting + Go Fiber API → Cloud Run | `flutter`, `firebase`, `go-backend`, `cloud-run`, `gcp`, `deploy`, `hosting`, `api-base-url` | web, backend | major | 2026-05-26 | user | [R-002-deploy-flutter-firebase-go-cloudrun.md](R-002-deploy-flutter-firebase-go-cloudrun.md) |
+| R-003 | Screen 08 UserProfileView — full implementation + nav bug fix (UserProfileView popped back to PhoneInputView) | `flutter`, `onboarding`, `screen-08`, `navigation`, `profile`, `astrology`, `slider`, `dob-picker`, `custom-widget` | android, ios, web | major | 2026-05-31 | user | [R-003-screen08-profile-view-implementation.md](R-003-screen08-profile-view-implementation.md) |
 
 ---
 
@@ -38,6 +39,13 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `"public": "public"` + Firebase Hosting | R-002 |
 | deploy Flutter Firebase Hosting | R-002 |
 | deploy Go Cloud Run | R-002 |
+| UserProfileView + back button + PhoneInputView | R-003 |
+| `pushReplacement` + onboarding + back-stack | R-003 |
+| `onboarding_done` + SharedPreferences + routing | R-003 |
+| Nạp Âm + pairIndex + năm sinh | R-003 |
+| TextPainter + Material icon + canvas + color | R-003 |
+| `GO111MODULE=off` + `go build` + false errors | R-003 |
+| CORS + PATCH + 405 | R-003 |
 
 ---
 
@@ -61,6 +69,14 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `deploy` | Deployment procedures (hosting, infra) |
 | `hosting` | Firebase Hosting |
 | `api-base-url` | Flutter API base URL config (`String.fromEnvironment`) |
+| `onboarding` | Post-auth onboarding screens (08-09) |
+| `screen-08` | Screen Thông Tin Cá Nhân (UserProfileView) |
+| `navigation` | Flutter Navigator stack / routing |
+| `profile` | User profile data + backend endpoints |
+| `astrology` | Zodiac / Nạp Âm / life-path numerology calculations |
+| `slider` | Flutter SliderThemeData / custom SliderComponentShape |
+| `dob-picker` | ListWheelScrollView DOB 3-column picker |
+| `custom-widget` | Reusable Flutter widget files (horoscope_icons.dart etc.) |
 
 When adding a new resolution, **re-use existing tags** where possible — only add a new tag if no existing one fits.
 

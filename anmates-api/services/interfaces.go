@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/anmates/api/models"
 	"github.com/google/uuid"
@@ -20,6 +21,10 @@ type AuthServicer interface {
 type UserServicer interface {
 	GetProfile(ctx context.Context, userID uuid.UUID) (*models.User, error)
 	UpdateProfile(ctx context.Context, userID uuid.UUID, name, avatarURL, bio *string) (*models.User, error)
+	UpdateOnboardingProfile(ctx context.Context, userID uuid.UUID, name, nickname string, birthDate *time.Time, personalityScore *int16) (*models.User, error)
+	UpdatePreferences(ctx context.Context, userID uuid.UUID, foodTags, vibeTags []string) (*models.User, error)
+	CompleteOnboarding(ctx context.Context, userID uuid.UUID, in OnboardingInput) (*models.User, []models.UserPhoto, error)
+	ListPhotos(ctx context.Context, userID uuid.UUID) ([]models.UserPhoto, error)
 }
 
 type WishlistServicer interface {
