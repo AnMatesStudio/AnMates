@@ -22,6 +22,7 @@ If a query matches, **read the full resolution file** before proposing a new fix
 | R-002 | Deploy Flutter Web → Firebase Hosting + Go Fiber API → Cloud Run | `flutter`, `firebase`, `go-backend`, `cloud-run`, `gcp`, `deploy`, `hosting`, `api-base-url` | web, backend | major | 2026-05-26 | user | [R-002-deploy-flutter-firebase-go-cloudrun.md](R-002-deploy-flutter-firebase-go-cloudrun.md) |
 | R-003 | Screen 08 UserProfileView — full implementation + nav bug fix (UserProfileView popped back to PhoneInputView) | `flutter`, `onboarding`, `screen-08`, `navigation`, `profile`, `astrology`, `slider`, `dob-picker`, `custom-widget` | android, ios, web | major | 2026-05-31 | user | [R-003-screen08-profile-view-implementation.md](R-003-screen08-profile-view-implementation.md) |
 | R-004 | Screen 11 "Hoàn tất" crash + validation mismatch + culture_tags missing — full onboarding submit fix | `flutter`, `firebase`, `web-dev`, `onboarding`, `storage`, `culture-tags`, `validation`, `loading-overlay` | web | blocker | 2026-06-01 | user | [R-004-screen11-onboarding-submit-full-fix.md](R-004-screen11-onboarding-submit-full-fix.md) |
+| R-005 | CI deploy lên GitHub Environment `dev` — PR testing trực tiếp tại dev-anmates-studio.web.app | `flutter`, `go-backend`, `deploy`, `hosting`, `cloud-run`, `firebase`, `gcp`, `github-actions`, `ci-cd`, `web-dev` | web, backend | major | 2026-06-01 | user | [R-005-ci-dev-environment-deploy.md](R-005-ci-dev-environment-deploy.md) |
 
 ---
 
@@ -31,6 +32,11 @@ When user reports an error matching a keyword below, jump straight to the linked
 
 | Error keyword / message | Resolution |
 |-------------------------|------------|
+| `Value 'dev' is not valid` + GitHub Actions environment | R-005 |
+| `Value 'production' is not valid` + GitHub Actions environment | R-005 |
+| CI deploy PR → `dev-anmates-studio.web.app` | R-005 |
+| `firebase target:apply hosting dev` + `deploy --only hosting:dev` | R-005 |
+| `production-web` / `production-api` → gộp 1 env `production` | R-005 |
 | `INVALID_APP_CREDENTIAL` (web) | R-001 |
 | `auth/captcha-check-failed` (web) | R-001 |
 | `Phone OTP` + `not sending` + `web localhost` | R-001 |
@@ -61,6 +67,8 @@ When user reports an error matching a keyword below, jump straight to the linked
 
 | Tag | Meaning |
 |-----|---------|
+| `github-actions` | GitHub Actions workflows (ci.*, cd.*, reusable) |
+| `ci-cd` | CI/CD pipeline setup, triggers, environments, deploy steps |
 | `firebase` | Anything involving Firebase SDK/Console |
 | `phone-auth` | Firebase Phone Number authentication |
 | `otp` | One-time password / SMS verification |

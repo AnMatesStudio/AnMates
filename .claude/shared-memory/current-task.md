@@ -1,6 +1,6 @@
 # Current Task
 
-**Status:** code+docs done; GitHub env `dev`+`production` đã tạo (user-confirmed, env cũ production-web/api đã xoá). Còn lại để verify end-to-end: tạo Firebase site `dev-anmates-studio` + mở 1 PR thử chạy luồng deploy CI→dev.
+**Status:** done — CI→dev deploy running. R-005 written.
 **Owner:** main-assistant
 **Started at:** 2026-06-01
 **Last updated:** 2026-06-01

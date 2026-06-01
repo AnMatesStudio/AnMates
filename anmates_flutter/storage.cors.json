@@ -4,6 +4,7 @@
       "http://127.0.0.1:54180",
       "http://localhost:54180",
       "https://anmates-studio.web.app",
+      "https://dev-anmates-studio.web.app",
       "https://anmates-studio.firebaseapp.com"
     ],
     "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
