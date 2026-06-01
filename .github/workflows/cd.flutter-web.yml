@@ -65,8 +65,8 @@ jobs:
 
       - name: Deploy to Firebase Hosting (live)
         run: |
-          firebase deploy \
-            --only hosting \
+          firebase hosting:channel:deploy live \
+            --site anmates-studio \
             --project anmates-studio \
             --non-interactive \
             --message "GH Actions: ${{ github.sha }}"

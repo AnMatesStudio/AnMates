@@ -90,23 +90,19 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy preview channel
-        id: deploy
+      - name: Deploy to dev-anmates-studio.web.app
         working-directory: anmates_flutter
         run: |
-          CHANNEL_ID="pr-${{ github.event.pull_request.number }}"
-          firebase hosting:channel:deploy "$CHANNEL_ID" \
-            --project anmates-studio \
-            --expires 7d \
-            --json > deploy-output.json
-          echo "preview_url=https://dev-anmates-studio.web.app" >> "$GITHUB_OUTPUT"
+          firebase hosting:channel:deploy live \
+            --site dev-anmates-studio \
+            --project anmates-studio
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
         with:
           script: |
-            const url = '${{ steps.deploy.outputs.preview_url }}';
-            const body = `Preview deployed: ${url}\n\nExpires in 7 days. Channel: \`pr-${{ github.event.pull_request.number }}\`.`;
+            const url = 'https://dev-anmates-studio.web.app';
+            const body = `Preview deployed: ${url}`;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
