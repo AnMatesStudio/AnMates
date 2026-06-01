@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../../features/auth/auth_injection.dart';
+import '../../features/chat/chat_injection.dart';
 import '../../features/match/match_injection.dart';
 import '../network/api_client.dart';
 import '../network/connectivity_service.dart';
@@ -20,6 +21,7 @@ Future<void> setupDependencies() async {
   // other features may eventually need AuthRepository.currentUserId)
   registerAuthDependencies();
   registerMatchDependencies();
+  registerChatDependencies();
 
-  // TODO Phase 5+: registerDiscoverDependencies(), registerChatDependencies()
+  // TODO Phase 6+: registerDiscoverDependencies(), registerProfileDependencies()
 }
