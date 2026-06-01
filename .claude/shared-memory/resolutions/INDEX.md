@@ -21,6 +21,7 @@ If a query matches, **read the full resolution file** before proposing a new fix
 | R-001 | Firebase Phone OTP `INVALID_APP_CREDENTIAL` on web localhost | `firebase`, `phone-auth`, `otp`, `recaptcha`, `authorized-domains`, `127.0.0.1`, `localhost`, `web-dev` | web | blocker | 2026-05-26 | user | [R-001-firebase-phone-otp-web-127001.md](R-001-firebase-phone-otp-web-127001.md) |
 | R-002 | Deploy Flutter Web → Firebase Hosting + Go Fiber API → Cloud Run | `flutter`, `firebase`, `go-backend`, `cloud-run`, `gcp`, `deploy`, `hosting`, `api-base-url` | web, backend | major | 2026-05-26 | user | [R-002-deploy-flutter-firebase-go-cloudrun.md](R-002-deploy-flutter-firebase-go-cloudrun.md) |
 | R-003 | Screen 08 UserProfileView — full implementation + nav bug fix (UserProfileView popped back to PhoneInputView) | `flutter`, `onboarding`, `screen-08`, `navigation`, `profile`, `astrology`, `slider`, `dob-picker`, `custom-widget` | android, ios, web | major | 2026-05-31 | user | [R-003-screen08-profile-view-implementation.md](R-003-screen08-profile-view-implementation.md) |
+| R-004 | Screen 11 "Hoàn tất" crash + validation mismatch + culture_tags missing — full onboarding submit fix | `flutter`, `firebase`, `web-dev`, `onboarding`, `storage`, `culture-tags`, `validation`, `loading-overlay` | web | blocker | 2026-06-01 | user | [R-004-screen11-onboarding-submit-full-fix.md](R-004-screen11-onboarding-submit-full-fix.md) |
 
 ---
 
@@ -46,6 +47,13 @@ When user reports an error matching a keyword below, jump straight to the linked
 | TextPainter + Material icon + canvas + color | R-003 |
 | `GO111MODULE=off` + `go build` + false errors | R-003 |
 | CORS + PATCH + 405 | R-003 |
+| `Null check operator used on a null value` + Flutter web + Storage + no network request | R-004 |
+| `TypeError: Cannot read properties of undefined (reading 'getStorage')` | R-004 |
+| `window.firebase_storage` + undefined + web | R-004 |
+| `firebase_storage_web` + `getStorage` + crash before upload | R-004 |
+| `index.html` + `firebase-storage.js` + missing pre-load | R-004 |
+| `food_tags must have between 5 and 10 items` | R-004 |
+| `culture_tags` + not saved + onboarding | R-004 |
 
 ---
 
@@ -77,6 +85,10 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `slider` | Flutter SliderThemeData / custom SliderComponentShape |
 | `dob-picker` | ListWheelScrollView DOB 3-column picker |
 | `custom-widget` | Reusable Flutter widget files (horoscope_icons.dart etc.) |
+| `storage` | Firebase Storage upload/download |
+| `culture-tags` | Screen 10 nền văn minh yêu thích — DB column + full stack |
+| `validation` | Flutter ↔ backend validation bounds mismatch |
+| `loading-overlay` | Submit/async loading UX overlay widget |
 
 When adding a new resolution, **re-use existing tags** where possible — only add a new tag if no existing one fits.
 

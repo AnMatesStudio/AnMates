@@ -1,6 +1,6 @@
 # Current Task
 
-**Status:** implemented, awaiting user verification — onboarding flow refactor (08→09→10→11).
+**Status:** done — onboarding flow 08→09→10→11 fully working. R-004 written.
 **Owner:** main-assistant
 **Started at:** 2026-05-31
 **Last updated:** 2026-05-31
