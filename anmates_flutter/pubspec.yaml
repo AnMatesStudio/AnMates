@@ -62,7 +62,7 @@ dependencies:
   connectivity_plus: ^5.0.0
 
   # Existing (kept)
-  web_socket_channel: ^2.4.0
+  web_socket_channel: ^3.0.1
   flutter_map: ^8.3.0
   latlong2: ^0.9.1
   geolocator: ^14.0.2
@@ -86,7 +86,8 @@ dev_dependencies:
 
   # Testing
   mocktail: ^1.0.0
-  bloc_test: ^9.1.0
+  # bloc_test deferred to Phase 2 (when AuthCubit lands) — its transitive
+  # test package conflicts with Flutter 3.44's pinned matcher/test_api
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
