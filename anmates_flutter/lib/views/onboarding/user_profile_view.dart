@@ -9,7 +9,7 @@ import '../../widgets/anm_widgets.dart';
 import '../../widgets/horoscope_icons.dart';
 import 'food_preferences_view.dart';
 
-/// Screen 08 — Thông Tin Cá Nhân (step 3/5). Collects name, nickname, DOB and a
+/// Screen 08 — Thông Tin Cá Nhân (step 3/6). Collects name, nickname, DOB and a
 /// personality score, shows live astrology/numerology auto-detect, then persists
 /// to the backend before advancing to Screen 09.
 class UserProfileView extends StatefulWidget {

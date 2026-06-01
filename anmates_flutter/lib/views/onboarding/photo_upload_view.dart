@@ -189,6 +189,7 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
         personalityScore: _draft.personality.round(),
         foodTags: _draft.food.toList(),
         vibeTags: _draft.vibe.toList(),
+        cultureTags: _draft.culture.toList(),
         avatarUrl: mainUrl,
         photos: photos,
       );
@@ -207,35 +208,37 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _TopBar(step: 6, total: 6),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Eyebrow('BƯỚC CUỐI · MÔ TẢ BẢN THÂN'),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                _TopBar(step: 6, total: 6),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(
-                          child: Text(
-                            'Show bản thân nào',
-                            style: AppTextStyles.display(
-                              size: 28,
-                              weight: FontWeight.w800,
-                              height: 1.15,
+                        const Eyebrow('BƯỚC CUỐI · MÔ TẢ BẢN THÂN'),
+                        const SizedBox(height: 8),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Show bản thân nào',
+                                style: AppTextStyles.display(
+                                  size: 28,
+                                  weight: FontWeight.w800,
+                                  height: 1.15,
+                                ),
+                              ),
                             ),
-                          ),
+                            const SizedBox(width: 6),
+                            const Text('✨', style: TextStyle(fontSize: 22)),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        const Text('✨', style: TextStyle(fontSize: 22)),
-                      ],
-                    ),
                     const SizedBox(height: 8),
                     Text(
                       'Tối đa ${OnboardingDraftController.maxExtraPhotos + 1} tấm — '
@@ -300,6 +303,67 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
               onFinish: _finish,
             ),
           ],
+        ),
+      ),
+      if (_submitting) const _UploadingOverlay(),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Upload loading overlay ───────────────────────────────────────────────────
+class _UploadingOverlay extends StatelessWidget {
+  const _UploadingOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.45),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.12),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 44,
+                height: 44,
+                child: CircularProgressIndicator(
+                  strokeWidth: 3,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.berry),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Đang gửi hồ sơ...',
+                style: AppTextStyles.body(
+                  size: 15,
+                  weight: FontWeight.w700,
+                  color: AppColors.ink,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Vui lòng không tắt ứng dụng',
+                style: AppTextStyles.body(
+                  size: 13,
+                  color: AppColors.ink50,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

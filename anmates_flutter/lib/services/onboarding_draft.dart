@@ -15,12 +15,14 @@ class OnboardingDraftController extends ChangeNotifier {
 
   static const _prefsKey = 'onboarding_draft';
 
-  // Screen 09 bounds
+  // Screen 09 bounds — must match backend (anmates-api/handlers/user.go:175).
   static const minFood = 2;
   static const maxFood = 5;
-  // Screen 10 bounds (each section: culture + vibe)
-  static const minVibe = 2;
-  static const maxVibe = 5;
+  // Screen 10 bounds — must match backend (anmates-api/handlers/user.go).
+  static const minCulture = 1;
+  static const maxCulture = 3;
+  static const minVibe = 1;
+  static const maxVibe = 3;
 
   static const minAge = 16;
   static const maxExtraPhotos = 2;
@@ -132,15 +134,17 @@ class OnboardingDraftController extends ChangeNotifier {
     return foodError == null;
   }
 
-  /// Screen 10 — Thích Vibe Nào (each section: 2–5 tags).
+  /// Screen 10 — Thích Vibe Nào.
   bool validateVibeScreen({bool notify = true}) {
-    if (culture.isEmpty) {
-      cultureError = 'Bạn chưa chọn nền văn minh yêu thích';
+    if (culture.length < minCulture) {
+      cultureError = 'Chọn tối thiểu $minCulture nền văn minh';
+    } else if (culture.length > maxCulture) {
+      cultureError = 'Chọn tối đa $maxCulture nền văn minh';
     } else {
       cultureError = null;
     }
     if (vibe.length < minVibe) {
-      vibeError = 'Chọn tối thiểu $minVibe vibe buổi ăn (đang ${vibe.length})';
+      vibeError = 'Chọn tối thiểu $minVibe vibe buổi ăn';
     } else if (vibe.length > maxVibe) {
       vibeError = 'Chọn tối đa $maxVibe vibe buổi ăn';
     } else {

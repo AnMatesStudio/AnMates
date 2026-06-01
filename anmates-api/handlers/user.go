@@ -149,6 +149,7 @@ type completeOnboardingReq struct {
 	PersonalityScore *int16    `json:"personality_score"`
 	FoodTags         []string  `json:"food_tags"`
 	VibeTags         []string  `json:"vibe_tags"`
+	CultureTags      []string  `json:"culture_tags"`
 	AvatarURL        string    `json:"avatar_url"`
 	Photos           []photoIn `json:"photos"`
 }
@@ -172,11 +173,14 @@ func (u *User) CompleteOnboarding(c *fiber.Ctx) error {
 	if r.AvatarURL == "" {
 		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "avatar_url is required")
 	}
-	if len(r.FoodTags) < 5 || len(r.FoodTags) > 10 {
-		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "food_tags must have between 5 and 10 items")
+	if len(r.FoodTags) < 2 || len(r.FoodTags) > 5 {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "food_tags must have between 2 and 5 items")
 	}
-	if len(r.VibeTags) < 2 || len(r.VibeTags) > 5 {
-		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "vibe_tags must have between 2 and 5 items")
+	if len(r.VibeTags) < 1 || len(r.VibeTags) > 3 {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "vibe_tags must have between 1 and 3 items")
+	}
+	if len(r.CultureTags) < 1 || len(r.CultureTags) > 3 {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "culture_tags must have between 1 and 3 items")
 	}
 
 	var birthDate *time.Time
@@ -218,6 +222,7 @@ func (u *User) CompleteOnboarding(c *fiber.Ctx) error {
 		PersonalityScore: r.PersonalityScore,
 		FoodTags:         r.FoodTags,
 		VibeTags:         r.VibeTags,
+		CultureTags:      r.CultureTags,
 		AvatarURL:        r.AvatarURL,
 		Photos:           photos,
 	})

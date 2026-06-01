@@ -6,8 +6,8 @@ import '../../widgets/anm_widgets.dart';
 import 'photo_upload_view.dart';
 
 /// Screen 10 — Thích Vibe Nào (step 5/6).
-/// Section 1: Nền văn minh yêu thích (culture, min 2 – max 5).
-/// Section 2: Vibe buổi ăn (vibe, min 2 – max 5).
+/// Section 1: Nền văn minh yêu thích (culture, min 1 – max 3).
+/// Section 2: Vibe buổi ăn (vibe, min 1 – max 3).
 /// Không call API — lưu vào draft đến Screen 11 "Hoàn tất".
 class VibePreferencesView extends StatefulWidget {
   final VoidCallback onComplete;
@@ -59,17 +59,20 @@ class _VibePreferencesViewState extends State<VibePreferencesView> {
     super.dispose();
   }
 
-  // Radio behavior — chỉ 1 nền văn minh tại 1 thời điểm.
   void _toggleCulture(String key) {
     setState(() {
       if (_draft.culture.contains(key)) {
         _draft.culture.remove(key);
+        _draft.cultureError = null;
       } else {
-        _draft.culture
-          ..clear()
-          ..add(key);
+        if (_draft.culture.length >= OnboardingDraftController.maxCulture) {
+          _draft.cultureError =
+              'Chọn tối đa ${OnboardingDraftController.maxCulture} nền văn minh';
+          return;
+        }
+        _draft.culture.add(key);
+        _draft.cultureError = null;
       }
-      _draft.cultureError = null;
     });
   }
 
@@ -103,10 +106,10 @@ class _VibePreferencesViewState extends State<VibePreferencesView> {
   }
 
   bool get _canContinue =>
-      _draft.culture.isNotEmpty &&
+      _draft.culture.length >= OnboardingDraftController.minCulture &&
       _draft.vibe.length >= OnboardingDraftController.minVibe;
 
-  int get _totalSelected => _draft.vibe.length;
+  int get _totalSelected => _draft.culture.length + _draft.vibe.length;
 
   @override
   Widget build(BuildContext context) {
@@ -134,7 +137,7 @@ class _VibePreferencesViewState extends State<VibePreferencesView> {
                     Text(
                       'Nền văn minh ẩm thực + không khí buổi ăn — để ĂnMates '
                       'đề xuất quán đúng vibe (chọn tối đa '
-                      '${OnboardingDraftController.maxVibe} thẻ mỗi mục).',
+                      '${OnboardingDraftController.maxCulture} thẻ mỗi mục).',
                       style: AppTextStyles.body(
                         size: 14,
                         color: AppColors.ink70,
@@ -147,7 +150,7 @@ class _VibePreferencesViewState extends State<VibePreferencesView> {
                     _SectionCard(
                       label: 'CHỌN NỀN VĂN MINH YÊU THÍCH',
                       count: _draft.culture.length,
-                      max: 1,
+                      max: OnboardingDraftController.maxCulture,
                       error: _draft.cultureError,
                       chips: Wrap(
                         spacing: 8,
@@ -191,7 +194,8 @@ class _VibePreferencesViewState extends State<VibePreferencesView> {
             ),
             _BottomBar(
               selected: _totalSelected,
-              max: OnboardingDraftController.maxVibe,
+              max: OnboardingDraftController.maxCulture +
+                  OnboardingDraftController.maxVibe,
               enabled: _canContinue,
               onTap: _continue,
             ),

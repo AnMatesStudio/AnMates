@@ -18,7 +18,7 @@ func NewUserService(pool *pgxpool.Pool) *UserService { return &UserService{pool:
 // userColumns is the shared SELECT/RETURNING projection so every read of a user
 // row scans the same fields in the same order.
 const userColumns = `id, name, email, phone, avatar_url, bio,
-	nickname, birth_date, personality_score, food_tags, vibe_tags, onboarding_done`
+	nickname, birth_date, personality_score, food_tags, vibe_tags, culture_tags, onboarding_done`
 
 // scanUser scans a row produced by userColumns into u.
 func scanUser(row interface {
@@ -26,7 +26,7 @@ func scanUser(row interface {
 }, u *models.User) error {
 	return row.Scan(
 		&u.ID, &u.Name, &u.Email, &u.Phone, &u.AvatarURL, &u.Bio,
-		&u.Nickname, &u.BirthDate, &u.PersonalityScore, &u.FoodTags, &u.VibeTags, &u.OnboardingDone,
+		&u.Nickname, &u.BirthDate, &u.PersonalityScore, &u.FoodTags, &u.VibeTags, &u.CultureTags, &u.OnboardingDone,
 	)
 }
 
@@ -129,6 +129,7 @@ type OnboardingInput struct {
 	PersonalityScore *int16
 	FoodTags         []string
 	VibeTags         []string
+	CultureTags      []string
 	AvatarURL        string
 	Photos           []models.UserPhoto // gallery (extra) photos; URL/Caption/Position set
 }
@@ -143,6 +144,9 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, userID uuid.UUID, 
 	}
 	if in.VibeTags == nil {
 		in.VibeTags = []string{}
+	}
+	if in.CultureTags == nil {
+		in.CultureTags = []string{}
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -160,12 +164,13 @@ func (s *UserService) CompleteOnboarding(ctx context.Context, userID uuid.UUID, 
 			personality_score = $5,
 			food_tags         = $6,
 			vibe_tags         = $7,
-			avatar_url        = NULLIF($8, ''),
+			culture_tags      = $8,
+			avatar_url        = NULLIF($9, ''),
 			onboarding_done   = TRUE
 		WHERE id = $1
 		RETURNING `+userColumns+`
 	`, userID, in.Name, in.Nickname, in.BirthDate, in.PersonalityScore,
-		in.FoodTags, in.VibeTags, in.AvatarURL), &u)
+		in.FoodTags, in.VibeTags, in.CultureTags, in.AvatarURL), &u)
 	if err != nil {
 		return nil, nil, err
 	}

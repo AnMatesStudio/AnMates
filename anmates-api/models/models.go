@@ -20,6 +20,7 @@ type User struct {
 	PersonalityScore *int16     `json:"personality_score,omitempty"`
 	FoodTags         []string   `json:"food_tags"`
 	VibeTags         []string   `json:"vibe_tags"`
+	CultureTags      []string   `json:"culture_tags"`
 	OnboardingDone   bool       `json:"onboarding_done"`
 	CreatedAt        time.Time  `json:"created_at"`
 }

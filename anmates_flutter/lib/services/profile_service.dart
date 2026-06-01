@@ -21,6 +21,7 @@ class ProfileService {
     int? personalityScore,
     required List<String> foodTags,
     required List<String> vibeTags,
+    required List<String> cultureTags,
     required String avatarUrl,
     required List<Map<String, dynamic>> photos,
   }) async {
@@ -31,6 +32,7 @@ class ProfileService {
       'personality_score': ?personalityScore,
       'food_tags': foodTags,
       'vibe_tags': vibeTags,
+      'culture_tags': cultureTags,
       'avatar_url': avatarUrl,
       'photos': photos,
     };

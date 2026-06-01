@@ -1,0 +1,25 @@
+[
+  {
+    "origin": [
+      "http://127.0.0.1:54180",
+      "http://localhost:54180",
+      "https://anmates-studio.web.app",
+      "https://anmates-studio.firebaseapp.com"
+    ],
+    "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Authorization",
+      "User-Agent",
+      "x-goog-resumable",
+      "x-goog-upload-status",
+      "x-goog-upload-url",
+      "x-goog-upload-command",
+      "x-goog-upload-header-content-length",
+      "x-goog-upload-protocol"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
