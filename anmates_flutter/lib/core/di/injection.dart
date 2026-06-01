@@ -1,6 +1,7 @@
 import 'package:get_it/get_it.dart';
 
 import '../../features/auth/auth_injection.dart';
+import '../../features/match/match_injection.dart';
 import '../network/api_client.dart';
 import '../network/connectivity_service.dart';
 import '../storage/secure_storage_service.dart';
@@ -16,8 +17,9 @@ Future<void> setupDependencies() async {
   getIt.registerSingleton<ConnectivityService>(ConnectivityService());
 
   // Features (register in dependency order: auth must come first since
-  // other features will eventually need AuthRepository.currentUserId)
+  // other features may eventually need AuthRepository.currentUserId)
   registerAuthDependencies();
+  registerMatchDependencies();
 
-  // TODO Phase 3+: registerDiscoverDependencies(), registerMatchDependencies(), etc.
+  // TODO Phase 5+: registerDiscoverDependencies(), registerChatDependencies()
 }
