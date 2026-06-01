@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ─── ANM Brand Tokens ───────────────────────────────────────────────────────
 class AppColors {
@@ -32,14 +31,15 @@ class AppColors {
 
 // ─── Typography ─────────────────────────────────────────────────────────────
 class AppTextStyles {
-  // Display / UI — Plus Jakarta Sans
+  // Display / UI — Plus Jakarta Sans (bundled, no network fetch)
   static TextStyle display({
     double size = 44,
     FontWeight weight = FontWeight.w800,
     Color color = AppColors.ink,
     double letterSpacing = -1.5,
     double? height,
-  }) => GoogleFonts.plusJakartaSans(
+  }) => TextStyle(
+    fontFamily: 'PlusJakartaSans',
     fontSize: size,
     fontWeight: weight,
     color: color,
@@ -47,26 +47,28 @@ class AppTextStyles {
     height: height,
   );
 
-  // Body / Vietnamese — Be Vietnam Pro
+  // Body / Vietnamese — Be Vietnam Pro (bundled, no network fetch)
   static TextStyle body({
     double size = 15,
     FontWeight weight = FontWeight.w400,
     Color color = AppColors.ink,
     double? height,
-  }) => GoogleFonts.beVietnamPro(
+  }) => TextStyle(
+    fontFamily: 'BeVietnamPro',
     fontSize: size,
     fontWeight: weight,
     color: color,
     height: height ?? 1.55,
   );
 
-  // Mono / Data — JetBrains Mono
+  // Mono / Data — JetBrains Mono (bundled, no network fetch)
   static TextStyle mono({
     double size = 11,
     FontWeight weight = FontWeight.w500,
     Color color = AppColors.ink50,
     double letterSpacing = 1.5,
-  }) => GoogleFonts.jetBrainsMono(
+  }) => TextStyle(
+    fontFamily: 'JetBrainsMono',
     fontSize: size,
     fontWeight: weight,
     color: color,
@@ -103,8 +105,8 @@ class AppTextStyles {
     letterSpacing: -0.3,
   );
 
-  static TextStyle chip({bool active = false, Color? color}) =>
-      GoogleFonts.beVietnamPro(
+  static TextStyle chip({bool active = false, Color? color}) => TextStyle(
+        fontFamily: 'BeVietnamPro',
         fontSize: 13,
         fontWeight: active ? FontWeight.w600 : FontWeight.w500,
         color: active ? Colors.white : (color ?? AppColors.ink),

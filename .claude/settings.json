@@ -10,7 +10,9 @@
       "Bash(cd /tmp)",
       "Bash(npm install *)",
       "Read(//c//**)",
-      "PowerShell(& \"C:\\\\src\\\\flutter\\\\bin\\\\flutter.bat\" analyze \"C:\\\\AnM\\\\AnMates\\\\anmates_flutter\\\\lib\\\\views\\\\onboarding\\\\onboarding_view.dart\" 2>&1)"
+      "PowerShell(& \"C:\\\\src\\\\flutter\\\\bin\\\\flutter.bat\" analyze \"C:\\\\AnM\\\\AnMates\\\\anmates_flutter\\\\lib\\\\views\\\\onboarding\\\\onboarding_view.dart\" 2>&1)",
+      "Bash(git checkout *)",
+      "Bash(git add *)"
     ]
   }
 }
