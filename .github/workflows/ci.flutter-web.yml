@@ -93,9 +93,11 @@ jobs:
       - name: Deploy to dev-anmates-studio.web.app
         working-directory: anmates_flutter
         run: |
-          firebase hosting:channel:deploy live \
-            --site dev-anmates-studio \
+          firebase target:apply hosting dev dev-anmates-studio \
             --project anmates-studio
+          firebase deploy --only hosting:dev \
+            --project anmates-studio \
+            --non-interactive
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
