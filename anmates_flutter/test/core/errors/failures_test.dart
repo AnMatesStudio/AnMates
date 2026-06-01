@@ -4,14 +4,20 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('Failure Types', () {
     test('NetworkFailure stores message and status code', () {
-      final failure = NetworkFailure(message: 'Connection failed', statusCode: 503);
+      final failure = NetworkFailure(
+        message: 'Connection failed',
+        statusCode: 503,
+      );
 
       expect(failure.message, 'Connection failed');
       expect(failure.statusCode, 503);
     });
 
     test('AuthFailure stores message and code', () {
-      final failure = AuthFailure(message: 'Invalid token', code: 'token_expired');
+      final failure = AuthFailure(
+        message: 'Invalid token',
+        code: 'token_expired',
+      );
 
       expect(failure.message, 'Invalid token');
       expect(failure.code, 'token_expired');

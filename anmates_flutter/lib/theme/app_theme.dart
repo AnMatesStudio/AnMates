@@ -106,11 +106,11 @@ class AppTextStyles {
   );
 
   static TextStyle chip({bool active = false, Color? color}) => TextStyle(
-        fontFamily: 'BeVietnamPro',
-        fontSize: 13,
-        fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-        color: active ? Colors.white : (color ?? AppColors.ink),
-      );
+    fontFamily: 'BeVietnamPro',
+    fontSize: 13,
+    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+    color: active ? Colors.white : (color ?? AppColors.ink),
+  );
 }
 
 // ─── Theme ───────────────────────────────────────────────────────────────────

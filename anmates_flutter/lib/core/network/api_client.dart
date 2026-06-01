@@ -1,7 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../storage/secure_storage_service.dart';
+
 import '../errors/failures.dart';
+import '../storage/secure_storage_service.dart';
 
 const _baseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -44,11 +45,10 @@ class ApiClient {
     T Function(Map<String, dynamic>)? fromJson,
   }) async {
     try {
-      final response = await _dio.get(
-        path,
-        queryParameters: queryParameters,
-      );
-      final data = fromJson != null ? fromJson(response.data as Map<String, dynamic>) : response.data;
+      final response = await _dio.get(path, queryParameters: queryParameters);
+      final data = fromJson != null
+          ? fromJson(response.data as Map<String, dynamic>)
+          : response.data;
       return (success: true, data: data as T, error: null);
     } catch (e) {
       return _handleError(e);
@@ -63,7 +63,9 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.post(path, data: body);
-      final data = fromJson != null ? fromJson(response.data as Map<String, dynamic>) : response.data;
+      final data = fromJson != null
+          ? fromJson(response.data as Map<String, dynamic>)
+          : response.data;
       return (success: true, data: data as T, error: null);
     } catch (e) {
       return _handleError(e);
@@ -78,7 +80,9 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.put(path, data: body);
-      final data = fromJson != null ? fromJson(response.data as Map<String, dynamic>) : response.data;
+      final data = fromJson != null
+          ? fromJson(response.data as Map<String, dynamic>)
+          : response.data;
       return (success: true, data: data as T, error: null);
     } catch (e) {
       return _handleError(e);
@@ -97,7 +101,7 @@ class ApiClient {
   }
 
   /// Map exceptions to typed Failures
-  ApiResult<T> _handleError<T>(dynamic error) {
+  ApiResult<T> _handleError<T>(Object error) {
     if (error is DioException) {
       final statusCode = error.response?.statusCode;
       final message = error.message ?? 'Unknown error';
@@ -106,13 +110,19 @@ class ApiClient {
         return (
           success: false,
           data: null,
-          error: NetworkFailure(message: 'Connection timeout', statusCode: statusCode),
+          error: NetworkFailure(
+            message: 'Connection timeout',
+            statusCode: statusCode,
+          ),
         );
       } else if (error.type == DioExceptionType.receiveTimeout) {
         return (
           success: false,
           data: null,
-          error: NetworkFailure(message: 'Request timeout', statusCode: statusCode),
+          error: NetworkFailure(
+            message: 'Request timeout',
+            statusCode: statusCode,
+          ),
         );
       } else if (statusCode == 401) {
         return (
@@ -133,11 +143,7 @@ class ApiClient {
           error: NetworkFailure(message: message, statusCode: statusCode),
         );
       } else if (statusCode != null && statusCode >= 500) {
-        return (
-          success: false,
-          data: null,
-          error: ServerFailure(message),
-        );
+        return (success: false, data: null, error: ServerFailure(message));
       }
     }
 
@@ -180,26 +186,28 @@ class RetryInterceptor extends Interceptor {
     ErrorInterceptorHandler handler,
   ) async {
     final statusCode = err.response?.statusCode;
-    final isRetryable = _retryableStatusCodes.contains(statusCode) ||
+    final isRetryable =
+        _retryableStatusCodes.contains(statusCode) ||
         err.type == DioExceptionType.connectionTimeout ||
         err.type == DioExceptionType.receiveTimeout;
 
-    if (!isRetryable || err.requestOptions.extra['retryCount'] ?? 0 >= _maxRetries) {
+    final retryCount = (err.requestOptions.extra['retryCount'] ?? 0) as int;
+
+    if (!isRetryable || retryCount >= _maxRetries) {
       handler.next(err);
       return;
     }
 
-    final retryCount = (err.requestOptions.extra['retryCount'] ?? 0) as int;
     err.requestOptions.extra['retryCount'] = retryCount + 1;
 
     // Exponential backoff: 1s, 2s, 4s
-    final delayMs = (1000 * (2 ^ retryCount)).toInt();
-    await Future.delayed(Duration(milliseconds: delayMs));
+    final delayMs = 1000 * (1 << retryCount);
+    await Future<void>.delayed(Duration(milliseconds: delayMs));
 
     try {
-      final response = await ApiClient()
-          .client
-          .fetch<dynamic>(err.requestOptions);
+      final response = await ApiClient().client.fetch<dynamic>(
+        err.requestOptions,
+      );
       handler.resolve(response);
     } catch (e) {
       handler.next(err);
@@ -250,6 +258,6 @@ class ErrorInterceptor extends Interceptor {
   ) {
     // Let ApiClient._handleError() take over
     handler.next(err);
-    return Future.value();
+    return Future<void>.value();
   }
 }
