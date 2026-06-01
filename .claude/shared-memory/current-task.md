@@ -1,11 +1,11 @@
 # Current Task
 
-**Status:** in-progress (FE-UI-007 ✅ Screen 03 in-review — next: FE-UI-008 Screen 04)
+**Status:** phase-7-cutover-complete (P7.1–7.11 done ✅ Widget decomposition + cleanup pushed)
 **Owner:** main-assistant
 **Started at:** 2026-05-26
-**Last updated:** 2026-05-28
+**Last updated:** 2026-06-01
 **Jira:** SCRUM-13 (FE-UI-007) In Progress | SCRUM-7 (FE-UI-001 audit) In Progress
-**Goal:** Refactor TOÀN BỘ UI Flutter app (`anmates_flutter/`) khớp 24 design HTML mới nhất (`plan/lastest/design/`) + animation spec chi tiết trong `design-system.md`. Phased delivery (8 phases). This session covers **Phase 0 (Foundation) + Phase 1 (Onboarding screens 01-07)**.
+**Goal:** Phase 7 Cutover (7.1–7.11): Wire new infrastructure stack (DI + routing + Cubits) into main.dart; replace legacy stack (services/) with new (features/); decompose god-files; visual smoke tests; push. **→ 10/10 Architecture: new stack is live, dead code eliminated, no regressions.**
 
 ## Most recent progress (2026-05-27)
 
