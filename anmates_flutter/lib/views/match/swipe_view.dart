@@ -184,41 +184,51 @@ class _SwipeViewState extends State<SwipeView>
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Back card 2
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 16.0, 0.0, 1.0)
-              ..rotateZ(3 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.5,
-              child: _buildCard(isInteractive: false),
-            ),
-          ),
-          // Back card 1
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 8.0, 0.0, 1.0)
-              ..rotateZ(1.5 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.75,
-              child: _buildCard(isInteractive: false),
-            ),
-          ),
-          // Front card (interactive)
-          GestureDetector(
-            onPanUpdate: _handleDragUpdate,
-            onPanEnd: _handleDragEnd,
-            child: AnimatedContainer(
-              duration: _isDragging
-                  ? Duration.zero
-                  : const Duration(milliseconds: 300),
+          // Back card 2 — static behind the front card; isolate from
+          // front-card repaints via RepaintBoundary so it doesn't burn
+          // GPU cycles redrawing on every drag frame.
+          RepaintBoundary(
+            child: Transform(
               transform: Matrix4.identity()
-                ..translateByDouble(_dragOffset.dx, _dragOffset.dy, 0.0, 1.0)
-                ..rotateZ(rotation),
-              alignment: Alignment.center,
-              child: _buildCard(isInteractive: true),
+                ..translateByDouble(0.0, 16.0, 0.0, 1.0)
+                ..rotateZ(3 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.5,
+                child: _buildCard(isInteractive: false),
+              ),
+            ),
+          ),
+          // Back card 1 — same rationale as back card 2.
+          RepaintBoundary(
+            child: Transform(
+              transform: Matrix4.identity()
+                ..translateByDouble(0.0, 8.0, 0.0, 1.0)
+                ..rotateZ(1.5 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.75,
+                child: _buildCard(isInteractive: false),
+              ),
+            ),
+          ),
+          // Front card (interactive) — repaints every frame during drag,
+          // but kept isolated so the rest of the screen (top bar, action
+          // buttons, gradient bg) doesn't re-rasterise.
+          RepaintBoundary(
+            child: GestureDetector(
+              onPanUpdate: _handleDragUpdate,
+              onPanEnd: _handleDragEnd,
+              child: AnimatedContainer(
+                duration: _isDragging
+                    ? Duration.zero
+                    : const Duration(milliseconds: 300),
+                transform: Matrix4.identity()
+                  ..translateByDouble(_dragOffset.dx, _dragOffset.dy, 0.0, 1.0)
+                  ..rotateZ(rotation),
+                alignment: Alignment.center,
+                child: _buildCard(isInteractive: true),
+              ),
             ),
           ),
         ],
