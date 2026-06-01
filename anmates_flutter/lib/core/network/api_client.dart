@@ -12,6 +12,12 @@ const _baseUrl = String.fromEnvironment(
 /// Typed API result: Either success with data or typed Failure
 typedef ApiResult<T> = ({bool success, T? data, Failure? error});
 
+ApiResult<T> _success<T>(T data) =>
+    (success: true, data: data, error: null);
+
+ApiResult<T> _failure<T>(Failure error) =>
+    (success: false, data: null, error: error);
+
 /// Dio HTTP client with interceptor chain for auth, retry, and error mapping
 class ApiClient {
   static final ApiClient _instance = ApiClient._();
@@ -27,7 +33,6 @@ class ApiClient {
       ),
     );
 
-    // Interceptor chain: order matters
     _dio.interceptors.add(AuthInterceptor());
     _dio.interceptors.add(RetryInterceptor());
     if (kDebugMode) {
@@ -46,12 +51,9 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.get(path, queryParameters: queryParameters);
-      final data = fromJson != null
-          ? fromJson(response.data as Map<String, dynamic>)
-          : response.data;
-      return (success: true, data: data as T, error: null);
+      return _success(_parse<T>(response.data, fromJson));
     } catch (e) {
-      return _handleError(e);
+      return _failure(_mapError(e));
     }
   }
 
@@ -63,12 +65,9 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.post(path, data: body);
-      final data = fromJson != null
-          ? fromJson(response.data as Map<String, dynamic>)
-          : response.data;
-      return (success: true, data: data as T, error: null);
+      return _success(_parse<T>(response.data, fromJson));
     } catch (e) {
-      return _handleError(e);
+      return _failure(_mapError(e));
     }
   }
 
@@ -80,12 +79,9 @@ class ApiClient {
   }) async {
     try {
       final response = await _dio.put(path, data: body);
-      final data = fromJson != null
-          ? fromJson(response.data as Map<String, dynamic>)
-          : response.data;
-      return (success: true, data: data as T, error: null);
+      return _success(_parse<T>(response.data, fromJson));
     } catch (e) {
-      return _handleError(e);
+      return _failure(_mapError(e));
     }
   }
 
@@ -93,65 +89,49 @@ class ApiClient {
   Future<ApiResult<T>> delete<T>(String path) async {
     try {
       final response = await _dio.delete(path);
-      final data = response.data as T;
-      return (success: true, data: data, error: null);
+      return _success(response.data as T);
     } catch (e) {
-      return _handleError(e);
+      return _failure(_mapError(e));
     }
   }
 
-  /// Map exceptions to typed Failures
-  ApiResult<T> _handleError<T>(Object error) {
-    if (error is DioException) {
-      final statusCode = error.response?.statusCode;
-      final message = error.message ?? 'Unknown error';
-
-      if (error.type == DioExceptionType.connectionTimeout) {
-        return (
-          success: false,
-          data: null,
-          error: NetworkFailure(
-            message: 'Connection timeout',
-            statusCode: statusCode,
-          ),
-        );
-      } else if (error.type == DioExceptionType.receiveTimeout) {
-        return (
-          success: false,
-          data: null,
-          error: NetworkFailure(
-            message: 'Request timeout',
-            statusCode: statusCode,
-          ),
-        );
-      } else if (statusCode == 401) {
-        return (
-          success: false,
-          data: null,
-          error: AuthFailure(message: 'Unauthorized', code: 'unauthorized'),
-        );
-      } else if (statusCode == 403) {
-        return (
-          success: false,
-          data: null,
-          error: AuthFailure(message: 'Forbidden', code: 'forbidden'),
-        );
-      } else if (statusCode != null && statusCode >= 400 && statusCode < 500) {
-        return (
-          success: false,
-          data: null,
-          error: NetworkFailure(message: message, statusCode: statusCode),
-        );
-      } else if (statusCode != null && statusCode >= 500) {
-        return (success: false, data: null, error: ServerFailure(message));
-      }
+  T _parse<T>(
+    dynamic data,
+    T Function(Map<String, dynamic>)? fromJson,
+  ) {
+    if (fromJson != null) {
+      return fromJson(data as Map<String, dynamic>);
     }
+    return data as T;
+  }
 
-    return (
-      success: false,
-      data: null,
-      error: UnknownFailure(error.toString()),
-    );
+  /// Map exceptions to typed Failures
+  Failure _mapError(Object error) {
+    if (error is! DioException) {
+      return UnknownFailure(error.toString());
+    }
+    final code = error.response?.statusCode;
+    final message = error.message ?? 'Unknown error';
+
+    if (error.type == DioExceptionType.connectionTimeout) {
+      return NetworkFailure(message: 'Connection timeout', statusCode: code);
+    }
+    if (error.type == DioExceptionType.receiveTimeout) {
+      return NetworkFailure(message: 'Request timeout', statusCode: code);
+    }
+    if (code == 401) {
+      return AuthFailure(message: 'Unauthorized', code: 'unauthorized');
+    }
+    if (code == 403) {
+      return AuthFailure(message: 'Forbidden', code: 'forbidden');
+    }
+    if (code != null && code >= 400 && code < 500) {
+      return NetworkFailure(message: message, statusCode: code);
+    }
+    if (code != null && code >= 500) {
+      return ServerFailure(message);
+    }
+    return UnknownFailure(message);
   }
 
   /// Raw Dio instance for advanced use cases (e.g., file uploads)
@@ -226,7 +206,6 @@ class LoggingInterceptor extends Interceptor {
     debugPrint('  Headers: ${options.headers}');
     if (options.data != null) {
       final data = options.data.toString();
-      // Strip sensitive fields like 'phone', 'password'
       debugPrint('  Body: ${_stripPii(data)}');
     }
     handler.next(options);
@@ -252,11 +231,7 @@ class LoggingInterceptor extends Interceptor {
 /// Interceptor: Map HTTP errors to structured responses
 class ErrorInterceptor extends Interceptor {
   @override
-  Future<void> onError(
-    DioException err,
-    ErrorInterceptorHandler handler,
-  ) {
-    // Let ApiClient._handleError() take over
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) {
     handler.next(err);
     return Future<void>.value();
   }

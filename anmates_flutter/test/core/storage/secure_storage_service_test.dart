@@ -29,13 +29,11 @@ void main() {
       );
 
       verify(
-        () =>
-            mockStorage.write(key: 'access_token', value: 'access_123'),
+        () => mockStorage.write(key: 'access_token', value: 'access_123'),
       ).called(1);
 
       verify(
-        () =>
-            mockStorage.write(key: 'refresh_token', value: 'refresh_456'),
+        () => mockStorage.write(key: 'refresh_token', value: 'refresh_456'),
       ).called(1);
     });
 
@@ -50,8 +48,7 @@ void main() {
       await service.saveTokens(accessToken: 'access_123');
 
       verify(
-        () =>
-            mockStorage.write(key: 'access_token', value: 'access_123'),
+        () => mockStorage.write(key: 'access_token', value: 'access_123'),
       ).called(1);
 
       verifyNever(
@@ -94,8 +91,7 @@ void main() {
       await service.updateAccessToken('new_token');
 
       verify(
-        () =>
-            mockStorage.write(key: 'access_token', value: 'new_token'),
+        () => mockStorage.write(key: 'access_token', value: 'new_token'),
       ).called(1);
     });
 
