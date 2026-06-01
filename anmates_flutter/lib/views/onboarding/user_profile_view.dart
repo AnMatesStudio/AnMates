@@ -1,6 +1,8 @@
+import 'dart:math' as math;
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/profile_service.dart';
+import '../../services/onboarding_draft.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/astrology.dart';
 import '../../widgets/anm_widgets.dart';
@@ -21,176 +23,212 @@ class UserProfileView extends StatefulWidget {
 }
 
 class _UserProfileViewState extends State<UserProfileView> {
-  static const _wheelBg = Color(0xFF5E2A4E); // deep plum DOB wheels (matches design)
-
-  final _nameCtrl = TextEditingController();
-  final _nicknameCtrl = TextEditingController();
-
-  int _day = 15;
-  int _month = 6;
-  int _year = 2000;
-  bool _dobTouched = false;
-
-  double _personality = 50;
-  bool _saving = false;
+  final _draft = OnboardingDraftController.instance;
+  late final TextEditingController _nameCtrl;
+  late final TextEditingController _nicknameCtrl;
 
   static const _minYear = 1960;
   static const _maxYear = 2009;
 
   @override
+  void initState() {
+    super.initState();
+    // Seed from the client-side draft so returning to this screen (e.g. after a
+    // failed final validation on Screen 10) restores what the user typed.
+    _nameCtrl = TextEditingController(text: _draft.name);
+    _nicknameCtrl = TextEditingController(text: _draft.nickname);
+    // Rebuild button state whenever text changes.
+    _nameCtrl.addListener(_onTextChanged);
+    _nicknameCtrl.addListener(_onTextChanged);
+    // Rebuild when another screen sets an error on this step.
+    _draft.addListener(_onDraftChanged);
+  }
+
+  void _onDraftChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _onTextChanged() {
+    if (mounted) setState(() {});
+  }
+
+  bool get _fieldsReady =>
+      _nameCtrl.text.trim().isNotEmpty &&
+      _nicknameCtrl.text.trim().isNotEmpty;
+
+  @override
   void dispose() {
+    _draft.removeListener(_onDraftChanged);
+    _nameCtrl.removeListener(_onTextChanged);
+    _nicknameCtrl.removeListener(_onTextChanged);
     _nameCtrl.dispose();
     _nicknameCtrl.dispose();
     super.dispose();
   }
 
-  DateTime get _dob => DateTime(_year, _month, _day);
-
-  bool get _canContinue =>
-      _nameCtrl.text.trim().isNotEmpty &&
-      _nicknameCtrl.text.trim().isNotEmpty &&
-      _dobTouched &&
-      !_saving;
-
   String get _personalityLabel {
-    final v = _personality.round();
+    final v = _draft.personality.round();
     if (v <= 33) return 'Introvert';
     if (v <= 66) return 'Ambivert';
     return 'Extrovert';
   }
 
+  // No API here — Screen 08 only validates + stores into the client draft, then
+  // advances to Screen 09. The single submit happens on Screen 10 ("Hoàn tất").
   Future<void> _continue() async {
-    if (!_canContinue) return;
-    setState(() => _saving = true);
-    try {
-      await ProfileService().saveOnboardingProfile(
-        name: _nameCtrl.text.trim(),
-        nickname: _nicknameCtrl.text.trim(),
-        birthDate: _dob,
-        personalityScore: _personality.round(),
-      );
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => FoodPreferencesView(onComplete: widget.onComplete),
-        ),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppColors.berry,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    _draft.name = _nameCtrl.text;
+    _draft.nickname = _nicknameCtrl.text;
+    if (!_draft.validateStep08()) return; // sets red errors + rebuilds
+    await _draft.persist();
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'onb_food'),
+        builder: (_) => FoodPreferencesView(onComplete: widget.onComplete),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final underage = _draft.dobTouched && _draft.ageYears < OnboardingDraftController.minAge;
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(title: 'THÔNG TIN CÁ NHÂN', step: 3, total: 5),
+            _TopBar(title: 'THÔNG TIN CÁ NHÂN', step: 3, total: 6),
             Expanded(
-              child: ListenableBuilder(
-                listenable: Listenable.merge([_nameCtrl, _nicknameCtrl]),
-                builder: (context, _) {
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Eyebrow('THÔNG TIN CÁ NHÂN'),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Bạn là ai trên bàn ăn?',
-                          style: AppTextStyles.display(
-                            size: 28,
-                            weight: FontWeight.w800,
-                            height: 1.15,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Chỉ ĂnMates dùng để ghép Mate hợp vía — không bao '
-                          'giờ public số tử vi của bạn.',
-                          style: AppTextStyles.body(
-                            size: 14,
-                            color: AppColors.ink70,
-                            height: 1.45,
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        _FieldLabel('TÊN ĐẦY ĐỦ'),
-                        const SizedBox(height: 8),
-                        _TextField(
-                          controller: _nameCtrl,
-                          hint: 'Nguyễn Thảo Vy',
-                        ),
-                        const SizedBox(height: 18),
-                        _FieldLabel('GỌI THÂN MẬT'),
-                        const SizedBox(height: 8),
-                        _TextField(
-                          controller: _nicknameCtrl,
-                          hint: 'Vy',
-                          helper: 'Mates sẽ thấy tên này trong chat',
-                        ),
-                        const SizedBox(height: 24),
-                        _FieldLabel('NGÀY THÁNG NĂM SINH'),
-                        const SizedBox(height: 10),
-                        _DobWheels(
-                          day: _day,
-                          month: _month,
-                          year: _year,
-                          minYear: _minYear,
-                          maxYear: _maxYear,
-                          background: _wheelBg,
-                          onChanged: (d, m, y) {
-                            setState(() {
-                              _day = d;
-                              _month = m;
-                              _year = y;
-                              _dobTouched = true;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 18),
-                        AnimatedOpacity(
-                          opacity: _dobTouched ? 1 : 0,
-                          duration: const Duration(milliseconds: 320),
-                          child: _dobTouched
-                              ? _AutoDetect(dob: _dob)
-                              : const SizedBox(height: 0),
-                        ),
-                        const SizedBox(height: 24),
-                        _PersonalitySection(
-                          value: _personality,
-                          label: _personalityLabel,
-                          onChanged: (v) => setState(() => _personality = v),
-                        ),
-                      ],
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Eyebrow('THÔNG TIN CÁ NHÂN'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Bạn là ai trên bàn ăn?',
+                      style: AppTextStyles.display(
+                        size: 28,
+                        weight: FontWeight.w800,
+                        height: 1.15,
+                      ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 8),
+                    Text(
+                      'Chỉ ĂnMates dùng để ghép Mate hợp vía — không bao '
+                      'giờ public số tử vi của bạn.',
+                      style: AppTextStyles.body(
+                        size: 14,
+                        color: AppColors.ink70,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    _FieldLabel('TÊN ĐẦY ĐỦ'),
+                    const SizedBox(height: 8),
+                    _TextField(
+                      controller: _nameCtrl,
+                      hint: 'Nguyễn Thảo Vy',
+                      errorText: _draft.nameError,
+                      onChanged: (v) {
+                        _draft.name = v;
+                        if (_draft.nameError != null) {
+                          setState(() => _draft.nameError = null);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 18),
+                    _FieldLabel('GỌI THÂN MẬT'),
+                    const SizedBox(height: 8),
+                    _TextField(
+                      controller: _nicknameCtrl,
+                      hint: 'Vy',
+                      helper: 'Mates sẽ thấy tên này trong chat',
+                      errorText: _draft.nicknameError,
+                      onChanged: (v) {
+                        _draft.nickname = v;
+                        if (_draft.nicknameError != null) {
+                          setState(() => _draft.nicknameError = null);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                    _FieldLabel('NGÀY THÁNG NĂM SINH'),
+                    const SizedBox(height: 10),
+                    _DobWheels(
+                      day: _draft.day,
+                      month: _draft.month,
+                      year: _draft.year,
+                      minYear: _minYear,
+                      maxYear: _maxYear,
+                      onChanged: (d, m, y) {
+                        setState(() {
+                          _draft.day = d;
+                          _draft.month = m;
+                          _draft.year = y;
+                          _draft.dobTouched = true;
+                          _draft.dobError = null;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    _AgeNotice(underage: underage, error: _draft.dobError),
+                    const SizedBox(height: 14),
+                    _AutoDetect(dob: _draft.dob),
+                    const SizedBox(height: 24),
+                    _PersonalitySection(
+                      value: _draft.personality,
+                      label: _personalityLabel,
+                      onChanged: (v) => setState(() => _draft.personality = v),
+                    ),
+                  ],
+                ),
               ),
             ),
             _BottomCta(
-              loading: _saving,
-              enabled: _canContinue,
+              loading: false,
+              enabled: _fieldsReady,
               onTap: _continue,
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─── 16+ age notice (info by default, red when underage / unset) ─────────────
+class _AgeNotice extends StatelessWidget {
+  final bool underage;
+  final String? error;
+  const _AgeNotice({required this.underage, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    final isError = error != null;
+    final color = isError ? AppColors.berry : AppColors.ink50;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          isError ? Icons.error_outline : Icons.info_outline,
+          size: 14,
+          color: color,
+        ),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            error ?? 'ĂnMates chỉ dành cho người từ 16 tuổi trở lên.',
+            style: AppTextStyles.body(
+              size: 12,
+              color: color,
+              height: 1.35,
+              weight: isError ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -293,15 +331,27 @@ class _TextField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
   final String? helper;
-  const _TextField({required this.controller, required this.hint, this.helper});
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+  const _TextField({
+    required this.controller,
+    required this.hint,
+    this.helper,
+    this.errorText,
+    this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final hasError = errorText != null;
+    final base = hasError ? Colors.red.shade600 : AppColors.berry;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         TextField(
           controller: controller,
+          onChanged: onChanged,
+          textCapitalization: TextCapitalization.words,
           style: GoogleFonts.plusJakartaSans(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -323,22 +373,32 @@ class _TextField extends StatelessWidget {
             fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.berry, width: 1.4),
+              borderSide: BorderSide(color: base, width: 1.4),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(
-                color: AppColors.berry.withValues(alpha: 0.45),
+                color: hasError ? base : base.withValues(alpha: 0.45),
                 width: 1.4,
               ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: const BorderSide(color: AppColors.berry, width: 1.8),
+              borderSide: BorderSide(color: base, width: 1.8),
             ),
           ),
         ),
-        if (helper != null) ...[
+        if (hasError) ...[
+          const SizedBox(height: 6),
+          Text(
+            errorText!,
+            style: AppTextStyles.body(
+              size: 12,
+              color: Colors.red.shade600,
+              weight: FontWeight.w600,
+            ),
+          ),
+        ] else if (helper != null) ...[
           const SizedBox(height: 6),
           Text(
             helper!,
@@ -353,7 +413,6 @@ class _TextField extends StatelessWidget {
 // ─── DOB wheel pickers ───────────────────────────────────────────────────────
 class _DobWheels extends StatelessWidget {
   final int day, month, year, minYear, maxYear;
-  final Color background;
   final void Function(int day, int month, int year) onChanged;
 
   const _DobWheels({
@@ -362,7 +421,6 @@ class _DobWheels extends StatelessWidget {
     required this.year,
     required this.minYear,
     required this.maxYear,
-    required this.background,
     required this.onChanged,
   });
 
@@ -373,7 +431,6 @@ class _DobWheels extends StatelessWidget {
         Expanded(
           child: _WheelCard(
             label: 'NGÀY',
-            background: background,
             count: 31,
             selectedIndex: day - 1,
             itemLabel: (i) => (i + 1).toString().padLeft(2, '0'),
@@ -384,7 +441,6 @@ class _DobWheels extends StatelessWidget {
         Expanded(
           child: _WheelCard(
             label: 'THÁNG',
-            background: background,
             count: 12,
             selectedIndex: month - 1,
             itemLabel: (i) => (i + 1).toString().padLeft(2, '0'),
@@ -395,7 +451,6 @@ class _DobWheels extends StatelessWidget {
         Expanded(
           child: _WheelCard(
             label: 'NĂM',
-            background: background,
             count: maxYear - minYear + 1,
             selectedIndex: year - minYear,
             itemLabel: (i) => (minYear + i).toString(),
@@ -409,7 +464,6 @@ class _DobWheels extends StatelessWidget {
 
 class _WheelCard extends StatefulWidget {
   final String label;
-  final Color background;
   final int count;
   final int selectedIndex;
   final String Function(int index) itemLabel;
@@ -417,7 +471,6 @@ class _WheelCard extends StatefulWidget {
 
   const _WheelCard({
     required this.label,
-    required this.background,
     required this.count,
     required this.selectedIndex,
     required this.itemLabel,
@@ -430,6 +483,8 @@ class _WheelCard extends StatefulWidget {
 
 class _WheelCardState extends State<_WheelCard> {
   late final FixedExtentScrollController _ctrl;
+  bool _dragging = false;
+  static const _kItemExtent = 30.0;
 
   @override
   void initState() {
@@ -443,58 +498,108 @@ class _WheelCardState extends State<_WheelCard> {
     super.dispose();
   }
 
+  void _snapToNearest() {
+    if (!_ctrl.hasClients) return;
+    final item = (_ctrl.offset / _kItemExtent)
+        .round()
+        .clamp(0, widget.count - 1);
+    _ctrl.animateToItem(
+      item,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 132,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.wisteria, AppColors.berry],
-        ),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        children: [
-          Text(
-            widget.label,
-            style: AppTextStyles.mono(
-              size: 9,
-              weight: FontWeight.w700,
-              color: Colors.white.withValues(alpha: 0.65),
-              letterSpacing: 1.6,
+    return MouseRegion(
+      cursor: _dragging
+          ? SystemMouseCursors.grabbing
+          : SystemMouseCursors.grab,
+      child: Listener(
+        // Scroll wheel: one item per tick, stays snapped
+        onPointerSignal: (event) {
+          if (event is PointerScrollEvent) {
+            final dir = event.scrollDelta.dy > 0 ? 1 : -1;
+            final next = (_ctrl.selectedItem + dir).clamp(0, widget.count - 1);
+            _ctrl.animateToItem(
+              next,
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+            );
+          }
+        },
+        child: GestureDetector(
+          // Click + drag: kéo lên = giá trị tăng, kéo xuống = giá trị giảm
+          onVerticalDragStart: (_) => setState(() => _dragging = true),
+          onVerticalDragUpdate: (d) {
+            if (!_ctrl.hasClients) return;
+            final newOffset = (_ctrl.offset - d.delta.dy)
+                .clamp(0.0, (widget.count - 1) * _kItemExtent);
+            _ctrl.jumpTo(newOffset);
+          },
+          onVerticalDragEnd: (_) {
+            setState(() => _dragging = false);
+            _snapToNearest();
+          },
+          onVerticalDragCancel: () {
+            setState(() => _dragging = false);
+            _snapToNearest();
+          },
+          child: Container(
+            height: 132,
+            decoration: BoxDecoration(
+              gradient: const RadialGradient(
+                center: Alignment.center,
+                radius: 0.85,
+                colors: [Color(0xFFC96098), Color(0xFF8E3572)],
+              ),
+              borderRadius: BorderRadius.circular(20),
             ),
-          ),
-          const SizedBox(height: 2),
-          Expanded(
-            child: ListWheelScrollView.useDelegate(
-              controller: _ctrl,
-              itemExtent: 30,
-              useMagnifier: true,
-              magnification: 1.45,
-              overAndUnderCenterOpacity: 0.38,
-              perspective: 0.003,
-              diameterRatio: 1.5,
-              physics: const FixedExtentScrollPhysics(),
-              onSelectedItemChanged: widget.onSelected,
-              childDelegate: ListWheelChildBuilderDelegate(
-                childCount: widget.count,
-                builder: (context, i) => Center(
-                  child: Text(
-                    widget.itemLabel(i),
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Text(
+                  widget.label,
+                  style: AppTextStyles.mono(
+                    size: 9,
+                    weight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.65),
+                    letterSpacing: 1.6,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Expanded(
+                  child: ListWheelScrollView.useDelegate(
+                    controller: _ctrl,
+                    itemExtent: _kItemExtent,
+                    useMagnifier: true,
+                    magnification: 1.45,
+                    overAndUnderCenterOpacity: 0.38,
+                    perspective: 0.003,
+                    diameterRatio: 1.5,
+                    // GestureDetector + Listener xử lý toàn bộ input
+                    physics: const NeverScrollableScrollPhysics(),
+                    onSelectedItemChanged: widget.onSelected,
+                    childDelegate: ListWheelChildBuilderDelegate(
+                      childCount: widget.count,
+                      builder: (context, i) => Center(
+                        child: Text(
+                          widget.itemLabel(i),
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -698,23 +803,38 @@ class _PlusThumbShape extends SliderComponentShape {
     // Berry fill
     canvas.drawCircle(center, _r, Paint()..color = AppColors.berry);
 
-    // Fork & knife icon
-    final tp = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(Icons.restaurant.codePoint),
-        style: TextStyle(
-          fontSize: 14,
-          height: 1.0,
-          color: Colors.white,
-          fontFamily: Icons.restaurant.fontFamily,
-          package: Icons.restaurant.fontPackage,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(
-      canvas,
-      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
+    // 4-pointed sparkle star (elongated diamond points, like ✦)
+    _drawSparkle(canvas, center, radius: _r * 0.62);
+  }
+
+  /// Draws a 4-pointed sparkle star centered at [center].
+  /// Each point is a sharp diamond spike; [radius] is the outer point length.
+  /// Inner pinch radius = radius * 0.18 gives the elongated ✦ look.
+  static void _drawSparkle(Canvas canvas, Offset center, {required double radius}) {
+    const pointCount = 4;
+    final innerR = radius * 0.18;
+    final path = Path();
+
+    for (int i = 0; i < pointCount * 2; i++) {
+      // Points alternate between outer (spike tips) and inner (pinch between spikes).
+      // Rotate -π/2 so the first spike points straight up.
+      final angle = (i * math.pi / pointCount) - math.pi / 2;
+      final r = i.isEven ? radius : innerR;
+      final x = center.dx + r * math.cos(angle);
+      final y = center.dy + r * math.sin(angle);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.fill,
     );
   }
 }

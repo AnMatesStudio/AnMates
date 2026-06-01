@@ -24,6 +24,17 @@ type User struct {
 	CreatedAt        time.Time  `json:"created_at"`
 }
 
+// UserPhoto is one gallery photo (Screen 10 "Show bản thân"). The main avatar
+// is stored separately in users.avatar_url; these are the extra photos.
+type UserPhoto struct {
+	ID        uuid.UUID `json:"id"`
+	UserID    uuid.UUID `json:"-"`
+	URL       string    `json:"url"`
+	Caption   *string   `json:"caption,omitempty"`
+	Position  int16     `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 type Wishlist struct {
 	ID           uuid.UUID `json:"id"`
 	UserID       uuid.UUID `json:"user_id"`

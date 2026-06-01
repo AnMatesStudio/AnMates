@@ -44,6 +44,8 @@ dependencies:
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
   firebase_auth_platform_interface: ^9.0.1
+  firebase_storage: ^13.0.0
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -72,6 +74,7 @@ flutter:
   assets:
     - assets/food/
     - assets/avatars/
+    - assets/icons/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

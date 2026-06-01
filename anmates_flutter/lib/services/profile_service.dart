@@ -1,47 +1,52 @@
 import 'api_client.dart';
 import 'auth_service.dart';
 
-/// Persists post-OTP onboarding data (Screens 08 + 09) to the Go backend.
+/// Talks to the Go backend for the user profile.
+///
+/// Onboarding now submits once at the end (Screen 10 "Hoàn tất") via
+/// [completeOnboarding] — Screens 08/09 only stash data in the client-side
+/// draft. [getProfile] backs the discovery/home + profile screens.
 class ProfileService {
   static final ProfileService _instance = ProfileService._();
   ProfileService._();
   factory ProfileService() => _instance;
 
-  /// Screen 08 — PATCH /profile/onboarding.
-  /// [birthDate] is sent as "YYYY-MM-DD" (or omitted when null).
-  Future<Map<String, dynamic>> saveOnboardingProfile({
+  /// One-shot submit for Screens 08+09+10. Persists everything server-side and
+  /// flips onboarding_done. [photos] is the gallery (extra) photos as
+  /// `{'url': ..., 'caption': ...}` maps; [avatarUrl] is the required main photo.
+  Future<Map<String, dynamic>> completeOnboarding({
     required String name,
     required String nickname,
     DateTime? birthDate,
     int? personalityScore,
+    required List<String> foodTags,
+    required List<String> vibeTags,
+    required String avatarUrl,
+    required List<Map<String, dynamic>> photos,
   }) async {
     final body = <String, dynamic>{
       'name': name.trim(),
       'nickname': nickname.trim(),
       'birth_date': ?(birthDate == null ? null : _formatDate(birthDate)),
       'personality_score': ?personalityScore,
+      'food_tags': foodTags,
+      'vibe_tags': vibeTags,
+      'avatar_url': avatarUrl,
+      'photos': photos,
     };
     final data = await ApiClient().patch(
-      '/api/v1/profile/onboarding',
+      '/api/v1/profile/complete-onboarding',
       body: body,
     );
-    return (data as Map).cast<String, dynamic>();
+    final map = (data as Map).cast<String, dynamic>();
+    await AuthService().setOnboardingDone(map['onboarding_done'] as bool? ?? true);
+    return map;
   }
 
-  /// Screen 09 — PATCH /profile/preferences. Marks onboarding complete server-
-  /// side and mirrors that locally so routing skips onboarding next time.
-  Future<Map<String, dynamic>> savePreferences({
-    required List<String> foodTags,
-    required List<String> vibeTags,
-  }) async {
-    final data = await ApiClient().patch(
-      '/api/v1/profile/preferences',
-      body: {'food_tags': foodTags, 'vibe_tags': vibeTags},
-    );
-    final map = (data as Map).cast<String, dynamic>();
-    final done = map['onboarding_done'] as bool? ?? true;
-    await AuthService().setOnboardingDone(done);
-    return map; // ignore: unnecessary_cast
+  /// GET /profile — full user record incl. avatar_url, nickname and photos[].
+  Future<Map<String, dynamic>> getProfile() async {
+    final data = await ApiClient().get('/api/v1/profile');
+    return (data as Map).cast<String, dynamic>();
   }
 
   String _formatDate(DateTime d) {

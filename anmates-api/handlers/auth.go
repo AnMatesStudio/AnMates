@@ -65,9 +65,30 @@ type userOut struct {
 	Nickname         *string  `json:"nickname,omitempty"`
 	BirthDate        *string  `json:"birth_date,omitempty"`
 	PersonalityScore *int16   `json:"personality_score,omitempty"`
-	FoodTags         []string `json:"food_tags"`
-	VibeTags         []string `json:"vibe_tags"`
-	OnboardingDone   bool     `json:"onboarding_done"`
+	FoodTags         []string   `json:"food_tags"`
+	VibeTags         []string   `json:"vibe_tags"`
+	OnboardingDone   bool       `json:"onboarding_done"`
+	Photos           []photoOut `json:"photos,omitempty"`
+}
+
+type photoOut struct {
+	ID       string  `json:"id"`
+	URL      string  `json:"url"`
+	Caption  *string `json:"caption,omitempty"`
+	Position int16   `json:"position"`
+}
+
+func toPhotosOut(photos []models.UserPhoto) []photoOut {
+	out := make([]photoOut, 0, len(photos))
+	for _, p := range photos {
+		out = append(out, photoOut{
+			ID:       p.ID.String(),
+			URL:      p.URL,
+			Caption:  p.Caption,
+			Position: p.Position,
+		})
+	}
+	return out
 }
 
 func toUserOut(u *models.User) *userOut {

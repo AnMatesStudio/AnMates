@@ -1,57 +1,44 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// Horoscope / numerology icon library for the onboarding auto-detect cards.
+/// Horoscope / numerology icon library for Screen 08 (Thông Tin Cá Nhân).
 ///
-/// One cohesive, dependency-free icon set covering the three categories shown on
-/// Screen 08 (Thông Tin Cá Nhân):
-///   • Cung Hoàng Đạo  — 12 western zodiac signs (Unicode astrological glyphs)
-///   • Mệnh Ngũ Hành   — 5 elements (Kim/Mộc/Thủy/Hỏa/Thổ) with traditional colors
-///   • Thần Số Học     — life-path number 1–9 rendered as a numeral badge
-///
-/// Each icon is a self-contained badge: a soft tinted rounded square with the
-/// symbol centered, so the three cards read as one designed family.
+/// Three badge families, one visual language:
+///   • ZodiacIcon   — 12 western zodiac signs (Unicode glyphs, auto-centered)
+///   • NguHanhIcon  — 5 elements (Kim/Mộc/Thủy/Hỏa/Thổ) with traditional colors
+///   • ThanSoIcon   — life-path numeral 1–33
 
-// ─── Zodiac ──────────────────────────────────────────────────────────────────
+// ─── Zodiac glyph map ────────────────────────────────────────────────────────
 
-/// Unicode astrological glyph for each Vietnamese zodiac name.
 const Map<String, String> _zodiacGlyphs = {
-  'Bạch Dương': '♈', // Aries
-  'Kim Ngưu': '♉', // Taurus
-  'Song Tử': '♊', // Gemini
-  'Cự Giải': '♋', // Cancer
-  'Sư Tử': '♌', // Leo
-  'Xử Nữ': '♍', // Virgo
-  'Thiên Bình': '♎', // Libra
-  'Bọ Cạp': '♏', // Scorpio
-  'Nhân Mã': '♐', // Sagittarius
-  'Ma Kết': '♑', // Capricorn
-  'Bảo Bình': '♒', // Aquarius
-  'Song Ngư': '♓', // Pisces
+  'Bạch Dương': '♈',
+  'Kim Ngưu': '♉',
+  'Song Tử': '♊',
+  'Cự Giải': '♋',
+  'Sư Tử': '♌',
+  'Xử Nữ': '♍',
+  'Thiên Bình': '♎',
+  'Bọ Cạp': '♏',
+  'Nhân Mã': '♐',
+  'Ma Kết': '♑',
+  'Bảo Bình': '♒',
+  'Song Ngư': '♓',
 };
 
 String zodiacGlyph(String viName) => _zodiacGlyphs[viName] ?? '✦';
 
-// ─── Ngũ Hành (Five Elements) ────────────────────────────────────────────────
+// ─── Ngũ Hành map ────────────────────────────────────────────────────────────
 
-/// Visual spec for one of the five elements: a Material icon + traditional color.
 typedef ElementVisual = ({IconData icon, Color color});
 
 const Map<String, ElementVisual> _elementVisuals = {
-  // Kim (Metal) — gold/amber, gem
-  'Kim': (icon: Icons.diamond_outlined, color: Color(0xFFCAA53D)),
-  // Mộc (Wood) — green, foliage
-  'Mộc': (icon: Icons.park_outlined, color: Color(0xFF3FA66A)),
-  // Thủy (Water) — blue, droplet
-  'Thủy': (icon: Icons.water_drop_outlined, color: Color(0xFF2D9CDB)),
-  // Hỏa (Fire) — red/orange, flame
-  'Hỏa': (icon: Icons.local_fire_department_outlined, color: Color(0xFFE8553C)),
-  // Thổ (Earth) — brown, terrain
-  'Thổ': (icon: Icons.terrain_outlined, color: Color(0xFFB07A3C)),
+  'Kim': (icon: Icons.diamond_outlined,              color: Color(0xFFCAA53D)),
+  'Mộc': (icon: Icons.park_outlined,                 color: Color(0xFF3FA66A)),
+  'Thủy': (icon: Icons.water_drop_outlined,          color: Color(0xFF2D9CDB)),
+  'Hỏa': (icon: Icons.local_fire_department_outlined,color: Color(0xFFE8553C)),
+  'Thổ': (icon: Icons.terrain_outlined,              color: Color(0xFFB07A3C)),
 };
 
-/// Extracts the element word (Kim/Mộc/Thủy/Hỏa/Thổ) from a Nạp Âm name such as
-/// "Bạch Lạp Kim" → "Kim".
 String elementOf(String napAmName) {
   for (final key in _elementVisuals.keys) {
     if (napAmName.endsWith(key)) return key;
@@ -62,18 +49,13 @@ String elementOf(String napAmName) {
 ElementVisual elementVisual(String element) =>
     _elementVisuals[element] ?? _elementVisuals['Thổ']!;
 
-// ─── Badge widgets ───────────────────────────────────────────────────────────
+// ─── Shared badge container ───────────────────────────────────────────────────
 
-/// Shared rounded-square badge holding any centered child.
 class _IconBadge extends StatelessWidget {
   final Widget child;
   final Color tint;
   final double size;
-  const _IconBadge({
-    required this.child,
-    required this.tint,
-    this.size = 34,
-  });
+  const _IconBadge({required this.child, required this.tint, this.size = 34});
 
   @override
   Widget build(BuildContext context) {
@@ -90,32 +72,101 @@ class _IconBadge extends StatelessWidget {
   }
 }
 
-/// Zodiac badge — Unicode glyph tinted berry.
+// ─── Zodiac badge ─────────────────────────────────────────────────────────────
+
+/// Light-purple rounded square badge. The glyph is painted via [CustomPainter]
+/// using [TextPainter.getBoxesForSelection] to get this specific character's
+/// tight cell bounds, so every sign centers precisely with zero hardcoded offsets.
 class ZodiacIcon extends StatelessWidget {
   final String viName;
   final double size;
   const ZodiacIcon({super.key, required this.viName, this.size = 34});
 
+  static const _purple = Color(0xFF8878C8);
+
   @override
   Widget build(BuildContext context) {
     return _IconBadge(
-      tint: AppColors.berry,
+      tint: _purple,
       size: size,
-      child: Text(
-        zodiacGlyph(viName),
-        style: TextStyle(
-          fontSize: size * 0.56,
-          color: AppColors.berry,
-          height: 1.0,
+      child: CustomPaint(
+        size: Size(size, size),
+        painter: _GlyphCenterPainter(
+          glyph: zodiacGlyph(viName),
+          color: _purple,
+          fontSize: size * 0.60,
         ),
       ),
     );
   }
 }
 
-/// Ngũ Hành badge — element Material icon in its traditional color.
+/// Paints a Unicode glyph centered on the canvas using the character's own
+/// selection-box bounds — the most accurate measure of its rendered cell.
+///
+/// [getBoxesForSelection] returns the rectangle Flutter actually allocated for
+/// this character. Centering on (b.right-b.left) × (b.bottom-b.top) rather
+/// than on [TextPainter.width] × [TextPainter.height] removes the extra
+/// ascender/descender padding that differs per glyph and causes visual offset.
+class _GlyphCenterPainter extends CustomPainter {
+  final String glyph;
+  final Color color;
+  final double fontSize;
+
+  const _GlyphCenterPainter({
+    required this.glyph,
+    required this.color,
+    required this.fontSize,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          fontSize: fontSize,
+          color: color,
+          height: 1.0,
+          // Four sub-pixel shadow offsets thicken the thin Unicode glyph.
+          shadows: [
+            Shadow(color: color, offset: const Offset(0.6, 0)),
+            Shadow(color: color, offset: const Offset(-0.6, 0)),
+            Shadow(color: color, offset: const Offset(0, 0.6)),
+            Shadow(color: color, offset: const Offset(0, -0.6)),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final boxes = tp.getBoxesForSelection(
+      const TextSelection(baseOffset: 0, extentOffset: 1),
+    );
+
+    final double dx, dy;
+    if (boxes.isNotEmpty) {
+      final b = boxes.first;
+      // Shift the paint origin so the character cell lands at canvas center.
+      dx = (size.width  - (b.right  - b.left)) / 2 - b.left;
+      dy = (size.height - (b.bottom - b.top))  / 2 - b.top;
+    } else {
+      dx = (size.width  - tp.width)  / 2;
+      dy = (size.height - tp.height) / 2;
+    }
+
+    tp.paint(canvas, Offset(dx, dy));
+  }
+
+  @override
+  bool shouldRepaint(_GlyphCenterPainter old) =>
+      old.glyph != glyph || old.color != color || old.fontSize != fontSize;
+}
+
+// ─── Ngũ Hành badge ───────────────────────────────────────────────────────────
+
 class NguHanhIcon extends StatelessWidget {
-  final String element; // Kim/Mộc/Thủy/Hỏa/Thổ
+  final String element;
   final double size;
   const NguHanhIcon({super.key, required this.element, this.size = 34});
 
@@ -130,7 +181,8 @@ class NguHanhIcon extends StatelessWidget {
   }
 }
 
-/// Thần Số Học badge — the life-path numeral in a gradient circle.
+// ─── Thần Số Học badge ────────────────────────────────────────────────────────
+
 class ThanSoIcon extends StatelessWidget {
   final int number;
   final double size;
@@ -138,24 +190,16 @@ class ThanSoIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [AppColors.wisteria, AppColors.berry],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      alignment: Alignment.center,
+    return _IconBadge(
+      tint: AppColors.berry,
+      size: size,
       child: Text(
         '$number',
+        textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: size * 0.5,
+          fontSize: size * 0.52,
           fontWeight: FontWeight.w800,
-          color: Colors.white,
+          color: AppColors.berry,
           height: 1.0,
         ),
       ),

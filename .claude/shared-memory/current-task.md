@@ -1,10 +1,18 @@
 # Current Task
 
-**Status:** done — UI confirmed by user, nav bug fixed, R-003 written.
+**Status:** implemented, awaiting user verification — onboarding flow refactor (08→09→10→11).
 **Owner:** main-assistant
-**Started at:** 2026-05-30
+**Started at:** 2026-05-31
 **Last updated:** 2026-05-31
-**Goal:** Implement post-OTP onboarding: Screen 08 (Thông Tin Cá Nhân, 3/5) + Screen 09 (Gú Ẩm Thực, 4/5). ✅ Backend B1-B8 done. ✅ Flutter F1-F6 done. ✅ UI polish Screen 08 confirmed. ✅ Nav bug fixed (pushAndRemoveUntil). See R-003 + sessions/2026-05-31-screen08-ui-polish.md.
+**Goal:** Refactor onboarding submit flow: Screens 08/09 store to client draft (no API), NEW Screen 10 photo upload (Firebase Storage), "Hoàn tất" validates all 3 + one-shot `PATCH /profile/complete-onboarding`, Screen 11 GETs profile (nickname+avatar). New `user_photos` table. Flutter `flutter analyze` clean; Go build UNVERIFIED (no Go toolchain on Windows box). ⚠️ Needs Firebase Storage enabled+rules in Console. See sessions/2026-05-31-onboarding-flow-refactor-screen08-09-10-11.md.
+**Jira:** TECH-5 (current branch)
+
+---
+
+## Previous task (archived)
+
+**Status:** done — UI confirmed by user, nav bug fixed, R-003 written.
+**Goal:** Implement post-OTP onboarding: Screen 08 (Thông Tin Cá Nhân, 3/5) + Screen 09 (Gú Ẩm Thực, 4/5). See R-003 + sessions/2026-05-31-screen08-ui-polish.md.
 **Jira:** TECH-7 (Screen 08) in epic TECH-6 (Auth & Profile UI/UX)
 
 ---

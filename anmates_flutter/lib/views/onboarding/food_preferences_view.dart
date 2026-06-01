@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../services/profile_service.dart';
+import '../../services/onboarding_draft.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_widgets.dart';
+import 'vibe_preferences_view.dart';
 
-/// Screen 09 — Gú Ẩm Thực (step 4/5). Multi-select food + vibe tags, requires at
-/// least 5 food tags, then persists preferences (which marks onboarding done).
+/// Screen 09 — Gú Ẩm Thực (step 4/6). Chọn 2–5 thẻ ẩm thực.
+/// Không call API — lưu vào client draft đến khi Screen 10 "Hoàn tất".
 class FoodPreferencesView extends StatefulWidget {
-  /// Called once preferences are saved — finishes the onboarding flow.
   final VoidCallback onComplete;
-
   const FoodPreferencesView({super.key, required this.onComplete});
 
   @override
@@ -17,63 +16,71 @@ class FoodPreferencesView extends StatefulWidget {
 }
 
 class _FoodPreferencesViewState extends State<FoodPreferencesView> {
-  static const _minFood = 5;
+  final _draft = OnboardingDraftController.instance;
 
-  // value (persisted) → label (shown). Emoji prefixed in label.
-  static const _foodTags = <String, String>{
-    'spicy': '🌶️ Ăn cay cấp 3',
-    'healthy': '🥗 Healthy',
-    'beef': '🥩 Beef lover',
-    'noodles': '🍜 Mì các loại',
-    'seafood': '🦐 Hải sản',
-    'sweet': '🍰 Hảo ngọt',
-    'vegan': '🌱 Chay linh hoạt',
-    'street': '🍢 Không hành',
-    'beer': '🍺 Bia hơi',
-    'coffee': '☕ Cà phê đen',
-    'dimsum': '🥟 Dim sum',
-    'sushi': '🍣 Sushi',
+  static const _tags = <String, String>{
+    'fwb':      '🍺 FWB · Food with beer',
+    'ons':      '🧋 ONS · Olong nướng sữa',
+    '419':      '🍜 419 · Bún mọc chín',
+    'sgbb':     '🍈 SGBB · Sầu riêng bỡ béo',
+    'sgdd':     '🍗 SGDD · Súp gà đùi dê',
+    'ck':       '☕ CK · Cafe kem',
+    'vk':       '🌱 VK · Vegetarian Kho Chay',
+    'ex':       '🐸 EX · Ếch xiên',
+    'bx':       '🥩 BX · Bò Xào (Beef lover)',
+    'ox':       '🦪 OX · Ốc xào (Seafood lover)',
+    'spicy':    '🌶️ Ăn cay',
+    'sweetie':  '🍰 Sweetie',
+    'no_onion': '🚫 Không hành',
   };
 
-  static const _vibeTags = <String, String>{
-    'party': 'Tám tới bến',
-    'quiet': 'Yên tĩnh thư giãn',
-    'explore': 'Khám phá quán mới',
-    'street_vibe': 'Vỉa hè bụi bặm',
-    'fancy': 'Sang chảnh check-in',
-  };
+  @override
+  void initState() {
+    super.initState();
+    _draft.addListener(_onDraftChanged);
+  }
 
-  final Set<String> _selectedFood = {};
-  final Set<String> _selectedVibe = {};
-  bool _saving = false;
+  void _onDraftChanged() {
+    if (mounted) setState(() {});
+  }
 
-  bool get _canContinue => _selectedFood.length >= _minFood && !_saving;
+  @override
+  void dispose() {
+    _draft.removeListener(_onDraftChanged);
+    super.dispose();
+  }
+
+  void _toggle(String key) {
+    setState(() {
+      if (_draft.food.contains(key)) {
+        _draft.food.remove(key);
+        _draft.foodError = null;
+      } else {
+        if (_draft.food.length >= OnboardingDraftController.maxFood) {
+          _draft.foodError =
+              'Chọn tối đa ${OnboardingDraftController.maxFood} thẻ';
+          return;
+        }
+        _draft.food.add(key);
+        _draft.foodError = null;
+      }
+    });
+  }
 
   Future<void> _continue() async {
-    if (!_canContinue) return;
-    setState(() => _saving = true);
-    try {
-      await ProfileService().savePreferences(
-        foodTags: _selectedFood.toList(),
-        vibeTags: _selectedVibe.toList(),
-      );
-      if (!mounted) return;
-      widget.onComplete();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString().replaceFirst('Exception: ', '')),
-          backgroundColor: AppColors.berry,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
+    if (!_draft.validateStep09()) return;
+    await _draft.persist();
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'onb_vibe'),
+        builder: (_) => VibePreferencesView(onComplete: widget.onComplete),
+      ),
+    );
   }
+
+  bool get _canContinue =>
+      _draft.food.length >= OnboardingDraftController.minFood;
 
   @override
   Widget build(BuildContext context) {
@@ -82,15 +89,13 @@ class _FoodPreferencesViewState extends State<FoodPreferencesView> {
       body: SafeArea(
         child: Column(
           children: [
-            _TopBar(title: 'GÚ ẨM THỰC', step: 4, total: 5),
+            _TopBar(step: 4, total: 6),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Eyebrow('GÚ ẨM THỰC'),
-                    const SizedBox(height: 8),
                     Text(
                       'Bạn ăn kiểu gì?',
                       style: AppTextStyles.display(
@@ -101,8 +106,9 @@ class _FoodPreferencesViewState extends State<FoodPreferencesView> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Chọn ít nhất 5 thẻ — để ĂnMates ghép bạn với những '
-                      'người ăn cùng vibe.',
+                      'Chọn từ ${OnboardingDraftController.minFood}–'
+                      '${OnboardingDraftController.maxFood} thẻ — để ĂnMates '
+                      'ghép bạn với những Mate cùng vibe.',
                       style: AppTextStyles.body(
                         size: 14,
                         color: AppColors.ink70,
@@ -110,25 +116,8 @@ class _FoodPreferencesViewState extends State<FoodPreferencesView> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _foodTags.entries.map((e) {
-                        final selected = _selectedFood.contains(e.key);
-                        return _PrefChip(
-                          label: e.value,
-                          selected: selected,
-                          onTap: () => setState(() {
-                            selected
-                                ? _selectedFood.remove(e.key)
-                                : _selectedFood.add(e.key);
-                          }),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 28),
                     Text(
-                      'VIBE BUỔI ĂN',
+                      'GU ẨM THỰC',
                       style: AppTextStyles.mono(
                         size: 10,
                         weight: FontWeight.w700,
@@ -136,31 +125,46 @@ class _FoodPreferencesViewState extends State<FoodPreferencesView> {
                         letterSpacing: 1.6,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: _vibeTags.entries.map((e) {
-                        final selected = _selectedVibe.contains(e.key);
-                        return _PrefChip(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _tags.entries.map((e) {
+                        return _FoodTag(
                           label: e.value,
-                          selected: selected,
-                          onTap: () => setState(() {
-                            selected
-                                ? _selectedVibe.remove(e.key)
-                                : _selectedVibe.add(e.key);
-                          }),
+                          selected: _draft.food.contains(e.key),
+                          onTap: () => _toggle(e.key),
                         );
                       }).toList(),
                     ),
+                    if (_draft.foodError != null) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 14, color: Colors.red.shade600),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              _draft.foodError!,
+                              style: AppTextStyles.body(
+                                size: 12,
+                                color: Colors.red.shade600,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
             ),
             _BottomBar(
-              count: _selectedFood.length,
-              total: _minFood,
-              loading: _saving,
+              selected: _draft.food.length,
+              max: OnboardingDraftController.maxFood,
               enabled: _canContinue,
               onTap: _continue,
             ),
@@ -171,12 +175,13 @@ class _FoodPreferencesViewState extends State<FoodPreferencesView> {
   }
 }
 
-// ─── Selectable preference chip (berry selected / white unselected) ──────────
-class _PrefChip extends StatelessWidget {
+// ─── Food tag chip ────────────────────────────────────────────────────────────
+class _FoodTag extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _PrefChip({
+
+  const _FoodTag({
     required this.label,
     required this.selected,
     required this.onTap,
@@ -187,21 +192,21 @@ class _PrefChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
+        duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         decoration: BoxDecoration(
           color: selected ? AppColors.berry : Colors.white,
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: selected ? AppColors.berry : AppColors.ink10,
-            width: 1.2,
+            width: 1.3,
           ),
           boxShadow: selected
               ? [
                   BoxShadow(
-                    color: AppColors.berry.withValues(alpha: 0.28),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+                    color: AppColors.berry.withValues(alpha: 0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
                   ),
                 ]
               : null,
@@ -209,7 +214,7 @@ class _PrefChip extends StatelessWidget {
         child: Text(
           label,
           style: GoogleFonts.beVietnamPro(
-            fontSize: 13,
+            fontSize: 14,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             color: selected ? Colors.white : AppColors.ink,
           ),
@@ -219,12 +224,11 @@ class _PrefChip extends StatelessWidget {
   }
 }
 
-// ─── Top bar (back + title + progress) ───────────────────────────────────────
+// ─── Top bar ──────────────────────────────────────────────────────────────────
 class _TopBar extends StatelessWidget {
-  final String title;
   final int step;
   final int total;
-  const _TopBar({required this.title, required this.step, required this.total});
+  const _TopBar({required this.step, required this.total});
 
   @override
   Widget build(BuildContext context) {
@@ -257,29 +261,14 @@ class _TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 14),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTextStyles.mono(
-                    size: 11,
-                    weight: FontWeight.w700,
-                    color: AppColors.ink50,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: LinearProgressIndicator(
-                    value: step / total,
-                    minHeight: 5,
-                    backgroundColor: AppColors.ink10,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.berry),
-                  ),
-                ),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: step / total,
+                minHeight: 5,
+                backgroundColor: AppColors.ink10,
+                valueColor: const AlwaysStoppedAnimation(AppColors.berry),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -298,17 +287,16 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-// ─── Bottom bar (counter + CTA) ──────────────────────────────────────────────
+// ─── Bottom bar ───────────────────────────────────────────────────────────────
 class _BottomBar extends StatelessWidget {
-  final int count;
-  final int total;
-  final bool loading;
+  final int selected;
+  final int max;
   final bool enabled;
   final VoidCallback onTap;
+
   const _BottomBar({
-    required this.count,
-    required this.total,
-    required this.loading,
+    required this.selected,
+    required this.max,
     required this.enabled,
     required this.onTap,
   });
@@ -324,17 +312,17 @@ class _BottomBar extends StatelessWidget {
       child: Row(
         children: [
           Text(
-            '$count/$total đã chọn',
+            '$selected / $max đã chọn',
             style: GoogleFonts.plusJakartaSans(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: count >= total ? AppColors.berry : AppColors.ink50,
+              color: enabled ? AppColors.berry : AppColors.ink50,
             ),
           ),
           const SizedBox(width: 14),
           Expanded(
             child: AnmCTA(
-              label: loading ? 'Đang lưu…' : 'Tiếp tục  →',
+              label: 'Tiếp tục  →',
               onTap: enabled ? onTap : null,
               background: enabled ? AppColors.berry : AppColors.ink30,
             ),

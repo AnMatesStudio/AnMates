@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 import '../../services/auth_service.dart';
+import '../../services/onboarding_draft.dart';
 import '../auth/phone_input_view.dart';
 import '../main_tab_view.dart';
 import 'user_profile_view.dart';
@@ -90,8 +91,12 @@ class _OnboardingViewState extends State<OnboardingView> {
     } else {
       // pushAndRemoveUntil xóa sạch stack (phone input + OTP) để user
       // không thể back về màn hình nhập SĐT sau khi đã xác thực xong.
+      // RouteSettings name 'onb_profile' để Screen 10 ("Hoàn tất") có thể
+      // popUntil quay lại bước 3 khi validate thất bại.
+      OnboardingDraftController.instance.reset();
       navigator.pushAndRemoveUntil(
         MaterialPageRoute(
+          settings: const RouteSettings(name: 'onb_profile'),
           builder: (_) => UserProfileView(onComplete: toMain),
         ),
         (_) => false,

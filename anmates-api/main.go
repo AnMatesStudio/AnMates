@@ -150,6 +150,7 @@ func run(log *slog.Logger) error {
 	auth.Put("/profile", userH.UpdateProfile)
 	auth.Patch("/profile/onboarding", userH.UpdateOnboarding)
 	auth.Patch("/profile/preferences", userH.UpdatePreferences)
+	auth.Patch("/profile/complete-onboarding", userH.CompleteOnboarding)
 
 	auth.Get("/wishlist", wlH.List)
 	auth.Post("/wishlist", wlH.Create)
