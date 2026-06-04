@@ -16,13 +16,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type Chat struct {
-	svc services.ChatServicer
-	hub wsx.HubI
+// ConciergeFirer is the AI Concierge trigger seam. nil when the concierge is disabled
+// (no AI backend configured). Implemented by *services.ConciergeService.
+type ConciergeFirer interface {
+	MaybeFire(matchID uuid.UUID, before, after int)
 }
 
-func NewChat(svc services.ChatServicer, hub wsx.HubI) *Chat {
-	return &Chat{svc: svc, hub: hub}
+type Chat struct {
+	svc       services.ChatServicer
+	hub       wsx.HubI
+	concierge ConciergeFirer
+}
+
+func NewChat(svc services.ChatServicer, hub wsx.HubI, concierge ConciergeFirer) *Chat {
+	return &Chat{svc: svc, hub: hub, concierge: concierge}
 }
 
 // History returns paginated messages oldest→newest using cursor=created_at.
@@ -113,7 +120,11 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 			return wsx.Envelope{}, errors.New("save failed")
 		}
 
-		ch.svc.IncrementPoints(ctx, matchID)
+		before, after := ch.svc.IncrementPoints(ctx, matchID)
+		if ch.concierge != nil {
+			// Fires async (goroutine) — posts the AI venue card iff Vibe just crossed the threshold.
+			ch.concierge.MaybeFire(matchID, before, after)
+		}
 
 		payload, _ := json.Marshal(saved)
 		return wsx.Envelope{Type: "message", Payload: payload}, nil

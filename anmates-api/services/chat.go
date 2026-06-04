@@ -90,28 +90,34 @@ func (s *ChatService) SaveMessage(ctx context.Context, matchID, senderID uuid.UU
 	return &saved, nil
 }
 
-// IncrementPoints adds +1 point (plus streak bonus) to the Nồi Lẩu progress for a match.
-// Level is recomputed using the canonical models.LevelForPoints so there is a single
-// source of truth for the threshold table.
+// IncrementPoints adds +1 point (plus streak bonus) to the Nồi Lẩu progress for a match
+// and returns the point total before and after the update (0,0 on error / no row).
+// The before/after pair lets callers detect threshold crossings (e.g. the AI Concierge
+// trigger) without a second query. Level is recomputed via models.LevelForPoints.
 // Errors are intentionally swallowed so a DB hiccup never silently drops the message.
-func (s *ChatService) IncrementPoints(ctx context.Context, matchID uuid.UUID) {
-	var newPoints int
+func (s *ChatService) IncrementPoints(ctx context.Context, matchID uuid.UUID) (before, after int) {
 	err := s.pool.QueryRow(ctx, `
-		UPDATE noi_lau_progress
-		SET points = points + 1 + CASE
-		      WHEN last_activity IS NOT NULL
-		       AND last_activity::date = (CURRENT_DATE - INTERVAL '1 day')::date
+		WITH old AS (
+			SELECT points AS before_points, last_activity
+			FROM noi_lau_progress WHERE match_id = $1 FOR UPDATE
+		)
+		UPDATE noi_lau_progress n
+		SET points = old.before_points + 1 + CASE
+		      WHEN old.last_activity IS NOT NULL
+		       AND old.last_activity::date = (CURRENT_DATE - INTERVAL '1 day')::date
 		      THEN 5 ELSE 0 END,
 		    last_activity = now()
-		WHERE match_id = $1
-		RETURNING points
-	`, matchID).Scan(&newPoints)
+		FROM old
+		WHERE n.match_id = $1
+		RETURNING old.before_points, n.points
+	`, matchID).Scan(&before, &after)
 	if err != nil {
-		return
+		return 0, 0
 	}
-	newLevel := models.LevelForPoints(newPoints)
+	newLevel := models.LevelForPoints(after)
 	_, _ = s.pool.Exec(ctx,
 		`UPDATE noi_lau_progress SET level = $1 WHERE match_id = $2`,
 		newLevel, matchID,
 	)
+	return before, after
 }

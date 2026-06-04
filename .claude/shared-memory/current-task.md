@@ -1,5 +1,35 @@
 # Current Task
 
+**Status:** AI Concierge chat slice IMPLEMENTED (code complete) — ⚠️ NOT YET built/tested locally (Go+Flutter toolchains not on host PATH; build via Docker `start.sh` / CI). Flutter chat view still a MOCK (card shown from sample data; WS delivery is the remaining seam).
+**Verification pending (user/Docker):** `docker compose` build, `go test ./...`, `go vet`, `flutter analyze`, `flutter test`. Live E2E needs LM Studio at `AI_BASE_URL=http://host.docker.internal:1234/v1` + a model (Qwen2.5-14B suits RTX 5080 16GB). Then: 2 users + match + push locations + chat until points≥70 → expect `ai_venue_card` from "Trợ lý ĂnMates" with 3 seeded venues, once.
+**✅ WebSocket wired (2026-06-04):** `chat_socket.dart` + live `chat_detail_view` (matchId → load history+progress, connect WS, render real `ai_venue_card`, send over socket) + `chat_list_view` loads real conversations. Demo mode preserved when matchId null.
+**LM Studio (RTX 5080) — RESOLVED:** qwen3.5-9b is a reasoning model → LM Studio puts JSON in `reasoning_content` (content empty). Fixed in `llm.go`: fallback to reasoning_content + max_tokens=2000. Verified end-to-end: clean Vietnamese, 1.3s, correct budget filter + anti-hallucination. **9b now preferred.** Dev `.env`: `AI_BASE_URL=http://host.docker.internal:1234/v1`, `AI_MODEL=qwen/qwen3.5-9b`. (vl-7b also works via content path; CJK guard still in place.)
+**Next seam:** replace seed venues with Goong ingest; add `user_prefs_budget`; investigate qwen3.5-9b empty-content (try disabling reasoning / non-strict json). Still pending: run `go test`/`flutter analyze`/`flutter test` in Docker/CI; full live E2E.
+
+---
+
+## Previous status
+
+**Status:** SPEC ready (spec-driven) — awaiting go-ahead to implement AI Concierge chat slice.
+**Owner:** main-assistant
+**Started at:** 2026-06-03
+**Last updated:** 2026-06-03
+**Active spec:** `docs/specs/ai-concierge-chat-spec.md` — vertical slice: Vibe `points>=70` → Claude agent posts top-3 seeded venues as `ai_venue_card` in chat. ⚠️ **Google Maps PROHIBITED in VN** → data/routing = **Goong**; render = OSM tiles. Locked: trigger 70, app pushes location (user_locations), seed restaurants for slice, Haiku agent behind LLMClient interface. Migrations 006-008. **Steps 1-4+6-8 implementable WITHOUT keys (fake LLM); live E2E needs ANTHROPIC_API_KEY.** Prereq from user: Anthropic API key (+ later Goong key). Implementation not started.
+
+---
+
+## Previous task (archived)
+
+**Status:** delivered (pending review) — Meetup & Dining Map master plan authored.
+**Owner:** main-assistant
+**Started at:** 2026-06-03
+**Last updated:** 2026-06-03
+**Goal:** Design a complete map-based meetup planning experience (find → evaluate → agree → book → meet a restaurant for matched users). Output: `docs/meetup-map-master-plan.md` (18 sections, Mermaid). Key decisions: pragmatic-incremental Riverpod for new `map/restaurants/booking` features only; flutter_map+OSM/Overpass for MVP with Mapbox (Directions/Matrix) as V2 upgrade; map becomes a core MVP surface (supersedes prior "no full map in Phase 1"). New backend: PostGIS + `restaurants/venue_suggestions/bookings/user_locations/favorite_restaurants/meetup_recommendations/location_sessions` tables + APIs. Doc-only, no code written. See sessions/2026-06-03-meetup-map-master-plan.md. ⚠️ Pending: user/team review + verify Cloud SQL PostGIS availability before MAP-R-1.
+
+---
+
+## Previous task (archived)
+
 **Status:** done — CI→dev deploy running. R-005 written.
 **Owner:** main-assistant
 **Started at:** 2026-06-01

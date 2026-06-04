@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../services/match_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_widgets.dart';
 import 'chat_detail_view.dart';
@@ -53,6 +55,58 @@ class ChatListView extends StatefulWidget {
 }
 
 class _ChatListViewState extends State<ChatListView> {
+  // Real conversations loaded from the backend. When present, the "ĐANG TÁM"
+  // section uses them (tapping opens a LIVE WebSocket chat). Falls back to the
+  // mock list below when none are loaded / the request fails.
+  List<ApiMatch>? _conversations;
+  String? _userId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConversations();
+  }
+
+  Future<void> _loadConversations() async {
+    final uid = await AuthService().currentUserId();
+    try {
+      final convos = await MatchService().getConversations();
+      if (!mounted) return;
+      setState(() {
+        _userId = uid;
+        _conversations = convos;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _userId = uid);
+    }
+  }
+
+  /// Real conversations (with their matchId) when available, else mock rows
+  /// (matchId null ⇒ ChatDetailView runs in demo mode).
+  List<({_ActiveChat chat, String? matchId})> _chatRows() {
+    final convos = _conversations;
+    if (convos != null && convos.isNotEmpty) {
+      return List.generate(convos.length, (i) {
+        final m = convos[i];
+        return (
+          chat: _ActiveChat(
+            name: m.partnerName,
+            hue: i % 6,
+            online: false,
+            vibe: (m.score * 100).round().clamp(0, 100),
+            restaurant: '',
+            lastMsg: m.lastMessage ?? 'Bắt đầu trò chuyện nha…',
+          ),
+          matchId: m.id,
+        );
+      });
+    }
+    return _activeChats
+        .map((c) => (chat: c, matchId: null as String?))
+        .toList();
+  }
+
   static const _newMatches = [
     _NewMatch('Khánh', 26, 'vừa xong', 1),
     _NewMatch('Linh', 24, '5 phút', 2),
@@ -199,6 +253,7 @@ class _ChatListViewState extends State<ChatListView> {
   // ── Section 2: Đang tám ────────────────────────────────────────────────────
 
   Widget _buildActiveChatSection() {
+    final rows = _chatRows();
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Column(
@@ -208,21 +263,23 @@ class _ChatListViewState extends State<ChatListView> {
             children: [
               Eyebrow('ĐANG TÁM', color: AppColors.ocean),
               const SizedBox(width: 8),
-              _CountBadge(count: _activeChats.length, color: AppColors.ocean),
+              _CountBadge(count: rows.length, color: AppColors.ocean),
             ],
           ),
           const SizedBox(height: 10),
-          ..._activeChats.map(
-            (chat) => Padding(
+          ...rows.map(
+            (r) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _ActiveChatCard(
-                chat: chat,
+                chat: r.chat,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => ChatDetailView(
-                      mateName: chat.name,
-                      vibePercent: chat.vibe,
+                      mateName: r.chat.name,
+                      vibePercent: r.chat.vibe,
+                      matchId: r.matchId,
+                      currentUserId: _userId,
                     ),
                   ),
                 ),

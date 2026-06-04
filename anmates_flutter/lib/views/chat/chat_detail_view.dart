@@ -1,16 +1,24 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../models/ai_venue_card.dart';
+import '../../services/api_client.dart';
+import '../../services/chat_socket.dart';
+import '../../services/location_service.dart';
+import '../../services/match_service.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/ai_venue_card.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 
 // ─── Message model ────────────────────────────────────────────────────────────
 
-enum _Sender { me, them }
-
-class _Message {
-  final _Sender sender;
-  final String text;
-  const _Message(this.sender, this.text);
+/// A rendered chat item. [type] mirrors the backend `msg_type`
+/// ('text' | 'image' | 'system' | 'ai_venue_card').
+class _ChatItem {
+  final bool isMe;
+  final String type;
+  final String content;
+  const _ChatItem(this.isMe, this.type, this.content);
 }
 
 // ─── ChatDetailView ───────────────────────────────────────────────────────────
@@ -19,10 +27,18 @@ class ChatDetailView extends StatefulWidget {
   final String mateName;
   final int vibePercent;
 
+  /// When non-null the view runs in **live mode**: it loads history, opens the
+  /// chat WebSocket, and renders real messages (incl. the AI `ai_venue_card`).
+  /// When null it runs in the original demo mode with sample content.
+  final String? matchId;
+  final String? currentUserId;
+
   const ChatDetailView({
     super.key,
     this.mateName = 'Khánh',
     this.vibePercent = 42,
+    this.matchId,
+    this.currentUserId,
   });
 
   @override
@@ -34,34 +50,103 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   final _textCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
-  static final _initialMessages = [
-    const _Message(_Sender.them, 'Hey Vy! Cùng team thèm ramen quận 1 nè 🍜'),
-    const _Message(
-      _Sender.me,
-      'Haha, mình đặt nó vào wishlist 2 tuần rồi mà chưa rủ được ai',
-    ),
-    const _Message(
-      _Sender.them,
-      'Quán bé tí mà ngon ác. Vy thường gọi tonkotsu hay miso?',
-    ),
-    const _Message(_Sender.me, 'Spicy miso, level 3 luôn nha 🌶️🌶️🌶️'),
-    const _Message(
-      _Sender.them,
-      'Wow same! Mình còn order thêm chả cá quết 👀',
-    ),
+  final _socket = ChatSocket();
+  StreamSubscription? _msgSub;
+  bool _live = false;
+  bool _loading = false;
+
+  List<_ChatItem> _items = [];
+
+  // Demo content (used only when matchId is null).
+  static const _demoMessages = [
+    _ChatItem(false, 'text', 'Hey Vy! Cùng team thèm ramen quận 1 nè 🍜'),
+    _ChatItem(true, 'text', 'Haha, mình đặt nó vào wishlist 2 tuần rồi mà chưa rủ được ai'),
+    _ChatItem(false, 'text', 'Quán bé tí mà ngon ác. Vy thường gọi tonkotsu hay miso?'),
+    _ChatItem(true, 'text', 'Spicy miso, level 3 luôn nha 🌶️🌶️🌶️'),
+    _ChatItem(false, 'text', 'Wow same! Mình còn order thêm chả cá quết 👀'),
   ];
 
-  late List<_Message> _messages;
+  // Sample card matching the backend `ai_venue_card` JSON contract
+  // (docs/specs/ai-concierge-chat-spec §6). Shown in demo mode only.
+  static final AiVenueCardContent _sampleAiCard = AiVenueCardContent.fromJson({
+    'intro': '2 đứa hợp gu rồi nè! Đây là 3 chỗ ngon, vừa túi tiền, nằm giữa 2 đứa:',
+    'midpoint': {'lat': 10.778, 'lng': 106.695},
+    'picks': [
+      {
+        'restaurant_id': 'a', 'name': 'Bún Bò Giáo Toàn', 'rating': 4.6,
+        'price_min': 50000, 'price_max': 90000, 'lat': 10.7882, 'lng': 106.679,
+        'distance_m': 480, 'reason': 'Yên tĩnh, hợp first date',
+      },
+      {
+        'restaurant_id': 'b', 'name': "Pizza 4P's Lê Thánh Tôn", 'rating': 4.7,
+        'price_min': 200000, 'price_max': 420000, 'lat': 10.779, 'lng': 106.7035,
+        'distance_m': 900, 'reason': 'Không gian ấm, dễ trò chuyện',
+      },
+      {
+        'restaurant_id': 'c', 'name': 'Cộng Cà Phê', 'rating': 4.3,
+        'price_min': 45000, 'price_max': 90000, 'lat': 10.7757, 'lng': 106.7007,
+        'distance_m': 650, 'reason': 'Cà phê chill, nhẹ nhàng',
+      },
+    ],
+  });
 
   @override
   void initState() {
     super.initState();
     _vibePercent = widget.vibePercent;
-    _messages = List.from(_initialMessages);
+    // Push last-known coarse location so the AI Concierge can compute the
+    // meetup midpoint. Best-effort, fire-and-forget.
+    LocationService().pushCurrentLocation();
+
+    if (widget.matchId != null) {
+      _live = true;
+      _initLive();
+    } else {
+      _items = List.from(_demoMessages);
+    }
+  }
+
+  Future<void> _initLive() async {
+    setState(() => _loading = true);
+    final matchId = widget.matchId!;
+    try {
+      final history = await MatchService().getHistory(matchId);
+      _items = history.map(_toItem).toList();
+
+      // Vibe bar from real Nồi Lẩu progress.
+      try {
+        final p = await ApiClient().get('/api/v1/matches/$matchId/progress');
+        final pts = (p['points'] as num?)?.toInt();
+        if (pts != null) _vibePercent = pts.clamp(0, 100);
+      } catch (_) {}
+
+      final token = await ApiClient.accessToken();
+      if (token != null) {
+        await _socket.connect(matchId, token);
+        _msgSub = _socket.messages.listen(_onIncoming);
+      }
+    } catch (_) {
+      // Stay graceful — show whatever history loaded.
+    }
+    if (!mounted) return;
+    setState(() => _loading = false);
+    _scrollToBottom();
+  }
+
+  _ChatItem _toItem(ApiMessage m) =>
+      _ChatItem(m.senderId == widget.currentUserId, m.msgType, m.content);
+
+  // Inbound = other user's messages + AI cards (the hub excludes our own sends).
+  void _onIncoming(ApiMessage m) {
+    if (!mounted) return;
+    setState(() => _items.add(_toItem(m)));
+    _scrollToBottom();
   }
 
   @override
   void dispose() {
+    _msgSub?.cancel();
+    _socket.dispose();
     _textCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -69,12 +154,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   bool get _unlocked => _vibePercent >= 70;
 
-  void _sendMessage(String text) {
-    if (text.isEmpty) return;
-    setState(() {
-      _messages.add(_Message(_Sender.me, text));
-      _textCtrl.clear();
-    });
+  void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollCtrl.hasClients) {
         _scrollCtrl.animateTo(
@@ -84,6 +164,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
         );
       }
     });
+  }
+
+  void _sendMessage(String text) {
+    text = text.trim();
+    if (text.isEmpty) return;
+    if (_live) _socket.sendText(text);
+    setState(() {
+      _items.add(_ChatItem(true, 'text', text));
+      _textCtrl.clear();
+    });
+    _scrollToBottom();
   }
 
   void _sendQuickReply(String text) => _sendMessage(text);
@@ -128,7 +219,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${widget.mateName}, 26',
+                  widget.mateName,
                   style: AppTextStyles.display(
                     size: 15,
                     weight: FontWeight.w700,
@@ -138,7 +229,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 ),
                 const SizedBox(height: 1),
                 Text(
-                  '🍜 Tiệm mì Ramen Q1 · đang online',
+                  _live ? 'đang online' : '🍜 Tiệm mì Ramen Q1 · đang online',
                   style: AppTextStyles.body(size: 11, color: AppColors.ink50),
                 ),
               ],
@@ -163,16 +254,47 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       children: [
         _buildSystemPill(),
         const SizedBox(height: 12),
-        ..._messages.map(_buildBubble),
+        if (_loading)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(12),
+              child: SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          ),
+        ..._items.map(_buildItem),
         const SizedBox(height: 12),
         _buildQuickReplies(),
-        if (_unlocked) ...[
+        // Demo-only extras (live mode shows only real messages/cards).
+        if (!_live && _unlocked) ...[
+          const SizedBox(height: 12),
+          AiVenueCard(
+            content: _sampleAiCard,
+            onSuggest: (pick) => _sendMessage('Mình muốn đi ${pick.name} nè! 😍'),
+          ),
           const SizedBox(height: 12),
           _buildBookingSuggestion(),
         ],
         const SizedBox(height: 12),
       ],
     );
+  }
+
+  Widget _buildItem(_ChatItem item) {
+    if (item.type == 'ai_venue_card') {
+      final card = AiVenueCardContent.tryParse(item.content);
+      if (card != null) {
+        return AiVenueCard(
+          content: card,
+          onSuggest: (pick) => _sendMessage('Mình muốn đi ${pick.name} nè! 😍'),
+        );
+      }
+      // Fall back to a plain bubble if the payload can't be parsed.
+    }
+    return _buildBubble(item);
   }
 
   Widget _buildSystemPill() {
@@ -192,8 +314,8 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     );
   }
 
-  Widget _buildBubble(_Message msg) {
-    final isMe = msg.sender == _Sender.me;
+  Widget _buildBubble(_ChatItem msg) {
+    final isMe = msg.isMe;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -220,7 +342,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 border: isMe ? null : Border.all(color: AppColors.ink10),
               ),
               child: Text(
-                msg.text,
+                msg.content,
                 style: AppTextStyles.body(
                   size: 14,
                   color: isMe ? Colors.white : AppColors.ink,

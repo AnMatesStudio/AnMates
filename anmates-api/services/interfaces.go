@@ -44,7 +44,7 @@ type ChatServicer interface {
 	History(ctx context.Context, matchID uuid.UUID, cursor string, limit int) ([]models.Message, error)
 	CheckPaywall(ctx context.Context, matchID uuid.UUID) (locked bool, err error)
 	SaveMessage(ctx context.Context, matchID, senderID uuid.UUID, content, msgType string) (*models.Message, error)
-	IncrementPoints(ctx context.Context, matchID uuid.UUID)
+	IncrementPoints(ctx context.Context, matchID uuid.UUID) (before, after int)
 }
 
 type NoiLauServicer interface {

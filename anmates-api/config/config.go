@@ -22,6 +22,19 @@ type Config struct {
 	PGMinConns            int32
 	CORSOrigins           string
 	RedisURL              string // optional; when set the WebSocket hub uses Redis pub/sub
+
+	// AI Concierge (OpenAI-compatible LLM backend — LM Studio in dev, hosted in prod).
+	// See docs/specs/ai-concierge-chat-spec.md. When AIBaseURL is empty the concierge
+	// is disabled (no card is posted) — the rest of the app still runs.
+	AIBaseURL        string
+	AIAPIKey         string
+	AIModel          string
+	AIUserID         string // fixed system user id seeded in migration 008
+	AITriggerPoints  int    // Vibe points that fire the concierge (default 70)
+	AICandidateLimit int    // max venues passed to the model
+	AISearchRadiusM  int    // search radius around the midpoint, metres
+	AIBudgetMin      int    // default shared budget band (VND) until user prefs exist
+	AIBudgetMax      int
 }
 
 func Load() (*Config, error) {
@@ -67,7 +80,28 @@ func Load() (*Config, error) {
 	c.PGMinConns = int32(parseInt32(getOr("PG_MIN_CONNS", "1")))
 	c.RedisURL = os.Getenv("REDIS_URL")
 
+	// AI Concierge. AIBaseURL empty ⇒ disabled.
+	c.AIBaseURL = os.Getenv("AI_BASE_URL")
+	c.AIAPIKey = os.Getenv("AI_API_KEY")
+	c.AIModel = getOr("AI_MODEL", "qwen2.5-7b-instruct")
+	c.AIUserID = getOr("AI_USER_ID", "00000000-0000-0000-0000-0000000000a1")
+	c.AITriggerPoints = parseIntOr("AI_TRIGGER_POINTS", 70)
+	c.AICandidateLimit = parseIntOr("AI_CANDIDATE_LIMIT", 12)
+	c.AISearchRadiusM = parseIntOr("AI_SEARCH_RADIUS_M", 4000)
+	c.AIBudgetMin = parseIntOr("AI_DEFAULT_BUDGET_MIN", 80000)
+	c.AIBudgetMax = parseIntOr("AI_DEFAULT_BUDGET_MAX", 150000)
+
 	return c, nil
+}
+
+// parseIntOr reads an int env var, falling back to def on missing/invalid.
+func parseIntOr(key string, def int) int {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return def
 }
 
 func getOr(key, fallback string) string {

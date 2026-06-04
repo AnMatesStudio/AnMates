@@ -23,6 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -113,13 +114,39 @@ func run(log *slog.Logger) error {
 	matchSvc := services.NewMatchingService(pool)
 	chatSvc := services.NewChatService(pool)
 	noiSvc := services.NewNoiLauService(pool)
+	locSvc := services.NewLocationService(pool)
+
+	// AI Concierge — enabled only when an LLM backend is configured (AI_BASE_URL).
+	// Disabled ⇒ nil seam ⇒ chat behaves exactly as before.
+	var concierge handlers.ConciergeFirer
+	if cfg.AIBaseURL != "" {
+		aiUserID, perr := uuid.Parse(cfg.AIUserID)
+		if perr != nil {
+			return fmt.Errorf("AI_USER_ID invalid uuid: %w", perr)
+		}
+		llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
+		concierge = services.NewConciergeService(pool, llm, services.NewVenueEngine(pool), hub,
+			services.ConciergeConfig{
+				AIUserID:      aiUserID,
+				TriggerPoints: cfg.AITriggerPoints,
+				CandidateLim:  cfg.AICandidateLimit,
+				RadiusM:       cfg.AISearchRadiusM,
+				BudgetMin:     cfg.AIBudgetMin,
+				BudgetMax:     cfg.AIBudgetMax,
+				Model:         cfg.AIModel,
+			}, log)
+		log.Info("AI Concierge enabled", "model", cfg.AIModel, "trigger_points", cfg.AITriggerPoints)
+	} else {
+		log.Info("AI Concierge disabled (AI_BASE_URL not set)")
+	}
 
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
 	userH := handlers.NewUser(userSvc)
 	wlH := handlers.NewWishlist(wlSvc)
 	matchH := handlers.NewMatching(matchSvc)
-	chatH := handlers.NewChat(chatSvc, hub)
+	chatH := handlers.NewChat(chatSvc, hub, concierge)
 	noiH := handlers.NewNoiLau(noiSvc)
+	locH := handlers.NewLocation(locSvc)
 	jwtMW := middleware.JWT(cfg.JWTSecret)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -151,6 +178,8 @@ func run(log *slog.Logger) error {
 	auth.Patch("/profile/onboarding", userH.UpdateOnboarding)
 	auth.Patch("/profile/preferences", userH.UpdatePreferences)
 	auth.Patch("/profile/complete-onboarding", userH.CompleteOnboarding)
+
+	auth.Put("/me/location", locH.Update)
 
 	auth.Get("/wishlist", wlH.List)
 	auth.Post("/wishlist", wlH.Create)
