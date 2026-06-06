@@ -41,7 +41,7 @@ type ConciergeConfig struct {
 type VenueProvider interface {
 	// Suggest returns an intro line + up to `limit` picks for `mid`. costTokens is
 	// best-effort (0 when unknown). An error means "no card this time".
-	Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (intro string, picks []cardPick, costTokens int, err error)
+	Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (intro string, picks []CardPick, costTokens int, err error)
 }
 
 // ConciergeService fires the AI venue suggestion when a match's Vibe crosses the
@@ -64,7 +64,7 @@ type ConciergeService struct {
 type warmEntry struct {
 	mid   LatLng
 	intro string
-	picks []cardPick
+	picks []CardPick
 	cost  int
 	at    time.Time
 }
@@ -202,7 +202,7 @@ func (s *ConciergeService) fire(matchID uuid.UUID) {
 // resolve members → both locations → mood → provider.Suggest. It never persists or
 // broadcasts. status is one of "ok" | "error" | "skipped_preconds" | "skipped_too_far"
 // (so fire can record the run with the right granularity; prewarm just checks for "ok").
-func (s *ConciergeService) compute(ctx context.Context, matchID uuid.UUID) (mid LatLng, intro string, picks []cardPick, cost int, status string) {
+func (s *ConciergeService) compute(ctx context.Context, matchID uuid.UUID) (mid LatLng, intro string, picks []CardPick, cost int, status string) {
 	var aID, bID uuid.UUID
 	if err := s.pool.QueryRow(ctx,
 		`SELECT user_a_id, user_b_id FROM matches WHERE id=$1`, matchID).Scan(&aID, &bID); err != nil {
@@ -237,7 +237,7 @@ func (s *ConciergeService) compute(ctx context.Context, matchID uuid.UUID) (mid 
 
 // suggestAround runs the taste lookup + provider search at a given search center.
 // Shared by the auto-fire (midpoint) and the on-demand re-anchor endpoint.
-func (s *ConciergeService) suggestAround(ctx context.Context, center LatLng, aID, bID uuid.UUID) (string, []cardPick, int, error) {
+func (s *ConciergeService) suggestAround(ctx context.Context, center LatLng, aID, bID uuid.UUID) (intro string, picks []CardPick, cost int, err error) {
 	mood := s.moodTags(ctx, aID, bID)
 	return s.provider.Suggest(ctx, center, mood, s.cfg.BudgetMin, s.cfg.BudgetMax, s.cfg.RadiusM, s.cfg.CandidateLim)
 }
@@ -280,7 +280,7 @@ func (s *ConciergeService) SuggestForUser(ctx context.Context, matchID, requeste
 
 // takeWarm returns and removes a fresh prefetched suggestion for the match, if any.
 // Consume-once: a stale or absent entry yields ok=false so fire() computes fresh.
-func (s *ConciergeService) takeWarm(matchID uuid.UUID) (mid LatLng, intro string, picks []cardPick, cost int, ok bool) {
+func (s *ConciergeService) takeWarm(matchID uuid.UUID) (mid LatLng, intro string, picks []CardPick, cost int, ok bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, present := s.warm[matchID]
@@ -401,7 +401,7 @@ func (s *ConciergeService) moodTags(ctx context.Context, a, b uuid.UUID) []strin
 
 // ---- pure helpers (unit-tested without a DB) --------------------------------
 
-type cardPick struct {
+type CardPick struct {
 	RestaurantID string   `json:"restaurant_id"`
 	Name         string   `json:"name"`
 	Address      string   `json:"address,omitempty"`
@@ -419,12 +419,12 @@ type cardPick struct {
 type CardContent struct {
 	Intro    string     `json:"intro"`
 	Midpoint LatLng     `json:"midpoint"`
-	Picks    []cardPick `json:"picks"`
+	Picks    []CardPick `json:"picks"`
 }
 
 // resolveAnchor maps an anchor mode to the search center from the requester's view.
 // requester must be aID or bID (enforced upstream by the membership check).
-func resolveAnchor(anchor string, requester, aID, bID uuid.UUID, locA LatLng, okA bool, locB LatLng, okB bool) (LatLng, error) {
+func resolveAnchor(anchor string, requester, aID, _ uuid.UUID, locA LatLng, okA bool, locB LatLng, okB bool) (LatLng, error) {
 	// "me"/"mate" pick one side; pre-resolve which physical location is which.
 	meLoc, meOK := locB, okB
 	mateLoc, mateOK := locA, okA
@@ -455,15 +455,15 @@ func resolveAnchor(anchor string, requester, aID, bID uuid.UUID, locA LatLng, ok
 
 // validatePicks enforces the anti-hallucination rule: only ids present in candidates
 // survive; venue facts are copied from the DB candidate, never from the model. Caps at max.
-func validatePicks(picks []Pick, candidates []Candidate, max int) []cardPick {
+func validatePicks(picks []Pick, candidates []Candidate, maxPicks int) []CardPick {
 	byID := make(map[string]Candidate, len(candidates))
 	for _, c := range candidates {
 		byID[c.ID.String()] = c
 	}
-	out := make([]cardPick, 0, max)
+	out := make([]CardPick, 0, maxPicks)
 	seen := map[string]struct{}{}
 	for _, p := range picks {
-		if len(out) >= max {
+		if len(out) >= maxPicks {
 			break
 		}
 		c, ok := byID[p.RestaurantID]
@@ -474,7 +474,7 @@ func validatePicks(picks []Pick, candidates []Candidate, max int) []cardPick {
 			continue
 		}
 		seen[p.RestaurantID] = struct{}{}
-		out = append(out, cardPick{
+		out = append(out, CardPick{
 			RestaurantID: c.ID.String(), Name: c.Name, Rating: c.Rating,
 			PriceMin: c.PriceMin, PriceMax: c.PriceMax, Lat: c.Lat, Lng: c.Lng,
 			DistanceM: c.DistanceM, Reason: safeReason(p.Reason),

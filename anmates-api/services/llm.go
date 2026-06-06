@@ -135,7 +135,9 @@ func (l *OpenAICompatLLM) Rank(ctx context.Context, in ConciergeInput) (Concierg
 	if err != nil {
 		return ConciergeOutput{}, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return ConciergeOutput{}, fmt.Errorf("llm http %d", resp.StatusCode)
 	}

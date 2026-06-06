@@ -16,7 +16,7 @@ func NewDBLLMVenueProvider(venues *VenueEngine, llm LLMClient) *DBLLMVenueProvid
 	return &DBLLMVenueProvider{venues: venues, llm: llm}
 }
 
-func (p *DBLLMVenueProvider) Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (string, []cardPick, int, error) {
+func (p *DBLLMVenueProvider) Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (intro string, picks []CardPick, costTokens int, err error) {
 	candidates, err := p.venues.SearchCandidates(ctx, mid, budgetMin, budgetMax, radiusM, limit)
 	if err != nil {
 		return "", nil, 0, err
@@ -32,6 +32,6 @@ func (p *DBLLMVenueProvider) Suggest(ctx context.Context, mid LatLng, mood []str
 		return "", nil, 0, err
 	}
 
-	picks := validatePicks(out.Picks, candidates, 3)
+	picks = validatePicks(out.Picks, candidates, 3)
 	return out.Intro, picks, out.CostTokens, nil
 }

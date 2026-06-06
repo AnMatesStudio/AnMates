@@ -59,7 +59,7 @@ type searchResp struct {
 	CostTokens int           `json:"cost_tokens"`
 }
 
-func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (string, []cardPick, int, error) {
+func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []string, budgetMin, budgetMax, radiusM, limit int) (intro string, picks []CardPick, costTokens int, err error) {
 	// The sidecar's mood_tags is List[str] (no null allowed) — send [] not null
 	// when the matched users have no taste tags yet.
 	if mood == nil {
@@ -80,7 +80,9 @@ func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []stri
 	if err != nil {
 		return "", nil, 0, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return "", nil, 0, fmt.Errorf("ai-venue-search http %d", resp.StatusCode)
 	}
@@ -90,7 +92,7 @@ func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []stri
 		return "", nil, 0, err
 	}
 
-	picks := make([]cardPick, 0, len(parsed.Picks))
+	picks = make([]CardPick, 0, len(parsed.Picks))
 	for _, v := range parsed.Picks {
 		if strings.TrimSpace(v.Name) == "" {
 			continue
@@ -101,7 +103,7 @@ func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []stri
 		if v.Lat != 0 || v.Lng != 0 {
 			dist = int(HaversineM(mid, LatLng{Lat: v.Lat, Lng: v.Lng}))
 		}
-		picks = append(picks, cardPick{
+		picks = append(picks, CardPick{
 			Name:      clip(v.Name, 80),
 			Address:   clip(v.Address, 160),
 			Rating:    v.Rating,
