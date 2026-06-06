@@ -48,6 +48,7 @@ class AiVenueCardContent {
 class AiVenuePick {
   final String restaurantId;
   final String name;
+  final String address;
   final double? rating;
   final int? priceMin;
   final int? priceMax;
@@ -59,6 +60,7 @@ class AiVenuePick {
   const AiVenuePick({
     required this.restaurantId,
     required this.name,
+    required this.address,
     required this.rating,
     required this.priceMin,
     required this.priceMax,
@@ -71,6 +73,7 @@ class AiVenuePick {
   factory AiVenuePick.fromJson(Map<String, dynamic> j) => AiVenuePick(
     restaurantId: j['restaurant_id'] as String? ?? '',
     name: j['name'] as String? ?? '',
+    address: j['address'] as String? ?? '',
     rating: (j['rating'] as num?)?.toDouble(),
     priceMin: (j['price_min'] as num?)?.toInt(),
     priceMax: (j['price_max'] as num?)?.toInt(),

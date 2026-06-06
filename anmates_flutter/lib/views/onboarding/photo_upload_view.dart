@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../services/auth_service.dart';
 import '../../services/onboarding_draft.dart';
 import '../../services/profile_service.dart';
 import '../../services/storage_service.dart';
@@ -142,6 +144,21 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
     );
   }
 
+  Future<void> _devBypass() async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      await AuthService().setOnboardingDone(true);
+      await _draft.reset();
+      if (!mounted) return;
+      widget.onComplete();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _snack('DEV bypass lỗi: $e');
+    }
+  }
+
   Future<void> _finish() async {
     if (_submitting) return;
     if (!_draft.validateStep08()) {
@@ -198,6 +215,17 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
       if (!mounted) return;
       widget.onComplete();
     } catch (e) {
+      // DEV BYPASS: in a debug build, don't let a missing/expired Firebase
+      // session (or backend hiccup) block local development — mark onboarding
+      // done locally and walk into the app. Production keeps showing the error.
+      if (kDebugMode) {
+        await AuthService().setOnboardingDone(true);
+        await _draft.reset();
+        if (!mounted) return;
+        _snack('DEV: bỏ qua gửi hồ sơ — vào app (${e.toString().replaceFirst('Exception: ', '')})');
+        widget.onComplete();
+        return;
+      }
       if (!mounted) return;
       setState(() => _submitting = false);
       _snack('Gửi hồ sơ thất bại: ${e.toString().replaceFirst('Exception: ', '')}');
@@ -301,6 +329,7 @@ class _PhotoUploadViewState extends State<PhotoUploadView> {
               total: OnboardingDraftController.maxExtraPhotos + 1,
               submitting: _submitting,
               onFinish: _finish,
+              onDevBypass: kDebugMode ? _devBypass : null,
             ),
           ],
         ),
@@ -1111,44 +1140,73 @@ class _BottomBar extends StatelessWidget {
   final int total;
   final bool submitting;
   final VoidCallback onFinish;
+  final VoidCallback? onDevBypass;
   const _BottomBar({
     required this.count,
     required this.total,
     required this.submitting,
     required this.onFinish,
+    this.onDevBypass,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppColors.ink10, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Text(
-            '$count / $total ảnh',
-            style: GoogleFonts.plusJakartaSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: count > 0 ? AppColors.berry : AppColors.ink50,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (onDevBypass != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: submitting ? null : onDevBypass,
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+                child: Text(
+                  'DEV: Bypass',
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
             ),
           ),
-          const Spacer(),
-          SizedBox(
-            width: 160,
-            child: AnmCTA(
-              label: submitting ? 'Đang gửi…' : 'Hoàn tất  ✨',
-              onTap: (submitting || count == 0) ? null : onFinish,
-              background: (submitting || count == 0)
-                  ? AppColors.ink30
-                  : AppColors.berry,
-            ),
+        Container(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: AppColors.ink10, width: 0.5)),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Text(
+                '$count / $total ảnh',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: count > 0 ? AppColors.berry : AppColors.ink50,
+                ),
+              ),
+              const Spacer(),
+              SizedBox(
+                width: 160,
+                child: AnmCTA(
+                  label: submitting ? 'Đang gửi…' : 'Hoàn tất  ✨',
+                  onTap: (submitting || count == 0) ? null : onFinish,
+                  background: (submitting || count == 0)
+                      ? AppColors.ink30
+                      : AppColors.berry,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

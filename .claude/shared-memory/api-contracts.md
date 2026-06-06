@@ -25,6 +25,7 @@ Base URL: `http://localhost:8080/api/v1` (dev) · `https://api.anmates.io/api/v1
 
 | PATCH | `/profile/onboarding` | access | `{name, nickname, birth_date "YYYY-MM-DD", personality_score}` | `userOut` (incl. `onboarding_done`) | Screen 08 — name required; score clamped 0-100 |
 | PATCH | `/profile/preferences` | access | `{food_tags:[], vibe_tags:[]}` | `userOut` (`onboarding_done`=true) | Screen 09 — sets onboarding_done=TRUE |
+| POST | `/matches/:id/concierge/suggest` | access | `{anchor:"midpoint"\|"me"\|"mate"}` | `CardContent {intro, midpoint{lat,lng}, picks[]}` | AI venue re-suggest centered on midpoint / requester / mate. Member-only. NOT posted to chat (private re-roll). Only when concierge enabled. 400 bad anchor · 409 missing location |
 
 > ✅ Implemented + build-verified 2026-05-30 (`GO111MODULE=on go build ./...` rc=0; `go vet` rc=0; `flutter analyze` 0 errors). Functional QA still pending.
 >

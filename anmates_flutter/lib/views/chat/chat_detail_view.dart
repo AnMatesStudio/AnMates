@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/ai_venue_card.dart';
 import '../../services/api_client.dart';
 import '../../services/chat_socket.dart';
+import '../../services/concierge_service.dart';
 import '../../services/location_service.dart';
 import '../../services/match_service.dart';
 import '../../theme/app_theme.dart';
@@ -51,6 +52,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   final _scrollCtrl = ScrollController();
 
   final _socket = ChatSocket();
+  final _concierge = ConciergeService();
   StreamSubscription? _msgSub;
   bool _live = false;
   bool _loading = false;
@@ -287,8 +289,14 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     if (item.type == 'ai_venue_card') {
       final card = AiVenueCardContent.tryParse(item.content);
       if (card != null) {
+        final matchId = widget.matchId;
         return AiVenueCard(
           content: card,
+          mateName: widget.mateName,
+          // Anchor chips only in live mode (need a real match id to re-query).
+          onReanchor: matchId == null
+              ? null
+              : (anchor) => _concierge.suggest(matchId, anchor),
           onSuggest: (pick) => _sendMessage('Mình muốn đi ${pick.name} nè! 😍'),
         );
       }

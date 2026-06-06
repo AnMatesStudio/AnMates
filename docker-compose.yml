@@ -37,8 +37,14 @@ services:
     env_file: .env
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
+      # AI Concierge venue source = the ai-venue-search sidecar (MCP web-search).
+      # Takes precedence over AI_BASE_URL (legacy DB+LLM) when set. Reachable on the
+      # compose network by service name. Override/empty in .env to fall back.
+      AI_SEARCH_URL: ${AI_SEARCH_URL-http://ai_venue_search:8090}
     depends_on:
       db:
+        condition: service_healthy
+      ai_venue_search:
         condition: service_healthy
     healthcheck:
       # --spider just probes the URL (no body download) — most reliable across
@@ -53,6 +59,44 @@ services:
       options:
         max-size: "20m"
         max-file: "5"
+
+  # AI venue-search sidecar. FREE defaults, no keys: DuckDuckGo MCP web-search +
+  # Pollinations structurer. See ai-venue-search/README.md. Override any of the
+  # provider env vars here or in .env to switch to LM Studio / Anthropic / Brave.
+  ai_venue_search:
+    build:
+      context: ./ai-venue-search
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-mcp}
+      MCP_SERVER_CMD: ${MCP_SERVER_CMD:-uvx duckduckgo-mcp-server}
+      MCP_FETCH_TOP_N: ${MCP_FETCH_TOP_N:-2}
+      GEOCODE_ENABLED: ${GEOCODE_ENABLED:-1}
+      STRUCTURER: ${STRUCTURER:-pollinations}
+      POLLINATIONS_MODEL: ${POLLINATIONS_MODEL:-openai}
+      POLLINATIONS_TOKEN: ${POLLINATIONS_TOKEN:-}
+      # Local LM Studio / Ollama on the host. Used as the FALLBACK when the default
+      # Pollinations structurer is rate-limited (429), and as the primary when
+      # STRUCTURER=openai. Model id must match what LM Studio has loaded.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.5-9b}
+    extra_hosts:
+      # Lets STRUCTURER=openai reach LM Studio/Ollama running on the host.
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8090/health').status==200 else sys.exit(1)"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   flutter_web:
     build:

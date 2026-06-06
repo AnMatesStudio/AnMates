@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,6 +28,40 @@ func TestCrossedThreshold(t *testing.T) {
 	}
 }
 
+func TestDecideAction(t *testing.T) {
+	const warm, trigger = 60, 70
+	cases := []struct {
+		name           string
+		before, after  int
+		want           fireAction
+	}{
+		{"enter warm band", 59, 60, actWarm},
+		{"climb inside warm band", 62, 63, actNone},
+		{"cross trigger from warm band", 69, 70, actFire},
+		{"jump straight past trigger fires (no warm)", 50, 75, actFire},
+		{"jump from below warm into band", 40, 65, actWarm},
+		{"already above trigger", 71, 72, actNone},
+		{"below warm band", 30, 40, actNone},
+		{"at warm exactly is a crossing", 55, 61, actWarm},
+		{"land exactly on trigger from below warm", 58, 70, actFire},
+	}
+	for _, c := range cases {
+		if got := decideAction(c.before, c.after, warm, trigger); got != c.want {
+			t.Errorf("%s: decideAction(%d,%d,%d,%d)=%d want %d", c.name, c.before, c.after, warm, trigger, got, c.want)
+		}
+	}
+}
+
+func TestDecideActionWarmDisabled(t *testing.T) {
+	// WarmPoints=0 disables prewarm: only the trigger crossing acts.
+	if got := decideAction(59, 60, 0, 70); got != actNone {
+		t.Errorf("warm disabled but got action %d", got)
+	}
+	if got := decideAction(69, 70, 0, 70); got != actFire {
+		t.Errorf("trigger should still fire with warm disabled, got %d", got)
+	}
+}
+
 func TestHaversineM(t *testing.T) {
 	// 1° of latitude ≈ 111.19 km.
 	d := HaversineM(LatLng{0, 0}, LatLng{0, 1})
@@ -42,6 +77,60 @@ func TestMidpoint(t *testing.T) {
 	m := Midpoint(LatLng{10.0, 106.0}, LatLng{10.5, 107.0})
 	if m.Lat != 10.25 || m.Lng != 106.5 {
 		t.Errorf("Midpoint = %+v, want {10.25 106.5}", m)
+	}
+}
+
+func TestTooFarNotice(t *testing.T) {
+	// Rounds metres → friendly km and stays Vietnamese (no CJK).
+	got := tooFarNotice(51500) // 51.5 km → 52
+	if !strings.Contains(got, "52 km") {
+		t.Errorf("tooFarNotice(51500) = %q, want it to mention 52 km", got)
+	}
+	if containsCJK(got) {
+		t.Errorf("tooFarNotice leaked CJK: %q", got)
+	}
+	if !strings.Contains(got, "Trợ lý ĂnMates") {
+		t.Errorf("tooFarNotice should identify the assistant: %q", got)
+	}
+}
+
+func TestResolveAnchor(t *testing.T) {
+	a := uuid.New()
+	b := uuid.New()
+	locA := LatLng{10.0, 106.0}
+	locB := LatLng{10.5, 107.0}
+	mid := Midpoint(locA, locB)
+
+	// requester = A
+	if got, err := resolveAnchor("midpoint", a, a, b, locA, true, locB, true); err != nil || got != mid {
+		t.Errorf("midpoint(A) = %+v, %v; want %+v", got, err, mid)
+	}
+	if got, err := resolveAnchor("", a, a, b, locA, true, locB, true); err != nil || got != mid {
+		t.Errorf("empty anchor should default to midpoint; got %+v, %v", got, err)
+	}
+	if got, err := resolveAnchor("me", a, a, b, locA, true, locB, true); err != nil || got != locA {
+		t.Errorf("me(A) = %+v, %v; want locA", got, err)
+	}
+	if got, err := resolveAnchor("mate", a, a, b, locA, true, locB, true); err != nil || got != locB {
+		t.Errorf("mate(A) = %+v, %v; want locB", got, err)
+	}
+	// requester = B — "me"/"mate" flip
+	if got, err := resolveAnchor("me", b, a, b, locA, true, locB, true); err != nil || got != locB {
+		t.Errorf("me(B) = %+v, %v; want locB", got, err)
+	}
+	if got, err := resolveAnchor("mate", b, a, b, locA, true, locB, true); err != nil || got != locA {
+		t.Errorf("mate(B) = %+v, %v; want locA", got, err)
+	}
+	// missing locations
+	if _, err := resolveAnchor("midpoint", a, a, b, locA, true, locB, false); err != ErrNoLocation {
+		t.Errorf("midpoint with missing locB should be ErrNoLocation, got %v", err)
+	}
+	if _, err := resolveAnchor("me", a, a, b, LatLng{}, false, locB, true); err != ErrNoLocation {
+		t.Errorf("me(A) with missing locA should be ErrNoLocation, got %v", err)
+	}
+	// bad anchor
+	if _, err := resolveAnchor("somewhere", a, a, b, locA, true, locB, true); err != ErrBadAnchor {
+		t.Errorf("bad anchor should be ErrBadAnchor, got %v", err)
 	}
 }
 

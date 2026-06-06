@@ -116,28 +116,44 @@ func run(log *slog.Logger) error {
 	noiSvc := services.NewNoiLauService(pool)
 	locSvc := services.NewLocationService(pool)
 
-	// AI Concierge — enabled only when an LLM backend is configured (AI_BASE_URL).
-	// Disabled ⇒ nil seam ⇒ chat behaves exactly as before.
+	// AI Concierge — venue source is pluggable (see services.VenueProvider):
+	//   AI_SEARCH_URL set ⇒ web-search path (ai-venue-search service, no map/DB ingest).
+	//   else AI_BASE_URL set ⇒ legacy DB+LLM path (restaurants table + model ranking).
+	//   neither ⇒ disabled ⇒ nil seam ⇒ chat behaves exactly as before.
 	var concierge handlers.ConciergeFirer
-	if cfg.AIBaseURL != "" {
+	var conciergeSvc *services.ConciergeService
+	if cfg.AISearchURL != "" || cfg.AIBaseURL != "" {
 		aiUserID, perr := uuid.Parse(cfg.AIUserID)
 		if perr != nil {
 			return fmt.Errorf("AI_USER_ID invalid uuid: %w", perr)
 		}
-		llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
-		concierge = services.NewConciergeService(pool, llm, services.NewVenueEngine(pool), hub,
+
+		var provider services.VenueProvider
+		mode := "db+llm"
+		if cfg.AISearchURL != "" {
+			provider = services.NewWebSearchProvider(cfg.AISearchURL)
+			mode = "web-search"
+		} else {
+			llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
+			provider = services.NewDBLLMVenueProvider(services.NewVenueEngine(pool), llm)
+		}
+
+		conciergeSvc = services.NewConciergeService(pool, provider, hub,
 			services.ConciergeConfig{
-				AIUserID:      aiUserID,
-				TriggerPoints: cfg.AITriggerPoints,
-				CandidateLim:  cfg.AICandidateLimit,
-				RadiusM:       cfg.AISearchRadiusM,
-				BudgetMin:     cfg.AIBudgetMin,
-				BudgetMax:     cfg.AIBudgetMax,
-				Model:         cfg.AIModel,
+				AIUserID:       aiUserID,
+				TriggerPoints:  cfg.AITriggerPoints,
+				WarmPoints:     cfg.AIWarmPoints,
+				CandidateLim:   cfg.AICandidateLimit,
+				RadiusM:        cfg.AISearchRadiusM,
+				MaxSeparationM: cfg.AIMaxSeparationM,
+				BudgetMin:      cfg.AIBudgetMin,
+				BudgetMax:      cfg.AIBudgetMax,
+				Model:          cfg.AIModel,
 			}, log)
-		log.Info("AI Concierge enabled", "model", cfg.AIModel, "trigger_points", cfg.AITriggerPoints)
+		concierge = conciergeSvc
+		log.Info("AI Concierge enabled", "mode", mode, "search_url", cfg.AISearchURL, "trigger_points", cfg.AITriggerPoints, "warm_points", cfg.AIWarmPoints)
 	} else {
-		log.Info("AI Concierge disabled (AI_BASE_URL not set)")
+		log.Info("AI Concierge disabled (set AI_SEARCH_URL or AI_BASE_URL)")
 	}
 
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
@@ -190,6 +206,13 @@ func run(log *slog.Logger) error {
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
 	auth.Get("/matches/:id/progress", noiH.Get)
+
+	// On-demand venue re-suggest with a chosen anchor (midpoint | me | mate).
+	// Only when the concierge is enabled; returns a card without posting to chat.
+	if conciergeSvc != nil {
+		conciergeH := handlers.NewConcierge(chatSvc, conciergeSvc)
+		auth.Post("/matches/:id/concierge/suggest", conciergeH.Suggest)
+	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())

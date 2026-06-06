@@ -1,5 +1,15 @@
 # Current Task
 
+**Status (2026-06-06):** AI Concierge **pre-warm cache** + **2-user side-by-side E2E** done (code, build/test GREEN; video not recorded yet). Latency fix: `AI_WARM_POINTS` (default trigger−10=60) → concierge prefetches the slow web-search in background when Vibe enters `[warm,trigger)`, caches in-memory (10min TTL), `fire` posts instantly via `takeWarm` (falls back to fresh `compute` on miss). Pure `decideAction` + extracted `compute` (status ok/error/skipped) keep run-row granularity; idempotency unchanged. New 2-phone video tooling in `.dev-e2e/` (2nd flutter_web port 54181 for distinct localStorage; `e2e_two_users.js` drives An↔Bình chat 58→70, card on both phones, reload for full-history shot; `run-e2e.ps1`). Verified Docker golang:1.25: build+vet clean, services 10/10 (new TestDecideAction). **TODO (user):** run `.dev-e2e\run-e2e.ps1` w/ LM Studio up to record the video; revert `main.dart` TEMP deep-link before commit. See sessions/2026-06-06-ai-concierge-prewarm-2user-e2e.md.
+
+---
+
+**Status (2026-06-04):** AI Concierge venue source SWAPPED map/DB → **MCP web-search**, sidecar LIVE-VERIFIED in Docker. `ai-venue-search/` (FastAPI) wired into `docker-compose.yml` (service `ai_venue_search`:8090, healthcheck, host-gateway); api gets `AI_SEARCH_URL=http://ai_venue_search:8090`. **FREE, no keys**: DuckDuckGo MCP search + Nominatim reverse-geocode + structurer chain Pollinations→LM Studio (FallbackStructurer; Pollinations anon 429s → LM Studio qwen3.5-9b w/ strict json_schema carries it). `POST /suggest` confirmed 200 w/ concrete VN venue names. Go side: `VenueProvider` interface + `WebSearchProvider`(web) / `DBLLMVenueProvider`(legacy fallback). **Run:** `./start.sh` or `docker compose up --build`. ⚠️ Go build still unverified on host (no Go PATH — covered by httptest + Docker build). Limitation: web-search → lat/lng often 0 (weak map pins), names not 100% grounded. Tip: `STRUCTURER=openai` makes LM Studio primary (skips Pollinations 429). See sessions/2026-06-04-ai-concierge-mcp-websearch.md.
+
+---
+
+## Previous status
+
 **Status:** AI Concierge chat slice IMPLEMENTED (code complete) — ⚠️ NOT YET built/tested locally (Go+Flutter toolchains not on host PATH; build via Docker `start.sh` / CI). Flutter chat view still a MOCK (card shown from sample data; WS delivery is the remaining seam).
 **Verification pending (user/Docker):** `docker compose` build, `go test ./...`, `go vet`, `flutter analyze`, `flutter test`. Live E2E needs LM Studio at `AI_BASE_URL=http://host.docker.internal:1234/v1` + a model (Qwen2.5-14B suits RTX 5080 16GB). Then: 2 users + match + push locations + chat until points≥70 → expect `ai_venue_card` from "Trợ lý ĂnMates" with 3 seeded venues, once.
 **✅ WebSocket wired (2026-06-04):** `chat_socket.dart` + live `chat_detail_view` (matchId → load history+progress, connect WS, render real `ai_venue_card`, send over socket) + `chat_list_view` loads real conversations. Demo mode preserved when matchId null.
