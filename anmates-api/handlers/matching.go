@@ -29,25 +29,47 @@ func (m *Matching) List(c *fiber.Ctx) error {
 	return httputil.OK(c,candidates)
 }
 
-// Accept creates a match between the caller and the target user (:id = other user's id).
-func (m *Matching) Accept(c *fiber.Ctx) error {
+type swipeReq struct {
+	TargetID string `json:"target_id"`
+	Liked    bool   `json:"liked"`
+}
+
+// Swipe records a like/pass on another user. On a reciprocated like it creates
+// (or returns) the match — response: {matched: bool, match: Match|null}.
+func (m *Matching) Swipe(c *fiber.Ctx) error {
 	uid := middleware.UserID(c)
-	other, err := uuid.Parse(c.Params("id"))
-	if err != nil {
-		return httputil.Err(c,fiber.StatusBadRequest, httputil.ErrValidation, "invalid user id")
+	var r swipeReq
+	if err := c.BodyParser(&r); err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid body")
 	}
-	if other == uid {
-		return httputil.Err(c,fiber.StatusBadRequest, httputil.ErrValidation, "cannot match self")
+	target, err := uuid.Parse(r.TargetID)
+	if err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid target_id")
+	}
+	if target == uid {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "cannot swipe self")
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
 	defer cancel()
 
-	match, err := m.svc.AcceptMatch(ctx, uid, other)
+	res, err := m.svc.Swipe(ctx, uid, target, r.Liked)
 	if err != nil {
-		return httputil.Err(c,fiber.StatusInternalServerError, httputil.ErrInternal, "accept match failed")
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "swipe failed")
 	}
-	return c.Status(fiber.StatusCreated).JSON(httputil.SuccessEnvelope{Success: true, Data: match})
+	return httputil.OK(c, res)
+}
+
+// Undo removes the caller's most recent swipe (rewind).
+func (m *Matching) Undo(c *fiber.Ctx) error {
+	uid := middleware.UserID(c)
+	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
+	defer cancel()
+
+	if err := m.svc.Undo(ctx, uid); err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "undo failed")
+	}
+	return httputil.OK(c, fiber.Map{"undone": true})
 }
 
 func (m *Matching) Conversations(c *fiber.Ctx) error {

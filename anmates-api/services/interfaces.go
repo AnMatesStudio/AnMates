@@ -35,7 +35,8 @@ type WishlistServicer interface {
 
 type MatchingServicer interface {
 	ListCandidates(ctx context.Context, userID uuid.UUID) ([]models.MatchCandidate, error)
-	AcceptMatch(ctx context.Context, userID, targetID uuid.UUID) (*models.Match, error)
+	Swipe(ctx context.Context, userID, targetID uuid.UUID, liked bool) (*SwipeResult, error)
+	Undo(ctx context.Context, userID uuid.UUID) error
 	Conversations(ctx context.Context, userID uuid.UUID) ([]models.Conversation, error)
 }
 

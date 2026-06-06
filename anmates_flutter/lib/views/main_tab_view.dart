@@ -4,7 +4,7 @@ import '../widgets/anm_widgets.dart';
 import 'discover/discover_view.dart';
 import 'discover/wishlist_view.dart';
 import 'chat/chat_list_view.dart';
-import 'profile/profile_view.dart';
+import 'match/swipe_view.dart';
 
 class MainTabView extends StatefulWidget {
   const MainTabView({super.key});
@@ -22,7 +22,7 @@ class _MainTabViewState extends State<MainTabView> {
       const DiscoverView(),
       const WishlistView(),
       const ChatListView(),
-      const ProfileView(),
+      const SwipeView(),
     ];
 
     return Scaffold(

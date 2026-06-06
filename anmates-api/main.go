@@ -202,7 +202,8 @@ func run(log *slog.Logger) error {
 	auth.Delete("/wishlist/:id", wlH.Delete)
 
 	auth.Get("/matches", matchH.List)
-	auth.Post("/matches/:id/accept", matchH.Accept)
+	auth.Post("/swipes", matchH.Swipe)
+	auth.Post("/swipes/undo", matchH.Undo)
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
 	auth.Get("/matches/:id/progress", noiH.Get)

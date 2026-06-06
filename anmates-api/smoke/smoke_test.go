@@ -264,20 +264,51 @@ func TestFullFlow(t *testing.T) {
 	var candidates []map[string]any
 	_ = json.Unmarshal(env.Data, &candidates)
 
-	// Accept B explicitly (idempotent — works whether B is in the candidate list or not).
-	status, env = do(t, http.MethodPost, "/api/v1/matches/"+b.userID+"/accept", a.access, nil)
-	assertStatus(t, status,http.StatusCreated, http.StatusOK)
-	var match struct {
-		ID string `json:"id"`
+	// Mutual-like gate: A likes B first → no match yet (B hasn't liked back).
+	status, env = do(t, http.MethodPost, "/api/v1/swipes", a.access, map[string]any{
+		"target_id": b.userID, "liked": true,
+	})
+	assertStatus(t, status, http.StatusOK)
+	var swipeA struct {
+		Matched bool `json:"matched"`
 	}
-	_ = json.Unmarshal(env.Data, &match)
-	if match.ID == "" {
-		t.Fatalf("accept: empty match id")
+	_ = json.Unmarshal(env.Data, &swipeA)
+	if swipeA.Matched {
+		t.Fatalf("swipe: A→B should not match before B likes back")
 	}
 
-	// Idempotent: second call returns the same match.
-	status, _ = do(t, http.MethodPost, "/api/v1/matches/"+b.userID+"/accept", a.access, nil)
-	assertStatus(t, status,http.StatusCreated, http.StatusOK)
+	// B likes A back → reciprocated → match created.
+	status, env = do(t, http.MethodPost, "/api/v1/swipes", b.access, map[string]any{
+		"target_id": a.userID, "liked": true,
+	})
+	assertStatus(t, status, http.StatusOK)
+	var swipeB struct {
+		Matched bool `json:"matched"`
+		Match   struct {
+			ID string `json:"id"`
+		} `json:"match"`
+	}
+	_ = json.Unmarshal(env.Data, &swipeB)
+	if !swipeB.Matched || swipeB.Match.ID == "" {
+		t.Fatalf("swipe: B→A should create a match, got matched=%v id=%q", swipeB.Matched, swipeB.Match.ID)
+	}
+	match := struct{ ID string }{ID: swipeB.Match.ID}
+
+	// Idempotent: A likes again → still matched, same match id.
+	status, env = do(t, http.MethodPost, "/api/v1/swipes", a.access, map[string]any{
+		"target_id": b.userID, "liked": true,
+	})
+	assertStatus(t, status, http.StatusOK)
+	var swipeA2 struct {
+		Matched bool `json:"matched"`
+		Match   struct {
+			ID string `json:"id"`
+		} `json:"match"`
+	}
+	_ = json.Unmarshal(env.Data, &swipeA2)
+	if !swipeA2.Matched || swipeA2.Match.ID != match.ID {
+		t.Fatalf("swipe idempotency: want matched same id %s, got %v %s", match.ID, swipeA2.Matched, swipeA2.Match.ID)
+	}
 
 	// Conversations
 	status, env = do(t, http.MethodGet, "/api/v1/conversations", a.access, nil)
@@ -319,8 +350,10 @@ func TestFullFlow(t *testing.T) {
 	status, _ = do(t, http.MethodGet, "/api/v1/profile", "", nil)
 	assertStatus(t, status,http.StatusUnauthorized)
 
-	// Garbage uuid → 400
-	status, _ = do(t, http.MethodPost, "/api/v1/matches/not-a-uuid/accept", a.access, nil)
+	// Garbage target id → 400
+	status, _ = do(t, http.MethodPost, "/api/v1/swipes", a.access, map[string]any{
+		"target_id": "not-a-uuid", "liked": true,
+	})
 	assertStatus(t, status,http.StatusBadRequest)
 }
 

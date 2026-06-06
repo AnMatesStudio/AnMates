@@ -4,6 +4,7 @@ import '../../services/profile_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
+import '../profile/profile_view.dart';
 
 class DiscoverView extends StatefulWidget {
   const DiscoverView({super.key});
@@ -102,20 +103,29 @@ class _DiscoverViewState extends State<DiscoverView> {
               ],
             ),
           ),
-          _avatarUrl != null
-              ? Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: AppColors.ocean, width: 2),
-                    image: DecorationImage(
-                      image: NetworkImage(_avatarUrl!),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                )
-              : TrustRing(score: 96, size: 42),
+          MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProfileView()),
+              ),
+              child: _avatarUrl != null
+                  ? Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.ocean, width: 2),
+                        image: DecorationImage(
+                          image: NetworkImage(_avatarUrl!),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  : TrustRing(score: 96, size: 42),
+            ),
+          ),
         ],
       ),
     );
