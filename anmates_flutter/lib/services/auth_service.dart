@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -16,6 +17,11 @@ class AuthService {
   static final AuthService _instance = AuthService._();
   AuthService._();
   factory AuthService() => _instance;
+
+  // HTTP client — overridable in tests with a MockClient.
+  http.Client _client = http.Client();
+  @visibleForTesting
+  set httpClient(http.Client c) => _client = c;
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
@@ -123,7 +129,7 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token');
     if (token != null) {
-      await http.post(
+      await _client.post(
         Uri.parse('$_baseUrl/api/v1/auth/logout'),
         headers: {
           'Content-Type': 'application/json',
@@ -134,10 +140,44 @@ class AuthService {
         }),
       );
     }
+    await clearSession();
+  }
+
+  /// Wipes the local session WITHOUT calling the server. Used when the refresh
+  /// token is already known-invalid (e.g. expired past the 7-day window) so the
+  /// splash can fall back to onboarding cleanly.
+  Future<void> clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');
     await prefs.remove('user_id');
     await prefs.remove('onboarding_done');
+  }
+
+  /// Exchanges the stored refresh_token for a fresh access/refresh pair via
+  /// `POST /auth/refresh` and persists them. Returns true on success.
+  ///
+  /// Access tokens live ~15 min; refresh tokens ~7 days (backend config). This
+  /// is what keeps a returning user signed in: as long as the refresh token is
+  /// still valid, the session is silently renewed. Returns false when there is
+  /// no refresh token or the server rejected it (caller treats as logged out).
+  Future<bool> refreshSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final refresh = prefs.getString('refresh_token');
+    if (refresh == null || refresh.isEmpty) return false;
+    try {
+      final res = await _client.post(
+        Uri.parse('$_baseUrl/api/v1/auth/refresh'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refresh}),
+      );
+      if (res.statusCode != 200) return false;
+      final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
+      await _saveTokens(data);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> _saveTokens(Map<String, dynamic> data) async {

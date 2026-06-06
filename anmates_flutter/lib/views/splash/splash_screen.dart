@@ -4,7 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
+import '../../services/api_client.dart';
+import '../../services/auth_service.dart';
+import '../../services/profile_service.dart';
+import '../../services/onboarding_draft.dart';
 import '../onboarding/onboarding_view.dart';
+import '../onboarding/user_profile_view.dart';
+import '../main_tab_view.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -17,7 +23,13 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _progressController;
   late final Animation<double> _progressAnim;
-  Timer? _navTimer;
+
+  // Splash navigates once BOTH the minimum dwell has elapsed AND the session
+  // has been resolved. The dwell is a cancellable Timer (not Future.delayed) so
+  // it never leaks past dispose — important for widget tests.
+  Timer? _dwellTimer;
+  bool _dwellElapsed = false;
+  Widget? _nextScreen;
 
   @override
   void initState() {
@@ -35,18 +47,73 @@ class _SplashScreenState extends State<SplashScreen>
 
     _progressController.forward();
 
-    _navTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const OnboardingView()),
-      );
+    // Capture the NavigatorState now — it survives this State being disposed by
+    // pushReplacement, so deferred callbacks (onComplete) still target a live
+    // navigator.
+    final navigator = Navigator.of(context);
+    // Run the minimum dwell and the (possibly networked) session resolution
+    // concurrently: a fast check never cuts the splash short, a slow one adds no
+    // lag on top of the dwell. Navigation fires once both are done.
+    _dwellTimer = Timer(const Duration(milliseconds: 2200), () {
+      _dwellElapsed = true;
+      _navigateIfReady(navigator);
     });
+    _resolveStart(navigator).then((screen) {
+      _nextScreen = screen;
+      _navigateIfReady(navigator);
+    });
+  }
+
+  void _navigateIfReady(NavigatorState navigator) {
+    if (!mounted || !_dwellElapsed || _nextScreen == null) return;
+    navigator.pushReplacement(MaterialPageRoute(builder: (_) => _nextScreen!));
+  }
+
+  Future<Widget> _resolveStart(NavigatorState navigator) async {
+    final auth = AuthService();
+    if (!await auth.isLoggedIn()) return const OnboardingView();
+
+    void toMain() => navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const MainTabView()),
+      (_) => false,
+    );
+    Widget resumeOnboarding() {
+      OnboardingDraftController.instance.reset();
+      return UserProfileView(onComplete: toMain);
+    }
+
+    try {
+      // Validates the access token against the server; ApiClient silently
+      // refreshes it on a 401, so this only throws 401 when the refresh token is
+      // also expired (session truly over). It also returns the authoritative
+      // onboarding_done so a user who finished on another device skips ahead.
+      final profile = await ProfileService().getProfile();
+      final done =
+          profile['onboarding_done'] as bool? ?? await auth.isOnboardingDone();
+      await auth.setOnboardingDone(done);
+      return done ? const MainTabView() : resumeOnboarding();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        // Refresh token expired/invalid → real logout. Clear and re-onboard.
+        await auth.clearSession();
+        return const OnboardingView();
+      }
+      // Server/transient error: don't punish the user — trust the locally
+      // cached session rather than forcing re-onboarding.
+      return (await auth.isOnboardingDone())
+          ? const MainTabView()
+          : resumeOnboarding();
+    } catch (_) {
+      // Network offline etc. — keep the user in if we have a local session.
+      return (await auth.isOnboardingDone())
+          ? const MainTabView()
+          : resumeOnboarding();
+    }
   }
 
   @override
   void dispose() {
-    _navTimer?.cancel();
+    _dwellTimer?.cancel();
     _progressController.dispose();
     super.dispose();
   }
