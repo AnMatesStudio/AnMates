@@ -1,5 +1,9 @@
 # Current Task
 
+**Status (2026-06-07) — Prod CD gaps fixed (pre-merge):** Before merging `feat/ai-concierge-map`→main, fixed 2 deploy gaps that would break AI Concierge on prod: (1) `cd.go-api.yml` prod deploy was missing `AI_SEARCH_URL` (Cloud Run `--set-env-vars` replaces env → would disable Concierge) — added it mirroring dev; (2) `ai-venue-search/` had no `cd.*` → created `cd.ai-venue-search.yml` (push main → Cloud Run 8090). ⚠️ Not yet run in GH Actions; verify repo var `AI_SEARCH_URL`. Flutter Android/iOS still have no CD by design. See sessions/2026-06-07-prod-cd-gaps-ai-search-url-sidecar.md.
+
+---
+
 **Status (2026-06-06) — Mutual-like + wishlist CRUD (follow-ups resolved):** On top of the swipe→match→chat flow below, resolved all open items. **Mutual-like gate:** new `010_swipes.sql` + `swipes` table; `AcceptMatch`→`Swipe(like/pass)` (match created only on reciprocated like) + `Undo` (rewind); routes `/matches/:id/accept`→`POST /swipes` + `/swipes/undo`; `ListCandidates` excludes already-swiped. **Wishlist real:** new `wishlist_service.dart` + `WishlistView` rewritten mock→CRUD (list/add-sheet/delete). **Matching interest set** = food_tags ∪ wishlist food_name ∪ wishlist food_category (3 disjoint vocabularies), threshold raised back to **≥2**. Flutter `swipe_view` mutual-like UX + rewind restored; `smoke_test` moved to /swipes. **Verified:** Docker go build/vet rc=0 (incl smoke), `go test ./services` ok; **matching SQL validated LIVE on Postgres 16** (`.dev-e2e/matching_sql_check.sql`). ⚠️ Flutter not analyzed on host — verify via `./start.sh`. **TODO (user):** 2 real-OTP users, onboard with ≥2 shared food tags (or both wishlist same category), Ăn Match → both swipe right → chat. See sessions/2026-06-06-real-swipe-match-chat-flow.md (Part 2).
 
 ---

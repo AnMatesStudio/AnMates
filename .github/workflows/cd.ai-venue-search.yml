@@ -1,23 +1,23 @@
-name: CD · Go API → Cloud Run
+name: CD · AI Venue Search → Cloud Run
 
 on:
   push:
     branches: [main]
     paths:
-      - 'anmates-api/**'
-      - '.github/workflows/cd.go-api.yml'
+      - 'ai-venue-search/**'
+      - '.github/workflows/cd.ai-venue-search.yml'
   workflow_dispatch:
 
 concurrency:
-  group: cd.go-api-main
+  group: cd.ai-venue-search-main
   cancel-in-progress: false
 
 env:
   GCP_PROJECT: anmates-studio
   GCP_REGION: asia-southeast1
-  SERVICE_NAME: anmates-api
-  AR_REPO: anmates-api
-  AR_IMAGE: api
+  SERVICE_NAME: ai-venue-search
+  AR_REPO: anmates-api          # reuse the existing Artifact Registry repo
+  AR_IMAGE: ai-venue-search
 
 jobs:
   deploy:
@@ -29,23 +29,21 @@ jobs:
       id-token: write
     environment:
       name: production
-      url: https://anmates-api-492509819332.asia-southeast1.run.app
+      url: https://ai-venue-search-492509819332.asia-southeast1.run.app
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Go (validate + test)
-        uses: actions/setup-go@v5
+      - name: Set up Python (validate + test)
+        uses: actions/setup-python@v5
         with:
-          go-version-file: anmates-api/go.mod
-          cache: true
-          cache-dependency-path: anmates-api/go.sum
+          python-version: '3.12'
 
-      - name: go vet + test
-        working-directory: anmates-api
+      - name: Install deps + test
+        working-directory: ai-venue-search
         run: |
-          go vet ./...
-          # Exclude smoke/ — that suite hits a live server, not for CI.
-          go test -race -count=1 $(go list ./... | grep -v '/smoke$')
+          pip install -r requirements.txt pytest
+          # Mock providers run fully offline — no network / API keys needed.
+          pytest -q
 
       - name: Authenticate to Google Cloud (WIF)
         id: auth
@@ -62,16 +60,10 @@ jobs:
 
       - name: Build + push image
         id: build
-        working-directory: anmates-api
+        working-directory: ai-venue-search
         run: |
-          # Build on the runner and push straight to Artifact Registry.
-          # We intentionally do NOT use `gcloud builds submit` (Cloud Build):
-          # it streams logs to the terminal and that requires the caller to be
-          # project Viewer/Owner — which our least-privilege SA is not, so the
-          # command exits 1 even though the build itself succeeds. Building here
-          # is also faster (no tarball upload/queue) and cheaper (no CB minutes).
-          # The `gcloud auth configure-docker` step above set up the credential
-          # helper, so `docker push` to AR just works with the SA's token.
+          # Build on the runner and push straight to Artifact Registry (same rationale
+          # as cd.go-api.yml — `gcloud builds submit` needs Viewer/Owner to tail logs).
           AR_BASE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}"
           IMAGE_TAG="${AR_BASE}:${{ github.sha }}"
           IMAGE_LATEST="${AR_BASE}:latest"
@@ -92,19 +84,20 @@ jobs:
       - name: Deploy to Cloud Run
         id: deploy
         run: |
+          # 1Gi/120s headroom: each /suggest spawns the DuckDuckGo MCP subprocess,
+          # fetches pages, then calls Pollinations (free, ~1 req/15s anon).
           gcloud run deploy ${{ env.SERVICE_NAME }} \
             --image ${{ steps.build.outputs.image_tag }} \
             --region ${{ env.GCP_REGION }} \
             --platform managed \
             --allow-unauthenticated \
-            --port 8080 \
-            --timeout 3600 \
+            --port 8090 \
+            --memory 1Gi \
+            --cpu 1 \
+            --timeout 120 \
             --revision-suffix "sha-${GITHUB_SHA::7}" \
-            --set-env-vars "ENV=production" \
-            --set-env-vars "DATABASE_URL=${{ secrets.DATABASE_URL }}" \
-            --set-env-vars "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
-            --set-env-vars "FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}" \
-            --set-env-vars "AI_SEARCH_URL=${{ vars.AI_SEARCH_URL || 'https://ai-venue-search-492509819332.asia-southeast1.run.app' }}" \
+            --set-env-vars "STRUCTURER=pollinations" \
+            --set-env-vars "GEOCODE_ENABLED=1" \
             --quiet
 
       - name: Smoke check /health
