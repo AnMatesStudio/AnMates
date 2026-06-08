@@ -70,7 +70,7 @@ func (s *ChatService) History(ctx context.Context, matchID uuid.UUID, cursor str
 // Concierge, which only unlocks at 70 pts, so users could never reach the
 // trigger by chatting. Always unlocked for now; reintroduce a quota-based gate
 // (consumer quotas, never token meters) for Phase-2 monetization here.
-func (s *ChatService) CheckPaywall(_ context.Context, matchID uuid.UUID) (locked bool, err error) {
+func (s *ChatService) CheckPaywall(_ context.Context, _ uuid.UUID) (locked bool, err error) {
 	return false, nil
 }
 

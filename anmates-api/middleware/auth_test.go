@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -26,7 +27,7 @@ func TestJWT_NoToken_Returns401_HandlerNotRun(t *testing.T) {
 	ran := false
 	app := newTestApp(&ran)
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/probe", http.NoBody)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
@@ -45,7 +46,7 @@ func TestJWT_GarbageToken_Returns401_HandlerNotRun(t *testing.T) {
 	ran := false
 	app := newTestApp(&ran)
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/probe", http.NoBody)
 	req.Header.Set("Authorization", "Bearer this.is.garbage")
 	resp, err := app.Test(req)
 	if err != nil {
@@ -71,7 +72,7 @@ func TestJWT_ValidToken_Returns200_HandlerRan_UserIDCorrect(t *testing.T) {
 		t.Fatalf("SignAccessToken: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/probe", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, err := app.Test(req)
 	if err != nil {
