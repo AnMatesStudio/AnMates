@@ -16,13 +16,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type Chat struct {
-	svc services.ChatServicer
-	hub wsx.HubI
+// ConciergeFirer is the AI Concierge trigger seam. nil when the concierge is disabled
+// (no AI backend configured). Implemented by *services.ConciergeService.
+type ConciergeFirer interface {
+	MaybeFire(matchID uuid.UUID, before, after int)
 }
 
-func NewChat(svc services.ChatServicer, hub wsx.HubI) *Chat {
-	return &Chat{svc: svc, hub: hub}
+type Chat struct {
+	svc       services.ChatServicer
+	hub       wsx.HubI
+	concierge ConciergeFirer
+}
+
+func NewChat(svc services.ChatServicer, hub wsx.HubI, concierge ConciergeFirer) *Chat {
+	return &Chat{svc: svc, hub: hub, concierge: concierge}
 }
 
 // History returns paginated messages oldest→newest using cursor=created_at.
@@ -103,9 +110,12 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		// Paywall seam. MVP is FREE so CheckPaywall always returns false today; this
+		// branch stays as the hook for the Phase-2 quota gate (consumer quotas, never
+		// token meters — see services/chat.go CheckPaywall + BLOCKER-004).
 		locked, _ := ch.svc.CheckPaywall(ctx, matchID)
 		if locked {
-			return wsx.Envelope{}, errors.New("chat locked at level 3 — upgrade to continue")
+			return wsx.Envelope{}, errors.New("chat temporarily locked")
 		}
 
 		saved, err := ch.svc.SaveMessage(ctx, matchID, senderID, in.Content, in.MsgType)
@@ -113,7 +123,11 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 			return wsx.Envelope{}, errors.New("save failed")
 		}
 
-		ch.svc.IncrementPoints(ctx, matchID)
+		before, after := ch.svc.IncrementPoints(ctx, matchID)
+		if ch.concierge != nil {
+			// Fires async (goroutine) — posts the AI venue card iff Vibe just crossed the threshold.
+			ch.concierge.MaybeFire(matchID, before, after)
+		}
 
 		payload, _ := json.Marshal(saved)
 		return wsx.Envelope{Type: "message", Payload: payload}, nil
@@ -125,7 +139,7 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 func (ch *Chat) WSAuth(secret []byte) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if err := middleware.ValidateBearer(c, secret); err != nil {
-			return err
+			return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "unauthorized")
 		}
 		matchID, err := uuid.Parse(c.Params("matchId"))
 		if err != nil {

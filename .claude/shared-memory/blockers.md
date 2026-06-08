@@ -99,3 +99,68 @@ Flutter (anmates_flutter): auth_service.dart (isOnboardingDone/setOnboardingDone
 1. Re-run `cd anmates-api && go build ./... && go vet ./...` (sandboxed run shows false "package not in GOROOT"; use the real toolchain) and `cd anmates_flutter && /opt/homebrew/bin/flutter analyze` — confirm 0 errors. All structural errors the IDE flagged were fixed; this is a confirmation pass.
 2. F6 is implemented — just sanity-check the OTP→08→09→MainTabView flow and that a returning user (onboarding_done=true) skips to MainTabView.
 3. Then run the QA pass (Screens 08→09→MainTabView; returning user skips; PATCH /profile/onboarding + /profile/preferences return 200).
+
+---
+
+## BLOCKER-004: Paywall hard-lock ở level 3 (30đ) chặn AI Concierge trigger (70đ) — không thể chat tự nhiên tới ngưỡng
+**Raised by:** main assistant (E2E full-flow test)
+**Date:** 2026-06-07
+**Status:** **resolved (fix applied + automated-verified, pending user confirm)** — 2026-06-08
+
+### RESOLUTION (option 1 — MVP FREE, no paywall)
+User chỉ đạo: "hiện tại làm để test thị trường" → MVP free, đúng LOCKED Phase-1.
+`ChatService.CheckPaywall` (`services/chat.go`) đổi thành **luôn `return false, nil`**
+(bỏ hard-lock level-3), comment trỏ tới Phase-2 re-introduce (consumer quotas, NEVER
+token meters). Rebuild image. **E2E full-flow 20/20 PASS**: gửi 72 tin → Vibe leo
+0→72 tự nhiên (không còn dừng ở 30) → AI Concierge `ai_venue_card` fire end-to-end.
+NB: sidecar 502 nếu prewarm(60đ)+fire(70đ) gọi LM Studio đồng thời (chỉ xảy ra khi
+gửi tin burst <1s); chat người thật cách nhau phút nên không trùng — e2e thêm pause
+25s sau mốc warm để mô phỏng đúng.
+
+### Problem
+`ChatService.CheckPaywall` khoá chat khi `noi_lau_progress.level >= 3`. Với
+`NoiLauThresholds=[0,10,30,60,100]` và `LevelForPoints(30)=3`, chat **khoá cứng ở 30
+điểm** (mọi tin sau đó bị từ chối "chat locked at level 3 — upgrade to continue").
+Nhưng AI Concierge + "First Date" mở ở **70 điểm** (`AI_TRIGGER_POINTS=70`). ⇒ qua
+chat thật, Vibe **không bao giờ vượt 30** → Concierge không bao giờ tự fire. Chỉ
+chạy được nếu seed điểm thủ công (đã verify card fire OK khi seed 69→70).
+
+Mâu thuẫn với LOCKED Phase-1 decision "MVP FREE (no paywall)".
+
+Verified live 2026-06-07: E2E gửi 72 tin nhưng chỉ 30 tin được lưu (points dừng ở 30).
+
+### Suggested fix (pick one — needs user)
+1. **Bỏ hard-lock level-3 cho MVP free** (đúng tinh thần Phase-1 no-paywall) — đơn giản nhất.
+2. Nâng ngưỡng khoá lên > 70 (sau khi Concierge đã fire).
+3. Tách khái niệm "paywall lock" khỏi "level Nồi Lẩu" (level chỉ để hiển thị vibe).
+
+Liên quan: `services/chat.go` (CheckPaywall + handlers/chat.go onIncoming),
+`models/models.go` (NoiLauThresholds / LevelForPoints). Xem
+sessions/2026-06-07-e2e-full-flow-test-2users-chat.md.
+
+---
+
+## BLOCKER-005: JWT auth middleware KHÔNG chặn request thiếu/invalid token — auth gate vô hiệu
+**Raised by:** main-assistant (QA full-feature sweep)
+**Date:** 2026-06-08
+**Status:** **resolved (fix applied, pending user confirm)** — 2026-06-08
+
+### Problem
+`httputil.Err()` = `return c.Status(s).JSON(...)`; Fiber `c.JSON()` trả `nil` khi thành công → `Err()`
+trả `nil`. Trong `middleware/auth.go`: `if err := ValidateBearer(c, secret); err != nil { return err }`
+→ err = nil (dù đã ghi body 401) → rơi xuống `c.Next()` → **handler vẫn chạy với `uuid.Nil`**.
+Cùng pattern ở `handlers/chat.go WSAuth`.
+
+Reproduced (deterministic): `GET /profile` no-token → 404 "user not found" (handler chạy);
+`GET /wishlist` no-token → HTTP 401 NHƯNG body `{"success":true,"data":[]}` (status & body mâu thuẫn,
+chứng cứ handler chạy sau khi middleware đã ghi 401); `PUT /me/location` no-token → 500 (handler chạy).
+
+Blast radius hiện hẹp: `uuid.Nil` không sở hữu row nào (reads rỗng, writes vướng FK→500), WS/chat/booking
+được cứu nhờ check phụ `IsMember(matchID, uuid.Nil)`→404. Nhưng auth gate về bản chất **không bảo vệ gì**;
+endpoint nào không tự check ownership theo caller, hoặc coi `uuid.Nil` hợp lệ, sẽ rò.
+
+### Suggested fix
+`ValidateBearer` trả non-nil error khi fail (KHÔNG tự ghi body), để `JWT`/`WSAuth` render. KHÔNG đổi
+`Err()` thành non-nil toàn cục (handlers `return httputil.Err(...)` đang đúng nhờ semantics "đã ghi response").
+Thêm e2e negative-auth (no token + token rác → 401 sạch, không side effect) — hiện chưa có nên
+`e2e_full_flow.js` 31/31 vẫn xanh dù dính bug. Chi tiết: qa-reports/2026-06-08-full-feature-explore-bugs.md.

@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyEvent, LogicalKeyboardKey;
@@ -14,6 +14,19 @@ import 'auth_error_messages.dart';
 const _otpLength = 6;
 const _resendTimeout = Duration(seconds: 90);
 const _recaptchaContainerId = 'recaptcha-container';
+
+// Dev bypass — mirrors phone_input_view. Must match backend DEV_BYPASS_SECRET.
+// Visible in debug + local (non-prod) release builds; backend still enforces
+// DEV_MODE + the secret, so it can't bypass production.
+const _devBypassSecret = String.fromEnvironment(
+  'DEV_BYPASS_SECRET',
+  defaultValue: 'dev-local-2026',
+);
+const _devTestPhone = '+84999000001';
+const _devTestName = 'Dev User';
+final bool _devBypassEnabled = kDebugMode ||
+    apiBaseUrl.contains('localhost') ||
+    apiBaseUrl.contains('127.0.0.1');
 
 class OtpView extends StatefulWidget {
   final String phone;
@@ -165,6 +178,22 @@ class _OtpViewState extends State<OtpView> {
     } catch (e) {
       if (!mounted) return;
       _resetOnError(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  // Dev-only: skip OTP entirely via the backend dev-login endpoint.
+  Future<void> _devSkipOtp() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await AuthService().devLogin(
+        secret: _devBypassSecret,
+        phone: _devTestPhone,
+        name: _devTestName,
+      );
+      if (mounted) widget.onVerified();
+    } catch (e) {
+      _resetOnError('Dev bypass: ${e.toString().replaceFirst('Exception: ', '')}');
     }
   }
 
@@ -334,6 +363,13 @@ class _OtpViewState extends State<OtpView> {
                         height: 1.4,
                       ),
                     ),
+                    if (_devBypassEnabled) ...[
+                      const SizedBox(height: 18),
+                      _DevSkipButton(
+                        loading: _loading,
+                        onTap: _loading ? null : _devSkipOtp,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -399,6 +435,48 @@ class _OtpViewState extends State<OtpView> {
                 _NumericKeypad(onKeyTap: _onKeyTap),
                 const SizedBox(height: 12),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Dev-only bypass button (localhost builds) ───────────────────────────────
+class _DevSkipButton extends StatelessWidget {
+  final bool loading;
+  final VoidCallback? onTap;
+  const _DevSkipButton({required this.loading, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Dev Mode skip OTP',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.ocean.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.ocean.withValues(alpha: 0.4)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.bolt_rounded, size: 18, color: AppColors.ocean),
+              const SizedBox(width: 8),
+              Text(
+                loading ? 'Đang đăng nhập dev…' : 'Dev Mode (skip OTP)',
+                style: AppTextStyles.body(
+                  size: 14,
+                  weight: FontWeight.w700,
+                  color: AppColors.ocean,
+                ),
+              ),
             ],
           ),
         ),

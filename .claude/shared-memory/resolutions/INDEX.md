@@ -23,6 +23,7 @@ If a query matches, **read the full resolution file** before proposing a new fix
 | R-003 | Screen 08 UserProfileView — full implementation + nav bug fix (UserProfileView popped back to PhoneInputView) | `flutter`, `onboarding`, `screen-08`, `navigation`, `profile`, `astrology`, `slider`, `dob-picker`, `custom-widget` | android, ios, web | major | 2026-05-31 | user | [R-003-screen08-profile-view-implementation.md](R-003-screen08-profile-view-implementation.md) |
 | R-004 | Screen 11 "Hoàn tất" crash + validation mismatch + culture_tags missing — full onboarding submit fix | `flutter`, `firebase`, `web-dev`, `onboarding`, `storage`, `culture-tags`, `validation`, `loading-overlay` | web | blocker | 2026-06-01 | user | [R-004-screen11-onboarding-submit-full-fix.md](R-004-screen11-onboarding-submit-full-fix.md) |
 | R-005 | CI deploy lên GitHub Environment `dev` — PR testing trực tiếp tại dev-anmates-studio.web.app | `flutter`, `go-backend`, `deploy`, `hosting`, `cloud-run`, `firebase`, `gcp`, `github-actions`, `ci-cd`, `web-dev` | web, backend | major | 2026-06-01 | user | [R-005-ci-dev-environment-deploy.md](R-005-ci-dev-environment-deploy.md) |
+| R-006 | AI Concierge card: fake/out-of-area coords + wrong area name in intro + api container stuck "unhealthy" | `ai-concierge`, `web-search`, `geocode`, `grounding`, `healthcheck`, `docker`, `ipv6`, `go-backend`, `ai-venue-search`, `concurrency` | backend | major | 2026-06-08 | user | [R-006-ai-concierge-grounding-healthcheck.md](R-006-ai-concierge-grounding-healthcheck.md) |
 
 ---
 
@@ -60,6 +61,11 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `index.html` + `firebase-storage.js` + missing pre-load | R-004 |
 | `food_tags must have between 5 and 10 items` | R-004 |
 | `culture_tags` + not saved + onboarding | R-004 |
+| `wget: can't connect to remote host: Connection refused` + container unhealthy | R-006 |
+| docker healthcheck `localhost` + Go listens IPv4 + connection refused | R-006 |
+| AI venue card `distance_m` wrong / venue far but shown near midpoint | R-006 |
+| concierge intro wrong area name / `khu vực Xuân Hòa` | R-006 |
+| `ai-venue-search http 502` + prewarm + fire concurrent | R-006 (B1) |
 
 ---
 
@@ -97,6 +103,15 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `culture-tags` | Screen 10 nền văn minh yêu thích — DB column + full stack |
 | `validation` | Flutter ↔ backend validation bounds mismatch |
 | `loading-overlay` | Submit/async loading UX overlay widget |
+| `ai-concierge` | AI Concierge venue suggestion flow (trigger 70, prewarm/fire, card) |
+| `ai-venue-search` | Python sidecar (MCP web-search + geocode + LLM structurer) |
+| `web-search` | Web-search venue discovery path (vs DB+LLM) |
+| `geocode` | Forward/reverse geocoding (Photon/Nominatim/OSM) |
+| `grounding` | Anti-hallucination / making venue facts match reality |
+| `healthcheck` | Container/Cloud Run health probe |
+| `docker` | docker-compose / Dockerfile / container runtime |
+| `ipv6` | IPv6 vs IPv4 bind/resolve mismatch (localhost ::1) |
+| `concurrency` | Concurrent calls / single-flight / race conditions |
 
 When adding a new resolution, **re-use existing tags** where possible — only add a new tag if no existing one fits.
 

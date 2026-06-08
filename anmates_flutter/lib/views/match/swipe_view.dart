@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
+import '../../services/match_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_widgets.dart';
+import '../chat/chat_detail_view.dart';
+import 'match_view.dart';
 
 class SwipeView extends StatefulWidget {
-  final String restaurantName;
-
-  const SwipeView({super.key, this.restaurantName = 'Tiệm mì Ramen Q1'});
+  const SwipeView({super.key});
 
   @override
   State<SwipeView> createState() => _SwipeViewState();
@@ -19,6 +21,14 @@ class _SwipeViewState extends State<SwipeView>
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
 
+  // Real data.
+  List<MatchCandidate>? _candidates;
+  int _index = 0;
+  bool _loading = true;
+  String? _error;
+  String? _currentUserId;
+  bool _accepting = false;
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +39,7 @@ class _SwipeViewState extends State<SwipeView>
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
+    _load();
   }
 
   @override
@@ -37,7 +48,38 @@ class _SwipeViewState extends State<SwipeView>
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final uid = await AuthService().currentUserId();
+      final cands = await MatchService().getCandidates();
+      if (!mounted) return;
+      setState(() {
+        _currentUserId = uid;
+        _candidates = cands;
+        _index = 0;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Không tải được danh sách mate. Thử lại nhé.';
+        _loading = false;
+      });
+    }
+  }
+
+  MatchCandidate? get _current {
+    final c = _candidates;
+    if (c == null || _index >= c.length) return null;
+    return c[_index];
+  }
+
   void _handleDragUpdate(DragUpdateDetails details) {
+    if (_accepting) return;
     setState(() {
       _isDragging = true;
       _dragOffset += Offset(details.delta.dx, details.delta.dy * 0.3);
@@ -45,11 +87,12 @@ class _SwipeViewState extends State<SwipeView>
   }
 
   void _handleDragEnd(DragEndDetails details) {
+    if (_accepting) return;
     final velocity = details.velocity.pixelsPerSecond.dx;
     if (_dragOffset.dx > 120 || velocity > 400) {
-      _animateOut(true);
+      _decide(true);
     } else if (_dragOffset.dx < -120 || velocity < -400) {
-      _animateOut(false);
+      _decide(false);
     } else {
       setState(() {
         _dragOffset = Offset.zero;
@@ -58,17 +101,99 @@ class _SwipeViewState extends State<SwipeView>
     }
   }
 
-  void _animateOut(bool liked) {
-    setState(() {
-      _dragOffset = Offset(liked ? 600 : -600, 0);
-    });
-    Future.delayed(const Duration(milliseconds: 350), () {
-      if (mounted) {
-        setState(() {
-          _dragOffset = Offset.zero;
-          _isDragging = false;
-        });
+  /// Animate the front card off-screen, then (if liked) accept the match and
+  /// open the match screen, then advance to the next candidate.
+  void _decide(bool liked) {
+    if (_accepting) return;
+    final cand = _current;
+    if (cand == null) return;
+    setState(() => _dragOffset = Offset(liked ? 600 : -600, 0));
+    Future.delayed(const Duration(milliseconds: 320), () async {
+      if (!mounted) return;
+      if (liked) {
+        await _like(cand);
+      } else {
+        _pass(cand);
       }
+      if (!mounted) return;
+      setState(() {
+        _index++;
+        _dragOffset = Offset.zero;
+        _isDragging = false;
+      });
+    });
+  }
+
+  // Pass: record the decision so the candidate doesn't resurface. Fire-and-forget
+  // — the deck advances locally regardless of the network result.
+  void _pass(MatchCandidate cand) {
+    MatchService().swipe(cand.userId, false).then((_) {}, onError: (_) {});
+  }
+
+  // Like: a match is created only when the other user has already liked back
+  // (mutual-like gate). Otherwise we just record the like and move on.
+  Future<void> _like(MatchCandidate cand) async {
+    setState(() => _accepting = true);
+    try {
+      final res = await MatchService().swipe(cand.userId, true);
+      if (!mounted) return;
+      if (res.matched) {
+        final shared = cand.overlapFoods.isNotEmpty
+            ? cand.overlapFoods.take(2).join(', ')
+            : 'nhiều món hợp gu';
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MatchView(
+              mateName: cand.name,
+              restaurantName: shared,
+              onChat: () => Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatDetailView(
+                    mateName: cand.name,
+                    vibePercent: cand.vibeScore,
+                    matchId: res.matchId,
+                    currentUserId: _currentUserId,
+                  ),
+                ),
+              ),
+              onContinue: () => Navigator.pop(context),
+            ),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Đã thích ${cand.name} 💜 — chờ họ thích lại nha'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Có lỗi, thử lại nha')));
+      }
+    } finally {
+      if (mounted) setState(() => _accepting = false);
+    }
+  }
+
+  // Rewind: undo the last swipe (server-side) and step the deck back one card.
+  Future<void> _rewind() async {
+    if (_accepting || _index == 0) return;
+    setState(() => _accepting = true);
+    try {
+      await MatchService().undoSwipe();
+    } catch (_) {
+      // best-effort — still let the user step back locally
+    }
+    if (!mounted) return;
+    setState(() {
+      _index--;
+      _accepting = false;
     });
   }
 
@@ -88,11 +213,86 @@ class _SwipeViewState extends State<SwipeView>
             children: [
               _buildTopBar(),
               const SizedBox(height: 16),
-              Expanded(child: _buildCardStack()),
-              _buildActionButtons(),
-              const SizedBox(height: 24),
+              Expanded(child: _buildBody()),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.berry),
+      );
+    }
+    if (_error != null) {
+      return _buildMessage(
+        emoji: '😕',
+        title: _error!,
+        actionLabel: 'Thử lại',
+        onAction: _load,
+      );
+    }
+    if (_current == null) {
+      return _buildMessage(
+        emoji: '🍽️',
+        title: 'Hết mate hợp gu rồi!',
+        subtitle: 'Quay lại sau hoặc thêm gu ẩm thực để tìm thêm bạn ăn.',
+        actionLabel: 'Tải lại',
+        onAction: _load,
+      );
+    }
+    return Column(
+      children: [
+        Expanded(child: _buildCardStack()),
+        _buildActionButtons(),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
+
+  Widget _buildMessage({
+    required String emoji,
+    required String title,
+    String? subtitle,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 56)),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.display(
+                size: 20,
+                weight: FontWeight.w800,
+                color: AppColors.ink,
+                letterSpacing: -0.5,
+              ),
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.body(
+                  size: 14,
+                  color: AppColors.ink70,
+                  height: 1.5,
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            AnmCTA(label: actionLabel, onTap: onAction, fullWidth: false),
+          ],
         ),
       ),
     );
@@ -103,34 +303,18 @@ class _SwipeViewState extends State<SwipeView>
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: () => Navigator.maybePop(context),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.ink.withValues(alpha: 0.06),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.arrow_back,
-                size: 18,
-                color: AppColors.ink,
-              ),
-            ),
-          ),
+          if (Navigator.canPop(context))
+            GestureDetector(
+              onTap: () => Navigator.maybePop(context),
+              child: _circleIcon(Icons.arrow_back),
+            )
+          else
+            const SizedBox(width: 40),
           Expanded(
             child: Column(
               children: [
                 Text(
-                  'SWIPE CHO QUÁN',
+                  'QUẸT BẠN ĂN MATE',
                   style: AppTextStyles.mono(
                     size: 10,
                     weight: FontWeight.w700,
@@ -140,7 +324,7 @@ class _SwipeViewState extends State<SwipeView>
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  widget.restaurantName,
+                  'Hợp gu thì quẹt phải nha',
                   style: AppTextStyles.body(
                     size: 13,
                     weight: FontWeight.w700,
@@ -151,33 +335,35 @@ class _SwipeViewState extends State<SwipeView>
               ],
             ),
           ),
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.ink.withValues(alpha: 0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Icon(
-              Icons.settings_outlined,
-              size: 18,
-              color: AppColors.ink,
-            ),
-          ),
+          GestureDetector(onTap: _load, child: _circleIcon(Icons.refresh)),
         ],
       ),
     );
   }
 
+  Widget _circleIcon(IconData icon) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.ink.withValues(alpha: 0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Icon(icon, size: 18, color: AppColors.ink),
+    );
+  }
+
   Widget _buildCardStack() {
     final rotation = _dragOffset.dx / 1200;
+    final hasNext = _candidates != null && _index + 1 < _candidates!.length;
+    final hasNext2 = _candidates != null && _index + 2 < _candidates!.length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -185,27 +371,29 @@ class _SwipeViewState extends State<SwipeView>
         alignment: Alignment.center,
         children: [
           // Back card 2
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 16.0, 0.0, 1.0)
-              ..rotateZ(3 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.5,
-              child: _buildCard(isInteractive: false),
+          if (hasNext2)
+            Transform(
+              transform: Matrix4.identity()
+                ..translateByDouble(0.0, 16.0, 0.0, 1.0)
+                ..rotateZ(3 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.5,
+                child: _buildCard(isInteractive: false),
+              ),
             ),
-          ),
           // Back card 1
-          Transform(
-            transform: Matrix4.identity()
-              ..translateByDouble(0.0, 8.0, 0.0, 1.0)
-              ..rotateZ(1.5 * math.pi / 180),
-            alignment: Alignment.bottomCenter,
-            child: Opacity(
-              opacity: 0.75,
-              child: _buildCard(isInteractive: false),
+          if (hasNext)
+            Transform(
+              transform: Matrix4.identity()
+                ..translateByDouble(0.0, 8.0, 0.0, 1.0)
+                ..rotateZ(1.5 * math.pi / 180),
+              alignment: Alignment.bottomCenter,
+              child: Opacity(
+                opacity: 0.75,
+                child: _buildCard(isInteractive: false),
+              ),
             ),
-          ),
           // Front card (interactive)
           GestureDetector(
             onPanUpdate: _handleDragUpdate,
@@ -218,7 +406,7 @@ class _SwipeViewState extends State<SwipeView>
                 ..translateByDouble(_dragOffset.dx, _dragOffset.dy, 0.0, 1.0)
                 ..rotateZ(rotation),
               alignment: Alignment.center,
-              child: _buildCard(isInteractive: true),
+              child: _buildCard(isInteractive: true, cand: _current),
             ),
           ),
         ],
@@ -226,7 +414,7 @@ class _SwipeViewState extends State<SwipeView>
     );
   }
 
-  Widget _buildCard({required bool isInteractive}) {
+  Widget _buildCard({required bool isInteractive, MatchCandidate? cand}) {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -249,223 +437,137 @@ class _SwipeViewState extends State<SwipeView>
           children: [
             Stack(
               children: [
-                PhotoSlot(
-                  width: double.infinity,
-                  height: 320,
-                  radius: 0,
-                  label: 'PHOTO',
-                ),
+                _cardPhoto(cand),
                 if (isInteractive) ...[
-                  // Like/Nope overlay indicators
                   if (_dragOffset.dx > 30)
                     Positioned(
                       top: 24,
                       left: 24,
-                      child: Transform.rotate(
-                        angle: -0.4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.berry,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Text(
-                            'THÈM',
-                            style: AppTextStyles.mono(
-                              size: 16,
-                              weight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
-                      ),
+                      child: _stampLabel('THÈM', AppColors.berry, -0.4),
                     ),
                   if (_dragOffset.dx < -30)
                     Positioned(
                       top: 24,
                       right: 24,
-                      child: Transform.rotate(
-                        angle: 0.4,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.glaucous,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                          child: Text(
-                            'PASS',
-                            style: AppTextStyles.mono(
-                              size: 16,
-                              weight: FontWeight.w800,
-                              color: Colors.white,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                        ),
+                      child: _stampLabel('PASS', AppColors.glaucous, 0.4),
+                    ),
+                  if (cand != null)
+                    Positioned(
+                      top: 16,
+                      left: 16,
+                      right: 16,
+                      child: Row(
+                        children: [
+                          _badge('💯 Hợp gu ${cand.vibeScore}%'),
+                          const SizedBox(width: 6),
+                          _badge('🍜 ${cand.overlapCount} món chung'),
+                        ],
                       ),
                     ),
-                  // Verified + trust chips
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    right: 16,
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text(
-                                '✓',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Đã xác minh',
-                                style: AppTextStyles.body(
-                                  size: 11,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            '💯 Trust 98',
-                            style: AppTextStyles.body(
-                              size: 11,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ],
               ],
             ),
-            if (isInteractive) _buildCardContent(),
+            if (isInteractive && cand != null) _buildCardContent(cand),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCardContent() {
+  Widget _cardPhoto(MatchCandidate? cand) {
+    final url = cand?.avatarUrl;
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        url,
+        width: double.infinity,
+        height: 320,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) =>
+            PhotoSlot(width: double.infinity, height: 320, radius: 0),
+      );
+    }
+    return PhotoSlot(width: double.infinity, height: 320, radius: 0);
+  }
+
+  Widget _stampLabel(String text, Color color, double angle) {
+    return Transform.rotate(
+      angle: angle,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+        child: Text(
+          text,
+          style: AppTextStyles.mono(
+            size: 16,
+            weight: FontWeight.w800,
+            color: Colors.white,
+            letterSpacing: 1,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _badge(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: AppTextStyles.body(size: 11, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildCardContent(MatchCandidate cand) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                'Khánh, 26',
-                style: AppTextStyles.display(
-                  size: 22,
-                  weight: FontWeight.w800,
-                  color: AppColors.ink,
-                  letterSpacing: -0.5,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColors.mint,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.ink10),
-                ),
-                child: Text(
-                  '0.8 km',
-                  style: AppTextStyles.mono(
-                    size: 10,
-                    color: AppColors.ink70,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ],
+          Text(
+            cand.name,
+            style: AppTextStyles.display(
+              size: 22,
+              weight: FontWeight.w800,
+              color: AppColors.ink,
+              letterSpacing: -0.5,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            '"Vừa tan làm, đang muốn ramen cay + bia lạnh. Có ai cùng?"',
+            cand.overlapFoods.isNotEmpty
+                ? 'Cùng mê: ${cand.overlapFoods.join(' · ')}'
+                : 'Hai bạn có gu ăn uống khá hợp đó!',
             style: AppTextStyles.body(
               size: 13,
               color: AppColors.ink70,
               height: 1.5,
             ),
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              AnmChip(
-                label: '🌶️ Cay 3',
-                active: true,
-                color: AppColors.berry,
-                sm: true,
-              ),
-              AnmChip(label: '💬 Thích tám', sm: true),
-              AnmChip(label: '🍻 Bia hơi', sm: true),
-              AnmChip(label: '🚶 Đi bộ tới', sm: true),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.mint,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.ink10),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+          if (cand.overlapFoods.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                const Text('🍜', style: TextStyle(fontSize: 13)),
-                const SizedBox(width: 6),
-                Text(
-                  'Cũng vừa thêm quán này · 2 phút trước',
-                  style: AppTextStyles.body(
-                    size: 11,
-                    weight: FontWeight.w500,
-                    color: AppColors.ink70,
+                for (final f in cand.overlapFoods.take(4))
+                  AnmChip(
+                    label: f,
+                    active: true,
+                    color: AppColors.berry,
+                    sm: true,
                   ),
-                ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -477,9 +579,33 @@ class _SwipeViewState extends State<SwipeView>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          // Rewind button (undo last swipe)
+          GestureDetector(
+            onTap: (_accepting || _index == 0) ? null : _rewind,
+            child: Opacity(
+              opacity: _index == 0 ? 0.4 : 1.0,
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.glaucous,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.glaucous.withValues(alpha: 0.35),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.replay, color: Colors.white, size: 20),
+              ),
+            ),
+          ),
+          const SizedBox(width: 24),
           // Pass button
           GestureDetector(
-            onTap: () => _animateOut(false),
+            onTap: _accepting ? null : () => _decide(false),
             child: Container(
               width: 56,
               height: 56,
@@ -503,36 +629,15 @@ class _SwipeViewState extends State<SwipeView>
               ),
             ),
           ),
-          const SizedBox(width: 16),
-          // Rewind button
-          GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.glaucous,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.glaucous.withValues(alpha: 0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Icon(Icons.replay, color: Colors.white, size: 20),
-            ),
-          ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 24),
           // Like button with pulse
           GestureDetector(
-            onTap: () => _animateOut(true),
+            onTap: _accepting ? null : () => _decide(true),
             child: AnimatedBuilder(
               animation: _pulseAnimation,
               builder: (context, child) {
                 return Transform.scale(
-                  scale: _pulseAnimation.value,
+                  scale: _accepting ? 1.0 : _pulseAnimation.value,
                   child: Container(
                     width: 72,
                     height: 72,
@@ -548,37 +653,25 @@ class _SwipeViewState extends State<SwipeView>
                         ),
                       ],
                     ),
-                    child: const Icon(
-                      Icons.favorite,
-                      color: Colors.white,
-                      size: 30,
-                    ),
+                    child: _accepting
+                        ? const Center(
+                            child: SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 3,
+                              ),
+                            ),
+                          )
+                        : const Icon(
+                            Icons.favorite,
+                            color: Colors.white,
+                            size: 30,
+                          ),
                   ),
                 );
               },
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Sparkle / Super Like button
-          GestureDetector(
-            onTap: () {},
-            child: Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.wisteria,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.wisteria.withValues(alpha: 0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text('✨', style: const TextStyle(fontSize: 20)),
-              ),
             ),
           ),
         ],

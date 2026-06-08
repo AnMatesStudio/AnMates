@@ -67,7 +67,37 @@ class _TopBar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Eyebrow('HỒ SƠ CỦA TÔI', color: AppColors.ink50),
+          Row(
+            children: [
+              if (Navigator.canPop(context)) ...[
+                GestureDetector(
+                  onTap: () => Navigator.maybePop(context),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.ink10,
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      size: 18,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Eyebrow('HỒ SƠ CỦA TÔI', color: AppColors.ink50),
+            ],
+          ),
           GestureDetector(
             onTap: () {},
             child: Container(

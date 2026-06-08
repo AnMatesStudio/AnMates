@@ -1,0 +1,13 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+httpx>=0.27
+# MCP client (the web-search server is spawned over stdio). Optional at runtime:
+# if `mcp` is not installed the service still boots and the mock provider works.
+mcp>=1.0
+# `uv` provides `uvx`, used to launch the FREE, keyless DuckDuckGo MCP server
+# (uvx duckduckgo-mcp-server). No API key required.
+uv>=0.4
+# Optional, ONLY if you set STRUCTURER=anthropic (paid). Not needed for the free
+# default (STRUCTURER=openai → local LM Studio / Ollama).
+# anthropic>=0.39

@@ -784,7 +784,11 @@ class AnmTabBar extends StatelessWidget {
         activeIcon: Icons.chat_bubble,
         label: 'Chat',
       ),
-      (icon: Icons.person_outline, activeIcon: Icons.person, label: 'Mình'),
+      (
+        icon: Icons.local_fire_department_outlined,
+        activeIcon: Icons.local_fire_department,
+        label: 'Ăn Match',
+      ),
     ];
 
     return Container(

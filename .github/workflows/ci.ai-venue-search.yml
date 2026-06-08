@@ -1,0 +1,136 @@
+name: CI · AI Venue Search (sidecar)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'ai-venue-search/**'
+      - '.github/workflows/ci.ai-venue-search.yml'
+
+concurrency:
+  group: ci.ai-venue-search-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ai-venue-search
+
+jobs:
+  test:
+    name: Pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -r requirements.txt pytest
+
+      - name: Run tests
+        # Mock providers run fully offline — no network / API keys needed.
+        run: pytest -q
+
+  # Required, secret-free gate: verifies the Dockerfile builds on every PR.
+  docker-build:
+    name: Docker build (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (verify Dockerfile)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-venue-search
+          file: ./ai-venue-search/Dockerfile
+          push: false
+          tags: ai-venue-search:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploy the sidecar to its own dev Cloud Run service. The Go API reaches it via
+  # AI_SEARCH_URL (set in ci.go-api.yml). Free + keyless: STRUCTURER=pollinations
+  # (public HTTP, reachable from Cloud Run) + DuckDuckGo MCP search. Same-repo PRs only.
+  deploy-dev:
+    name: Deploy → dev (Cloud Run)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: test
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: dev
+      url: https://ai-venue-search-492509819332.asia-southeast1.run.app
+    env:
+      GCP_PROJECT: anmates-studio
+      GCP_REGION: asia-southeast1
+      SERVICE_NAME: ai-venue-search
+      AR_REPO: anmates-api          # reuse the existing Artifact Registry repo
+      AR_IMAGE: ai-venue-search
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (WIF)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build + push image
+        id: build
+        working-directory: ai-venue-search
+        run: |
+          AR_BASE="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT }}/${{ env.AR_REPO }}/${{ env.AR_IMAGE }}"
+          IMAGE_TAG="${AR_BASE}:dev-${{ github.sha }}"
+          docker build -t "$IMAGE_TAG" .
+          docker push "$IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Cloud Run (dev)
+        run: |
+          # 1Gi/120s headroom: each /suggest spawns the DuckDuckGo MCP subprocess,
+          # fetches pages, then calls Pollinations (free, ~1 req/15s anon).
+          gcloud run deploy ${{ env.SERVICE_NAME }} \
+            --image ${{ steps.build.outputs.image_tag }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed \
+            --allow-unauthenticated \
+            --port 8090 \
+            --memory 1Gi \
+            --cpu 1 \
+            --timeout 120 \
+            --set-env-vars "STRUCTURER=pollinations" \
+            --set-env-vars "GEOCODE_ENABLED=1" \
+            --quiet
+
+      - name: Smoke check /health
+        run: |
+          URL="https://ai-venue-search-492509819332.asia-southeast1.run.app"
+          for i in 1 2 3 4 5 6; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" "$URL/health")
+            if [ "$status" = "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: got $status, retrying in 10s..."
+            sleep 10
+          done
+          echo "::error::Health check failed after 6 attempts"
+          exit 1

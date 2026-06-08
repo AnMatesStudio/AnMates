@@ -89,6 +89,19 @@ class ApiMessage {
   );
 }
 
+/// Result of a like swipe. [matched] is true only when the other user had
+/// already liked back; [matchId] is then the created/existing match id.
+class SwipeResult {
+  final bool matched;
+  final String? matchId;
+  SwipeResult({required this.matched, this.matchId});
+
+  factory SwipeResult.fromJson(Map<String, dynamic> j) => SwipeResult(
+    matched: j['matched'] as bool? ?? false,
+    matchId: (j['match'] as Map<String, dynamic>?)?['id'] as String?,
+  );
+}
+
 class MatchService {
   static final MatchService _instance = MatchService._();
   MatchService._();
@@ -103,12 +116,21 @@ class MatchService {
         .toList();
   }
 
-  // accept takes the OTHER USER's UUID, not a match id.
-  Future<Map<String, dynamic>> acceptMatch(String userId) async {
+  /// Record a like/pass on another user. A reciprocated like creates the match
+  /// (mutual-like gate) — [SwipeResult.matched] is then true.
+  Future<SwipeResult> swipe(String targetUserId, bool liked) async {
     final data =
-        await _api.post('/api/v1/matches/$userId/accept')
+        await _api.post(
+              '/api/v1/swipes',
+              body: {'target_id': targetUserId, 'liked': liked},
+            )
             as Map<String, dynamic>;
-    return data;
+    return SwipeResult.fromJson(data);
+  }
+
+  /// Undo the caller's most recent swipe (rewind).
+  Future<void> undoSwipe() async {
+    await _api.post('/api/v1/swipes/undo');
   }
 
   Future<List<ApiMatch>> getConversations() async {

@@ -71,6 +71,22 @@ type NoiLauProgress struct {
 	LastActivity  *time.Time `json:"last_activity"`
 }
 
+// Booking is a First Date plan for a match: a venue + time proposed by one member
+// and confirmed by the other. status ∈ proposed|confirmed|cancelled|completed.
+type Booking struct {
+	ID                uuid.UUID `json:"id"`
+	MatchID           uuid.UUID `json:"match_id"`
+	ProposedBy        uuid.UUID `json:"proposed_by"`
+	RestaurantName    string    `json:"restaurant_name"`
+	RestaurantAddress string    `json:"restaurant_address"`
+	Lat               *float64  `json:"lat,omitempty"`
+	Lng               *float64  `json:"lng,omitempty"`
+	ScheduledAt       time.Time `json:"scheduled_at"`
+	Status            string    `json:"status"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
 // MatchCandidate is what GET /api/matches returns — not persisted.
 type MatchCandidate struct {
 	UserID       uuid.UUID `json:"user_id"`

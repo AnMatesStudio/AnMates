@@ -20,6 +20,13 @@ const _devBypassSecret = String.fromEnvironment(
 const _devTestPhone = '+84999000001';
 const _devTestName = 'Dev User';
 
+// Show the dev bypass when the API points at localhost (local dev) — this also
+// covers the Docker `flutter build web --release` build where kDebugMode is false.
+// Never enabled against a remote API. Backend still enforces DEV_MODE + the secret.
+final bool _devBypassEnabled = kDebugMode ||
+    apiBaseUrl.contains('localhost') ||
+    apiBaseUrl.contains('127.0.0.1');
+
 // Must match the <div id="..."> in web/index.html.
 const _recaptchaContainerId = 'recaptcha-container';
 const _otpRequestTimeout = Duration(seconds: 90);
@@ -247,7 +254,7 @@ class _PhoneInputViewState extends State<PhoneInputView> {
                                 ? AppColors.berry
                                 : AppColors.ink30,
                           ),
-                          if (kDebugMode) ...[
+                          if (_devBypassEnabled) ...[
                             const SizedBox(height: 12),
                             _DevModeButton(
                               loading: _loading,

@@ -23,6 +23,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -113,13 +114,59 @@ func run(log *slog.Logger) error {
 	matchSvc := services.NewMatchingService(pool)
 	chatSvc := services.NewChatService(pool)
 	noiSvc := services.NewNoiLauService(pool)
+	locSvc := services.NewLocationService(pool)
+	bookingSvc := services.NewBookingService(pool)
+
+	// AI Concierge — venue source is pluggable (see services.VenueProvider):
+	//   AI_SEARCH_URL set ⇒ web-search path (ai-venue-search service, no map/DB ingest).
+	//   else AI_BASE_URL set ⇒ legacy DB+LLM path (restaurants table + model ranking).
+	//   neither ⇒ disabled ⇒ nil seam ⇒ chat behaves exactly as before.
+	var concierge handlers.ConciergeFirer
+	var conciergeSvc *services.ConciergeService
+	var webSearchProvider *services.WebSearchProvider
+	if cfg.AISearchURL != "" || cfg.AIBaseURL != "" {
+		aiUserID, perr := uuid.Parse(cfg.AIUserID)
+		if perr != nil {
+			return fmt.Errorf("AI_USER_ID invalid uuid: %w", perr)
+		}
+
+		var provider services.VenueProvider
+		mode := "db+llm"
+		if cfg.AISearchURL != "" {
+			webSearchProvider = services.NewWebSearchProvider(cfg.AISearchURL)
+			provider = webSearchProvider
+			mode = "web-search"
+		} else {
+			llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
+			provider = services.NewDBLLMVenueProvider(services.NewVenueEngine(pool), llm)
+		}
+
+		conciergeSvc = services.NewConciergeService(pool, provider, hub,
+			services.ConciergeConfig{
+				AIUserID:       aiUserID,
+				TriggerPoints:  cfg.AITriggerPoints,
+				WarmPoints:     cfg.AIWarmPoints,
+				CandidateLim:   cfg.AICandidateLimit,
+				RadiusM:        cfg.AISearchRadiusM,
+				MaxSeparationM: cfg.AIMaxSeparationM,
+				BudgetMin:      cfg.AIBudgetMin,
+				BudgetMax:      cfg.AIBudgetMax,
+				Model:          cfg.AIModel,
+			}, log)
+		concierge = conciergeSvc
+		log.Info("AI Concierge enabled", "mode", mode, "search_url", cfg.AISearchURL, "trigger_points", cfg.AITriggerPoints, "warm_points", cfg.AIWarmPoints)
+	} else {
+		log.Info("AI Concierge disabled (set AI_SEARCH_URL or AI_BASE_URL)")
+	}
 
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
 	userH := handlers.NewUser(userSvc)
 	wlH := handlers.NewWishlist(wlSvc)
 	matchH := handlers.NewMatching(matchSvc)
-	chatH := handlers.NewChat(chatSvc, hub)
+	chatH := handlers.NewChat(chatSvc, hub, concierge)
 	noiH := handlers.NewNoiLau(noiSvc)
+	locH := handlers.NewLocation(locSvc)
+	bookingH := handlers.NewBooking(bookingSvc)
 	jwtMW := middleware.JWT(cfg.JWTSecret)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -152,15 +199,38 @@ func run(log *slog.Logger) error {
 	auth.Patch("/profile/preferences", userH.UpdatePreferences)
 	auth.Patch("/profile/complete-onboarding", userH.CompleteOnboarding)
 
+	auth.Put("/me/location", locH.Update)
+
 	auth.Get("/wishlist", wlH.List)
 	auth.Post("/wishlist", wlH.Create)
 	auth.Delete("/wishlist/:id", wlH.Delete)
 
 	auth.Get("/matches", matchH.List)
-	auth.Post("/matches/:id/accept", matchH.Accept)
+	auth.Post("/swipes", matchH.Swipe)
+	auth.Post("/swipes/undo", matchH.Undo)
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
 	auth.Get("/matches/:id/progress", noiH.Get)
+
+	// First Date booking: one member proposes a venue+time, the other confirms.
+	auth.Post("/matches/:id/booking", bookingH.Propose)
+	auth.Get("/matches/:id/booking", bookingH.Get)
+	auth.Post("/matches/:id/booking/confirm", bookingH.Confirm)
+	auth.Post("/matches/:id/booking/cancel", bookingH.Cancel)
+
+	// On-demand venue re-suggest with a chosen anchor (midpoint | me | mate).
+	// Only when the concierge is enabled; returns a card without posting to chat.
+	if conciergeSvc != nil {
+		conciergeH := handlers.NewConcierge(chatSvc, conciergeSvc)
+		auth.Post("/matches/:id/concierge/suggest", conciergeH.Suggest)
+	}
+
+	// Discovery free-text web-search: GET /api/v1/venues/search?q=...&lat=...&lng=...
+	// Only enabled when the web-search sidecar is configured.
+	if webSearchProvider != nil {
+		venueH := handlers.NewVenue(webSearchProvider)
+		auth.Get("/venues/search", venueH.Search)
+	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())

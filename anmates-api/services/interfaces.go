@@ -35,7 +35,8 @@ type WishlistServicer interface {
 
 type MatchingServicer interface {
 	ListCandidates(ctx context.Context, userID uuid.UUID) ([]models.MatchCandidate, error)
-	AcceptMatch(ctx context.Context, userID, targetID uuid.UUID) (*models.Match, error)
+	Swipe(ctx context.Context, userID, targetID uuid.UUID, liked bool) (*SwipeResult, error)
+	Undo(ctx context.Context, userID uuid.UUID) error
 	Conversations(ctx context.Context, userID uuid.UUID) ([]models.Conversation, error)
 }
 
@@ -44,10 +45,17 @@ type ChatServicer interface {
 	History(ctx context.Context, matchID uuid.UUID, cursor string, limit int) ([]models.Message, error)
 	CheckPaywall(ctx context.Context, matchID uuid.UUID) (locked bool, err error)
 	SaveMessage(ctx context.Context, matchID, senderID uuid.UUID, content, msgType string) (*models.Message, error)
-	IncrementPoints(ctx context.Context, matchID uuid.UUID)
+	IncrementPoints(ctx context.Context, matchID uuid.UUID) (before, after int)
 }
 
 type NoiLauServicer interface {
 	IsMember(ctx context.Context, matchID, userID uuid.UUID) bool
 	GetProgress(ctx context.Context, matchID uuid.UUID) (*models.NoiLauProgress, error)
+}
+
+type BookingServicer interface {
+	Propose(ctx context.Context, matchID, userID uuid.UUID, in ProposeInput) (*models.Booking, error)
+	Get(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
+	Confirm(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
+	Cancel(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
 }

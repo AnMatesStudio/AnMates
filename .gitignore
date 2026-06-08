@@ -110,3 +110,17 @@ GoogleService-Info.plist
 *.app
 *.xcarchive
 *design/*
+
+# ===========================
+# Python (ai-venue-search sidecar)
+# ===========================
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ===========================
+# E2E / dev test artifacts (local only — not for PR)
+# ===========================
+.dev-e2e/
+/videos/
+.claude/scheduled_tasks.lock

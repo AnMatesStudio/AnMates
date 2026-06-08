@@ -1,5 +1,79 @@
 # Current Task
 
+**Status (2026-06-08) — FEATURE First Date / Booking (nhóm E #1) done full-stack:** User chọn build First Date trước. Backend: migration `011_bookings` (1 active booking/match, partial unique index), `services/booking.go` (Propose replace-active / Get / Confirm chỉ non-proposer / Cancel + validateProposal pure-tested), `BookingServicer`, `handlers/booking.go`, 4 routes `POST/GET /matches/:id/booking` + `/confirm` + `/cancel`. Flutter: `booking_service.dart`, `booking_view.dart` rewrite mock→real (calendar động theo tháng hiện tại, load existing, banner propose/confirm/cancel, CTA propose thật), wire chat "Chốt First Date"→BookingView (venue từ AI card gần nhất). Verify: go build+vet+test ok, **e2e_full_flow 31/31** (step 13: propose/confirm-own-409/confirm/cancel), flutter build OK, **booking UI smoke PASS** (tap CTA→BookingView→propose→DB row). Defer: chat broadcast khi confirm, voucher/check-in (cần Live Tracking + Trust). Nhóm E còn: Trust Score, Lá thư, Safety, Selfie/Tracking/Check-in/Review.
+
+---
+
+**Status (2026-06-08) — "Làm hết" nhóm C+D done:** **C1** bỏ message paywall chết (handlers/chat.go, seam giữ cho Phase-2). **C2** dev deep-link trong main.dart gate sau `_devDeepLinkEnabled` (kDebugMode||localhost) → inert ở prod, vẫn chạy dev/e2e (hết rủi ro "revert before ship"). **D** e2e_full_flow.js +step 12: profile GET/PUT, wishlist CRUD, swipe+undo → **e2e 26/26** (was 20). Verify: Go+Dart build OK, go vet+test ok, e2e 26/26, D1 deep-link vẫn PASS. **Defer:** A1-`restaurant_id` (web-search không ground DB; chưa có consumer — cần booking/DB-ingest trước), **nhóm E** (letters/booking/tracking/checkin/review/trust/safety) = 6-8 feature lớn + phụ thuộc product open-questions → cần build từng cái, KHÔNG làm 1 lượt; chờ user chọn feature ưu tiên.
+
+---
+
+**Status (2026-06-08) — "Làm tất cả": ISSUE-9 + B1 + D1 + R-006 done (+ live Thủ Đức test):** Sau khi fix A1/A2/B2: (1) live test "địa chỉ hiện tại" — IP-geo trả Gò Vấp sai (vị trí ISP), geocode đúng "Đường số 2, Phường Thủ Đức"=10.8383,106.7497 → card ra toàn quán Thủ Đức (King BBQ Buffet/Sumo Yakiniku/Buffet Sống Sắc), video quay lại OK; (2) **ISSUE-9** distanceLabel ẩn "0m" khi lat/lng=0 (rebuild flutter_web xác nhận trực quan); (3) **B1** ConciergeService.fire chờ prewarm in-flight (channel) → hết 502, verify SETTLE_MS=0 card vẫn fire 20/20; (4) **D1** thêm `.dev-e2e/e2e_card_buttons.js` (Playwright tap "Gợi ý cho Mate"→assert WS send) PASS; (5) **R-006** viết (A1/A2/B2, user-confirmed). Verify: pytest 11, go vet+test ok, e2e 20/20, D1 PASS. Còn lại (chưa làm): A1-restaurant_id (cần DB ingest), nhóm C khác (C1 dead paywall, C2 temp deep-link), nhóm D mở rộng (auth thật/wishlist/swipe-undo/profile), nhóm E (scope chưa build).
+
+---
+
+**Status (2026-06-08) — E2E coverage audit + FIX nhóm A+B (AI Concierge data quality + ops):** Đánh giá độ phủ `e2e_full_flow.js`: chỉ cover ~8/24 chặng journey ở tầng API/WS (UI Flutter 0%, auth thật bypass bằng dev-login, nhiều endpoint built-but-untested, ~13 chặng Phase-1 chưa build) — xem ma trận + tổng hợp 8 issue (A/B/C/D/E) trong sessions/2026-06-08-e2e-full-flow-issues.md. User chọn fix **nhóm A+B**: **A2** intro hết nêu tên khu vực sai ("Xuân Hòa" do OSM/Nominatim đều trả district sai cho midpoint trung tâm HCM) — bỏ prepend area + prompt cấm nêu phường/quận; **A1** toạ độ venue: radius guard động (≤6km) + chỉ tin street-address, quán ngoài vùng→lat/lng=0 (hết lỗi Subin BBQ Thủ Đức ghim 184m); **B2** api container "unhealthy"→healthy (healthcheck localhost→127.0.0.1, busybox wget IPv6 vs Go IPv4). Verify: pytest 11 passed, rebuild sidecar + api healthy, E2E 20/20, card thật 3 quán in-area (1.10/1.96/2.85km) dist khớp, intro "giữa 2 bạn". Chỉ sửa Python sidecar + docker-compose (không Go/Dart). ⚠️ Chưa user-confirm UI Flutter trực quan → R-006 khi confirm. Còn lại: A1-restaurant_id, B1 (502), nhóm C/D/E.
+
+---
+
+**Status (2026-06-08) — E2E full-flow GREEN + paywall removed cho MVP market test:** Theo chỉ đạo "làm để test thị trường" → bỏ paywall (MVP free). `services/chat.go CheckPaywall` → luôn `return false` (gỡ hard-lock level-3, BLOCKER-004 resolved). Rebuild image → **E2E full-flow `.dev-e2e/e2e_full_flow.js` 20/20 PASS**: dev-login → onboarding → preferences → location → deck(overlap=6) → mutual-like → match → conversations → WS 2 chiều → Vibe leo **0→72 tự nhiên** (không còn kẹt 30) → **AI Concierge `ai_venue_card` fire end-to-end** (King BBQ · Subin BBQ, web-search + LM Studio). ⚠️ Pending user confirm + chưa verify UI Flutter trực quan (mới API+WS). NB sidecar 502 nếu warm(60)+fire(70) gọi LLM đồng thời (chỉ khi gửi burst <1s; chat thật cách phút → OK). See sessions/2026-06-07-e2e-full-flow-test-2users-chat.md.
+
+**Status (2026-06-07) — E2E full-flow test (từ đầu → 2 user chat + AI card):** Test toàn bộ luồng thật bằng script Node API+WS mới `.dev-e2e/e2e_full_flow.js`: dev-login → onboarding → preferences → location → discovery deck (overlap=6) → mutual-like swipe → match → conversations → WebSocket 2 chiều → Vibe climb → **AI Concierge `ai_venue_card` fire end-to-end** (3 quán thật từ web-search + LM Studio). **16/16 bước flow chính PASS.** Phát hiện+xử lý 3 vấn đề: (A env) API container chạy image STALE thiếu `010_swipes` → `docker compose build api`; (B data) pgdata volume local thiếu cột `noi_lau_progress.level` (do migration phantom cũ `003_noi_lau_drop_level.sql` đã bỏ khỏi repo) → match creation 500 → `ALTER TABLE … ADD COLUMN level`; (C ⚠️ design) **paywall hard-lock level-3 (30đ) chặn Concierge trigger (70đ)** → raise BLOCKER-004, cần user quyết. Không sửa source production. See sessions/2026-06-07-e2e-full-flow-test-2users-chat.md.
+
+---
+
+**Status (2026-06-07) — Prod CD gaps fixed (pre-merge):** Before merging `feat/ai-concierge-map`→main, fixed 2 deploy gaps that would break AI Concierge on prod: (1) `cd.go-api.yml` prod deploy was missing `AI_SEARCH_URL` (Cloud Run `--set-env-vars` replaces env → would disable Concierge) — added it mirroring dev; (2) `ai-venue-search/` had no `cd.*` → created `cd.ai-venue-search.yml` (push main → Cloud Run 8090). ⚠️ Not yet run in GH Actions; verify repo var `AI_SEARCH_URL`. Flutter Android/iOS still have no CD by design. See sessions/2026-06-07-prod-cd-gaps-ai-search-url-sidecar.md.
+
+---
+
+**Status (2026-06-06) — Mutual-like + wishlist CRUD (follow-ups resolved):** On top of the swipe→match→chat flow below, resolved all open items. **Mutual-like gate:** new `010_swipes.sql` + `swipes` table; `AcceptMatch`→`Swipe(like/pass)` (match created only on reciprocated like) + `Undo` (rewind); routes `/matches/:id/accept`→`POST /swipes` + `/swipes/undo`; `ListCandidates` excludes already-swiped. **Wishlist real:** new `wishlist_service.dart` + `WishlistView` rewritten mock→CRUD (list/add-sheet/delete). **Matching interest set** = food_tags ∪ wishlist food_name ∪ wishlist food_category (3 disjoint vocabularies), threshold raised back to **≥2**. Flutter `swipe_view` mutual-like UX + rewind restored; `smoke_test` moved to /swipes. **Verified:** Docker go build/vet rc=0 (incl smoke), `go test ./services` ok; **matching SQL validated LIVE on Postgres 16** (`.dev-e2e/matching_sql_check.sql`). ⚠️ Flutter not analyzed on host — verify via `./start.sh`. **TODO (user):** 2 real-OTP users, onboard with ≥2 shared food tags (or both wishlist same category), Ăn Match → both swipe right → chat. See sessions/2026-06-06-real-swipe-match-chat-flow.md (Part 2).
+
+---
+
+**Status (2026-06-06) — Real swipe→match→chat flow:** Wired the mate-discovery flow end-to-end for real phone-OTP users. Bottom tab 4 "Mình"→**"Ăn Match"** (opens `SwipeView`); profile now reached via avatar tap on Khám phá (+back button added). `SwipeView` rewritten mock→real (loads candidates + currentUserId, swipe-right/♥ → `acceptMatch` → `MatchView` → "Hello" → live `ChatDetailView(matchId)`; loading/error/empty states). **BLOCKER fixed:** matching scored on `wishlists` (never written by app → empty deck) → switched `ListCandidates` + `AcceptMatch` to **`users.food_tags` Jaccard**, threshold ≥1 shared tag, so 2 onboarded users are matchable immediately. Accept stays one-sided+instant. **Verified:** Docker go build/vet rc=0, `go test ./services` ok (smoke needs live :8080). ⚠️ Flutter NOT analyzed on host (no PATH) — verify via `./start.sh`. **TODO (user):** create 2 users via real OTP, onboard with ≥1 common food tag, test Ăn Match → swipe → chat at http://127.0.0.1:54180. See sessions/2026-06-06-real-swipe-match-chat-flow.md.
+
+---
+
+**Status (2026-06-06):** AI Concierge **pre-warm cache** + **2-user side-by-side E2E** done (code, build/test GREEN; video not recorded yet). Latency fix: `AI_WARM_POINTS` (default trigger−10=60) → concierge prefetches the slow web-search in background when Vibe enters `[warm,trigger)`, caches in-memory (10min TTL), `fire` posts instantly via `takeWarm` (falls back to fresh `compute` on miss). Pure `decideAction` + extracted `compute` (status ok/error/skipped) keep run-row granularity; idempotency unchanged. New 2-phone video tooling in `.dev-e2e/` (2nd flutter_web port 54181 for distinct localStorage; `e2e_two_users.js` drives An↔Bình chat 58→70, card on both phones, reload for full-history shot; `run-e2e.ps1`). Verified Docker golang:1.25: build+vet clean, services 10/10 (new TestDecideAction). **TODO (user):** run `.dev-e2e\run-e2e.ps1` w/ LM Studio up to record the video; revert `main.dart` TEMP deep-link before commit. See sessions/2026-06-06-ai-concierge-prewarm-2user-e2e.md.
+
+---
+
+**Status (2026-06-04):** AI Concierge venue source SWAPPED map/DB → **MCP web-search**, sidecar LIVE-VERIFIED in Docker. `ai-venue-search/` (FastAPI) wired into `docker-compose.yml` (service `ai_venue_search`:8090, healthcheck, host-gateway); api gets `AI_SEARCH_URL=http://ai_venue_search:8090`. **FREE, no keys**: DuckDuckGo MCP search + Nominatim reverse-geocode + structurer chain Pollinations→LM Studio (FallbackStructurer; Pollinations anon 429s → LM Studio qwen3.5-9b w/ strict json_schema carries it). `POST /suggest` confirmed 200 w/ concrete VN venue names. Go side: `VenueProvider` interface + `WebSearchProvider`(web) / `DBLLMVenueProvider`(legacy fallback). **Run:** `./start.sh` or `docker compose up --build`. ⚠️ Go build still unverified on host (no Go PATH — covered by httptest + Docker build). Limitation: web-search → lat/lng often 0 (weak map pins), names not 100% grounded. Tip: `STRUCTURER=openai` makes LM Studio primary (skips Pollinations 429). See sessions/2026-06-04-ai-concierge-mcp-websearch.md.
+
+---
+
+## Previous status
+
+**Status:** AI Concierge chat slice IMPLEMENTED (code complete) — ⚠️ NOT YET built/tested locally (Go+Flutter toolchains not on host PATH; build via Docker `start.sh` / CI). Flutter chat view still a MOCK (card shown from sample data; WS delivery is the remaining seam).
+**Verification pending (user/Docker):** `docker compose` build, `go test ./...`, `go vet`, `flutter analyze`, `flutter test`. Live E2E needs LM Studio at `AI_BASE_URL=http://host.docker.internal:1234/v1` + a model (Qwen2.5-14B suits RTX 5080 16GB). Then: 2 users + match + push locations + chat until points≥70 → expect `ai_venue_card` from "Trợ lý ĂnMates" with 3 seeded venues, once.
+**✅ WebSocket wired (2026-06-04):** `chat_socket.dart` + live `chat_detail_view` (matchId → load history+progress, connect WS, render real `ai_venue_card`, send over socket) + `chat_list_view` loads real conversations. Demo mode preserved when matchId null.
+**LM Studio (RTX 5080) — RESOLVED:** qwen3.5-9b is a reasoning model → LM Studio puts JSON in `reasoning_content` (content empty). Fixed in `llm.go`: fallback to reasoning_content + max_tokens=2000. Verified end-to-end: clean Vietnamese, 1.3s, correct budget filter + anti-hallucination. **9b now preferred.** Dev `.env`: `AI_BASE_URL=http://host.docker.internal:1234/v1`, `AI_MODEL=qwen/qwen3.5-9b`. (vl-7b also works via content path; CJK guard still in place.)
+**Next seam:** replace seed venues with Goong ingest; add `user_prefs_budget`; investigate qwen3.5-9b empty-content (try disabling reasoning / non-strict json). Still pending: run `go test`/`flutter analyze`/`flutter test` in Docker/CI; full live E2E.
+
+---
+
+## Previous status
+
+**Status:** SPEC ready (spec-driven) — awaiting go-ahead to implement AI Concierge chat slice.
+**Owner:** main-assistant
+**Started at:** 2026-06-03
+**Last updated:** 2026-06-03
+**Active spec:** `docs/specs/ai-concierge-chat-spec.md` — vertical slice: Vibe `points>=70` → Claude agent posts top-3 seeded venues as `ai_venue_card` in chat. ⚠️ **Google Maps PROHIBITED in VN** → data/routing = **Goong**; render = OSM tiles. Locked: trigger 70, app pushes location (user_locations), seed restaurants for slice, Haiku agent behind LLMClient interface. Migrations 006-008. **Steps 1-4+6-8 implementable WITHOUT keys (fake LLM); live E2E needs ANTHROPIC_API_KEY.** Prereq from user: Anthropic API key (+ later Goong key). Implementation not started.
+
+---
+
+## Previous task (archived)
+
+**Status:** delivered (pending review) — Meetup & Dining Map master plan authored.
+**Owner:** main-assistant
+**Started at:** 2026-06-03
+**Last updated:** 2026-06-03
+**Goal:** Design a complete map-based meetup planning experience (find → evaluate → agree → book → meet a restaurant for matched users). Output: `docs/meetup-map-master-plan.md` (18 sections, Mermaid). Key decisions: pragmatic-incremental Riverpod for new `map/restaurants/booking` features only; flutter_map+OSM/Overpass for MVP with Mapbox (Directions/Matrix) as V2 upgrade; map becomes a core MVP surface (supersedes prior "no full map in Phase 1"). New backend: PostGIS + `restaurants/venue_suggestions/bookings/user_locations/favorite_restaurants/meetup_recommendations/location_sessions` tables + APIs. Doc-only, no code written. See sessions/2026-06-03-meetup-map-master-plan.md. ⚠️ Pending: user/team review + verify Cloud SQL PostGIS availability before MAP-R-1.
+
+---
+
+## Previous task (archived)
+
 **Status:** done — CI→dev deploy running. R-005 written.
 **Owner:** main-assistant
 **Started at:** 2026-06-01
