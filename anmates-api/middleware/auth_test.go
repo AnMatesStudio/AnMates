@@ -26,12 +26,12 @@ func TestJWT_NoToken_Returns401_HandlerNotRun(t *testing.T) {
 	ran := false
 	app := newTestApp(&ran)
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != fiber.StatusUnauthorized {
 		t.Errorf("want 401, got %d", resp.StatusCode)
@@ -45,13 +45,13 @@ func TestJWT_GarbageToken_Returns401_HandlerNotRun(t *testing.T) {
 	ran := false
 	app := newTestApp(&ran)
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
 	req.Header.Set("Authorization", "Bearer this.is.garbage")
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != fiber.StatusUnauthorized {
 		t.Errorf("want 401, got %d", resp.StatusCode)
@@ -71,13 +71,13 @@ func TestJWT_ValidToken_Returns200_HandlerRan_UserIDCorrect(t *testing.T) {
 		t.Fatalf("SignAccessToken: %v", err)
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "/probe", nil)
+	req := httptest.NewRequest(http.MethodGet, "/probe", http.NoBody)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatalf("app.Test: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != fiber.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
