@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/ai_venue_card.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
+import '../booking/booking_view.dart';
 
 // ─── Message model ────────────────────────────────────────────────────────────
 
@@ -141,9 +142,22 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   // Inbound = other user's messages + AI cards (the hub excludes our own sends).
   void _onIncoming(ApiMessage m) {
     if (!mounted) return;
-    setState(() => _items.add(_toItem(m)));
+    setState(() {
+      _items.add(_toItem(m));
+      // Each real chat message bumps the Nồi Lẩu vibe +1 server-side; mirror that
+      // live so the meter climbs as the two of you talk. AI cards / system pills
+      // don't earn points, so skip them.
+      if (_countsForVibe(m.msgType)) _bumpVibe();
+    });
     _scrollToBottom();
   }
+
+  // Mirrors the backend +1-per-message Nồi Lẩu increment (streak bonus aside).
+  // Authoritative value is reloaded from /progress on open; this keeps the meter
+  // moving in real time between loads.
+  void _bumpVibe() => _vibePercent = (_vibePercent + 1).clamp(0, 100);
+
+  bool _countsForVibe(String msgType) => msgType == 'text' || msgType == 'image';
 
   @override
   void dispose() {
@@ -175,6 +189,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     setState(() {
       _items.add(_ChatItem(true, 'text', text));
       _textCtrl.clear();
+      // Our own sends never echo back over the socket, so bump the vibe here to
+      // keep both sides symmetric (peer bumps in _onIncoming).
+      _bumpVibe();
     });
     _scrollToBottom();
   }
@@ -488,8 +505,37 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     );
   }
 
+  // Most recent AI-suggested venue (first pick of the latest ai_venue_card), used
+  // to pre-fill the First Date booking with a concrete place. Null if none yet.
+  AiVenuePick? _lastSuggestedVenue() {
+    for (final it in _items.reversed) {
+      if (it.type == 'ai_venue_card') {
+        final c = AiVenueCardContent.tryParse(it.content);
+        if (c != null && c.picks.isNotEmpty) return c.picks.first;
+      }
+    }
+    return null;
+  }
+
+  void _openBooking() {
+    final v = _lastSuggestedVenue();
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => BookingView(
+        matchId: widget.matchId,
+        currentUserId: widget.currentUserId,
+        mateName: widget.mateName,
+        restaurantName: v?.name ?? '',
+        restaurantAddress: v?.address ?? '',
+        lat: v?.lat,
+        lng: v?.lng,
+      ),
+    ));
+  }
+
   Widget _buildBookingCTABar() {
-    return Container(
+    return GestureDetector(
+      onTap: _unlocked ? _openBooking : null,
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 10, 12, 4),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -532,6 +578,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 ),
               ],
             ),
+      ),
     );
   }
 

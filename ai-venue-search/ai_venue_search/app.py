@@ -33,3 +33,14 @@ async def suggest(req: SuggestRequest) -> SuggestResponse:
     except Exception as e:  # noqa: BLE001 — surface a clean 502 to the Go caller
         logging.exception("suggest failed")
         raise HTTPException(status_code=502, detail=f"venue search failed: {e}") from e
+
+
+@app.post("/search", response_model=SuggestResponse)
+async def search(req: SuggestRequest) -> SuggestResponse:
+    """Free-text Discovery path. Thin wrapper over suggest; `req.query` must be set
+    by the caller (Go SearchText). Same 502-on-error semantics as /suggest."""
+    try:
+        return await service.suggest(req)
+    except Exception as e:  # noqa: BLE001
+        logging.exception("search failed")
+        raise HTTPException(status_code=502, detail=f"venue search failed: {e}") from e

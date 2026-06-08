@@ -22,6 +22,15 @@ void main() {
       expect(c.picks.first.distanceLabel, '480m');
     });
 
+    test('distanceLabel is empty for an un-geocoded pick (ISSUE-9)', () {
+      // lat/lng=0 means the venue couldn't be placed → no misleading "0m".
+      const json = '{"intro":"x","midpoint":{"lat":10.78,"lng":106.7},'
+          '"picks":[{"restaurant_id":"","name":"Quán Mơ Hồ","lat":0,"lng":0,"distance_m":0,"reason":"r"}]}';
+      final c = AiVenueCardContent.tryParse(json);
+      expect(c, isNotNull);
+      expect(c!.picks.first.distanceLabel, '');
+    });
+
     test('returns null for non-json', () {
       expect(AiVenueCardContent.tryParse('not json'), isNull);
     });

@@ -9,15 +9,20 @@ from pydantic import BaseModel, Field
 
 
 class SuggestRequest(BaseModel):
-    """What the Go concierge asks for: where to look + the shared taste/budget."""
+    """What the Go concierge asks for: where to look + the shared taste/budget.
 
-    lat: float
-    lng: float
+    `query` is a free-text search term for the Discovery web-search path.
+    Empty string (the default) = concierge mode — behaviour is unchanged.
+    Mirror field name: search_client.go `searchReq.Query`, venue_search_service.dart."""
+
+    lat: float = 0.0
+    lng: float = 0.0
     radius_m: int = 4000
     budget_min: int = 0
     budget_max: int = 0
     mood_tags: List[str] = Field(default_factory=list)
     limit: int = 3
+    query: str = ""
 
 
 class Venue(BaseModel):

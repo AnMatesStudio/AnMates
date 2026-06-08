@@ -63,16 +63,15 @@ func (s *ChatService) History(ctx context.Context, matchID uuid.UUID, cursor str
 	return out, nil
 }
 
-// CheckPaywall returns true if the match has reached the level-3 lock.
+// CheckPaywall reports whether the chat is locked behind a paywall.
+//
+// MVP (market test) is FREE — see the locked Phase-1 decision "MVP FREE (no
+// paywall)" and BLOCKER-004: the old level-3 hard-lock (30 pts) blocked the AI
+// Concierge, which only unlocks at 70 pts, so users could never reach the
+// trigger by chatting. Always unlocked for now; reintroduce a quota-based gate
+// (consumer quotas, never token meters) for Phase-2 monetization here.
 func (s *ChatService) CheckPaywall(ctx context.Context, matchID uuid.UUID) (locked bool, err error) {
-	var lvl int
-	err = s.pool.QueryRow(ctx,
-		`SELECT level FROM noi_lau_progress WHERE match_id = $1`, matchID,
-	).Scan(&lvl)
-	if err != nil {
-		return false, nil // no row yet → not locked
-	}
-	return lvl >= 3, nil
+	return false, nil
 }
 
 // SaveMessage persists a message and returns the saved row.

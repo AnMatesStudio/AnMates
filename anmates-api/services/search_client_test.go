@@ -62,3 +62,41 @@ func TestWebSearchProviderHTTPError(t *testing.T) {
 		t.Error("expected error on non-200 response")
 	}
 }
+
+func TestWebSearchProviderSearchText(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search" || r.Method != http.MethodPost {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"intro":"",
+			"cost_tokens":0,
+			"picks":[
+				{"name":"Bún Bò Giáo Toàn","address":"123 Lý Tự Trọng, Q1","rating":4.5,"price_min":50000,"price_max":80000,"lat":10.7769,"lng":106.7009,"distance_m":0,"reason":"nổi tiếng"}
+			]
+		}`))
+	}))
+	defer srv.Close()
+
+	p := NewWebSearchProvider(srv.URL)
+	loc := LatLng{Lat: 10.7769, Lng: 106.7009}
+	picks, err := p.SearchText(context.Background(), "bún bò giáo toàn", loc, 4000, 6)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(picks) != 1 {
+		t.Fatalf("expected 1 pick, got %d", len(picks))
+	}
+	if picks[0].Name != "Bún Bò Giáo Toàn" {
+		t.Errorf("name = %q", picks[0].Name)
+	}
+	// Distance must be recomputed (was 0 in stub; lat/lng match origin so ≈0m is fine,
+	// but it must have gone through the recompute path — check it's an int >= 0).
+	if picks[0].DistanceM < 0 {
+		t.Errorf("distance_m = %d", picks[0].DistanceM)
+	}
+	if picks[0].Rating == nil || *picks[0].Rating != 4.5 {
+		t.Errorf("rating = %v", picks[0].Rating)
+	}
+}

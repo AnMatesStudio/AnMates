@@ -115,6 +115,7 @@ func run(log *slog.Logger) error {
 	chatSvc := services.NewChatService(pool)
 	noiSvc := services.NewNoiLauService(pool)
 	locSvc := services.NewLocationService(pool)
+	bookingSvc := services.NewBookingService(pool)
 
 	// AI Concierge — venue source is pluggable (see services.VenueProvider):
 	//   AI_SEARCH_URL set ⇒ web-search path (ai-venue-search service, no map/DB ingest).
@@ -122,6 +123,7 @@ func run(log *slog.Logger) error {
 	//   neither ⇒ disabled ⇒ nil seam ⇒ chat behaves exactly as before.
 	var concierge handlers.ConciergeFirer
 	var conciergeSvc *services.ConciergeService
+	var webSearchProvider *services.WebSearchProvider
 	if cfg.AISearchURL != "" || cfg.AIBaseURL != "" {
 		aiUserID, perr := uuid.Parse(cfg.AIUserID)
 		if perr != nil {
@@ -131,7 +133,8 @@ func run(log *slog.Logger) error {
 		var provider services.VenueProvider
 		mode := "db+llm"
 		if cfg.AISearchURL != "" {
-			provider = services.NewWebSearchProvider(cfg.AISearchURL)
+			webSearchProvider = services.NewWebSearchProvider(cfg.AISearchURL)
+			provider = webSearchProvider
 			mode = "web-search"
 		} else {
 			llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
@@ -163,6 +166,7 @@ func run(log *slog.Logger) error {
 	chatH := handlers.NewChat(chatSvc, hub, concierge)
 	noiH := handlers.NewNoiLau(noiSvc)
 	locH := handlers.NewLocation(locSvc)
+	bookingH := handlers.NewBooking(bookingSvc)
 	jwtMW := middleware.JWT(cfg.JWTSecret)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -208,11 +212,24 @@ func run(log *slog.Logger) error {
 	auth.Get("/matches/:id/messages", chatH.History)
 	auth.Get("/matches/:id/progress", noiH.Get)
 
+	// First Date booking: one member proposes a venue+time, the other confirms.
+	auth.Post("/matches/:id/booking", bookingH.Propose)
+	auth.Get("/matches/:id/booking", bookingH.Get)
+	auth.Post("/matches/:id/booking/confirm", bookingH.Confirm)
+	auth.Post("/matches/:id/booking/cancel", bookingH.Cancel)
+
 	// On-demand venue re-suggest with a chosen anchor (midpoint | me | mate).
 	// Only when the concierge is enabled; returns a card without posting to chat.
 	if conciergeSvc != nil {
 		conciergeH := handlers.NewConcierge(chatSvc, conciergeSvc)
 		auth.Post("/matches/:id/concierge/suggest", conciergeH.Suggest)
+	}
+
+	// Discovery free-text web-search: GET /api/v1/venues/search?q=...&lat=...&lng=...
+	// Only enabled when the web-search sidecar is configured.
+	if webSearchProvider != nil {
+		venueH := handlers.NewVenue(webSearchProvider)
+		auth.Get("/venues/search", venueH.Search)
 	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.

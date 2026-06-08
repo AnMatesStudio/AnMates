@@ -52,3 +52,10 @@ type NoiLauServicer interface {
 	IsMember(ctx context.Context, matchID, userID uuid.UUID) bool
 	GetProgress(ctx context.Context, matchID uuid.UUID) (*models.NoiLauProgress, error)
 }
+
+type BookingServicer interface {
+	Propose(ctx context.Context, matchID, userID uuid.UUID, in ProposeInput) (*models.Booking, error)
+	Get(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
+	Confirm(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
+	Cancel(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
+}

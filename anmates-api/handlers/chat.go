@@ -110,9 +110,12 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
+		// Paywall seam. MVP is FREE so CheckPaywall always returns false today; this
+		// branch stays as the hook for the Phase-2 quota gate (consumer quotas, never
+		// token meters — see services/chat.go CheckPaywall + BLOCKER-004).
 		locked, _ := ch.svc.CheckPaywall(ctx, matchID)
 		if locked {
-			return wsx.Envelope{}, errors.New("chat locked at level 3 — upgrade to continue")
+			return wsx.Envelope{}, errors.New("chat temporarily locked")
 		}
 
 		saved, err := ch.svc.SaveMessage(ctx, matchID, senderID, in.Content, in.MsgType)
@@ -136,7 +139,7 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 func (ch *Chat) WSAuth(secret []byte) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if err := middleware.ValidateBearer(c, secret); err != nil {
-			return err
+			return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "unauthorized")
 		}
 		matchID, err := uuid.Parse(c.Params("matchId"))
 		if err != nil {

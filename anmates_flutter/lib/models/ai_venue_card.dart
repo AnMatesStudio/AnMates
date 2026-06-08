@@ -92,7 +92,11 @@ class AiVenuePick {
     return '';
   }
 
-  /// "320m" / "1.2km".
-  String get distanceLabel =>
-      distanceM < 1000 ? '${distanceM}m' : '${(distanceM / 1000).toStringAsFixed(1)}km';
+  /// "320m" / "1.2km". Empty when the venue couldn't be placed on the map
+  /// (no real coordinate → distance unknown), so the card never shows a
+  /// misleading "0m" for an un-geocoded pick. See ISSUE-9.
+  String get distanceLabel {
+    if ((lat == 0 && lng == 0) || distanceM <= 0) return '';
+    return distanceM < 1000 ? '${distanceM}m' : '${(distanceM / 1000).toStringAsFixed(1)}km';
+  }
 }

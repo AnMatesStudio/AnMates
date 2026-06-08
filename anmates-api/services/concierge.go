@@ -56,8 +56,8 @@ type ConciergeService struct {
 	// Pre-warm cache: the (slow) provider call is started when Vibe enters the warm
 	// band below the trigger, and the result parked here so the eventual fire is instant.
 	mu      sync.Mutex
-	warm    map[uuid.UUID]warmEntry // matchID → prefetched suggestion (consumed on fire)
-	warming map[uuid.UUID]struct{}  // matches with a prewarm in flight (dedupe guard)
+	warm    map[uuid.UUID]warmEntry      // matchID → prefetched suggestion (consumed on fire)
+	warming map[uuid.UUID]chan struct{}  // matchID → channel closed when its in-flight prewarm finishes
 }
 
 // warmEntry is a prefetched suggestion waiting for its match to cross the trigger.
@@ -76,7 +76,7 @@ func NewConciergeService(pool *pgxpool.Pool, provider VenueProvider, hub wsx.Hub
 	return &ConciergeService{
 		pool: pool, provider: provider, hub: hub, cfg: cfg, log: log,
 		warm:    make(map[uuid.UUID]warmEntry),
-		warming: make(map[uuid.UUID]struct{}),
+		warming: make(map[uuid.UUID]chan struct{}),
 	}
 }
 
@@ -132,12 +132,17 @@ func (s *ConciergeService) prewarm(matchID uuid.UUID) {
 		s.mu.Unlock()
 		return
 	}
-	s.warming[matchID] = struct{}{}
+	// Publish a done-channel so a concurrent fire() can wait for this prewarm
+	// instead of launching a second provider/LLM call (the single-model sidecar
+	// 502s under two concurrent requests — see BLOCKER B1).
+	done := make(chan struct{})
+	s.warming[matchID] = done
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
 		delete(s.warming, matchID)
 		s.mu.Unlock()
+		close(done) // cache (if any) is already written above → waiters see it on takeWarm
 	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 75*time.Second)
@@ -163,6 +168,17 @@ func (s *ConciergeService) fire(matchID uuid.UUID) {
 	// Idempotency pre-check (the unique index is the real guarantee on races).
 	if s.alreadyFired(ctx, matchID) {
 		return
+	}
+
+	// If a prewarm is still in flight for this match, wait for it (bounded by ctx)
+	// and reuse its result, rather than firing a second concurrent provider/LLM call.
+	// The single-model sidecar 502s when warm + fire hit it at once (B1); waiting
+	// here removes that race without the artificial pause the e2e scripts used.
+	if ch := s.inflightWarm(matchID); ch != nil {
+		select {
+		case <-ch:
+		case <-ctx.Done():
+		}
 	}
 
 	// Fast path: a prewarm already fetched this card → post it with zero search latency.
@@ -276,6 +292,14 @@ func (s *ConciergeService) SuggestForUser(ctx context.Context, matchID, requeste
 		picks = picks[:3]
 	}
 	return CardContent{Intro: fallbackIntro(intro), Midpoint: center, Picks: picks}, nil
+}
+
+// inflightWarm returns the done-channel of an in-flight prewarm for the match, or
+// nil if none is running. Callers wait on it to avoid a concurrent provider call.
+func (s *ConciergeService) inflightWarm(matchID uuid.UUID) <-chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.warming[matchID]
 }
 
 // takeWarm returns and removes a fresh prefetched suggestion for the match, if any.

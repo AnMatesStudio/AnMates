@@ -11,11 +11,10 @@ class LocationService {
 
   final _api = ApiClient();
 
-  /// Best-effort: pushes current location if permission is available.
-  /// Returns false (silently) when location is off/denied — never throws.
-  Future<bool> pushCurrentLocation() async {
+  /// Returns current coarse lat/lng, or null if unavailable/denied. Never throws.
+  Future<({double lat, double lng})?> currentLatLng() async {
     try {
-      if (!await Geolocator.isLocationServiceEnabled()) return false;
+      if (!await Geolocator.isLocationServiceEnabled()) return null;
 
       var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
@@ -23,15 +22,27 @@ class LocationService {
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        return false;
+        return null;
       }
 
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low),
       );
+      return (lat: pos.latitude, lng: pos.longitude);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Best-effort: pushes current location if permission is available.
+  /// Returns false (silently) when location is off/denied — never throws.
+  Future<bool> pushCurrentLocation() async {
+    try {
+      final coords = await currentLatLng();
+      if (coords == null) return false;
       await _api.put(
         '/api/v1/me/location',
-        body: {'lat': pos.latitude, 'lng': pos.longitude},
+        body: {'lat': coords.lat, 'lng': coords.lng},
       );
       return true;
     } catch (_) {

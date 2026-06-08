@@ -1,18 +1,33 @@
 import 'package:flutter/material.dart';
+import '../../services/booking_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 
 // ─── BookingView ──────────────────────────────────────────────────────────────
+//
+// First Date scheduling. With a [matchId] it talks to the backend: loads any
+// existing booking, lets one member propose a venue+time, and the other confirm
+// (or either cancel). Without a matchId it stays a visual demo (CTA pops).
 
 class BookingView extends StatefulWidget {
+  final String? matchId;
+  final String? currentUserId;
   final String mateName;
   final String restaurantName;
+  final String restaurantAddress;
+  final double? lat;
+  final double? lng;
 
   const BookingView({
     super.key,
-    this.mateName = 'Khánh',
-    this.restaurantName = 'Ramen Q1',
+    this.matchId,
+    this.currentUserId,
+    this.mateName = 'Mate',
+    this.restaurantName = '',
+    this.restaurantAddress = '',
+    this.lat,
+    this.lng,
   });
 
   @override
@@ -20,20 +35,113 @@ class BookingView extends StatefulWidget {
 }
 
 class _BookingViewState extends State<BookingView> {
-  // May 2026 starts on Friday → 0-indexed weekday: Mon=0 … Sun=6
-  // Friday = index 4
-  int _selectedDay = 24; // Sat 24 May
-  int _selectedTimeIndex = 2; // 19:30
-
   static const _times = ['18:30', '19:00', '19:30', '20:00', '20:30'];
-  static const int _today = 23; // 23 May 2026 (today per system context)
-  static const int _month = 5;
-  static const int _year = 2026;
+  static const _dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
-  // May 2026: 31 days, starts Friday (weekday 5 in Dart, Mon=1..Sun=7)
-  // We display Mon-Sun headers, so offset: Friday = col index 4 (0-based Mon)
-  static const int _startOffset = 4;
-  static const int _daysInMonth = 31;
+  // Calendar is anchored to the real current month (was hardcoded May 2026).
+  late final int _year, _month, _today, _daysInMonth;
+  late final int _startOffset; // weekday of the 1st, Mon=0 … Sun=6
+  late int _selectedDay;
+  int _selectedTimeIndex = 2;
+
+  Booking? _existing;
+  bool _loading = true;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _year = now.year;
+    _month = now.month;
+    _today = now.day;
+    _daysInMonth = DateUtils.getDaysInMonth(_year, _month);
+    _startOffset = DateTime(_year, _month, 1).weekday - 1;
+    _selectedDay = _today;
+    _loadExisting();
+  }
+
+  Future<void> _loadExisting() async {
+    final mid = widget.matchId;
+    if (mid == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    try {
+      final bk = await BookingService().current(mid);
+      if (mounted) setState(() { _existing = bk; _loading = false; });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  DateTime get _selectedDateTime {
+    final parts = _times[_selectedTimeIndex].split(':');
+    return DateTime(_year, _month, _selectedDay, int.parse(parts[0]), int.parse(parts[1]));
+  }
+
+  String get _venueName =>
+      widget.restaurantName.trim().isEmpty ? 'Quán đã chọn' : widget.restaurantName.trim();
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _submit() async {
+    final mid = widget.matchId;
+    if (mid == null) { Navigator.maybePop(context); return; }
+    setState(() => _submitting = true);
+    try {
+      final bk = await BookingService().propose(
+        mid,
+        restaurantName: _venueName,
+        restaurantAddress: widget.restaurantAddress,
+        lat: widget.lat,
+        lng: widget.lng,
+        scheduledAt: _selectedDateTime,
+      );
+      if (!mounted) return;
+      setState(() { _existing = bk; _submitting = false; });
+      _toast('Đã đề xuất First Date! Chờ ${widget.mateName} xác nhận 💌');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('Không đề xuất được: $e');
+    }
+  }
+
+  Future<void> _confirm() async {
+    final mid = widget.matchId;
+    if (mid == null) return;
+    setState(() => _submitting = true);
+    try {
+      final bk = await BookingService().confirm(mid);
+      if (!mounted) return;
+      setState(() { _existing = bk; _submitting = false; });
+      _toast('Đã chốt First Date! Hẹn gặp nha 🎉');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('Không xác nhận được: $e');
+    }
+  }
+
+  Future<void> _cancel() async {
+    final mid = widget.matchId;
+    if (mid == null) return;
+    setState(() => _submitting = true);
+    try {
+      await BookingService().cancel(mid);
+      if (!mounted) return;
+      setState(() { _existing = null; _submitting = false; });
+      _toast('Đã huỷ đề xuất.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _toast('Không huỷ được: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,23 +152,89 @@ class _BookingViewState extends State<BookingView> {
           children: [
             _buildTopBar(context),
             Expanded(
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-                children: [
-                  _buildVoucherBanner(),
-                  const SizedBox(height: 14),
-                  _buildCalendarCard(),
-                  const SizedBox(height: 14),
-                  _buildTimeSection(),
-                  const SizedBox(height: 14),
-                  _buildTrustCard(),
-                  const SizedBox(height: 20),
-                  _buildCTAButton(),
-                ],
-              ),
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                      children: [
+                        if (_existing != null && _existing!.isActive) ...[
+                          _buildExistingBanner(),
+                          const SizedBox(height: 14),
+                        ],
+                        _buildVoucherBanner(),
+                        const SizedBox(height: 14),
+                        _buildCalendarCard(),
+                        const SizedBox(height: 14),
+                        _buildTimeSection(),
+                        const SizedBox(height: 14),
+                        _buildTrustCard(),
+                        const SizedBox(height: 20),
+                        _buildCTAButton(),
+                      ],
+                    ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  // ── Existing-booking banner (propose/confirm/cancel state) ──────────────────
+
+  Widget _buildExistingBanner() {
+    final b = _existing!;
+    final confirmed = b.status == 'confirmed';
+    final mine = widget.currentUserId != null && b.proposedBy == widget.currentUserId;
+    final when = '${_dayNames[b.scheduledAt.weekday - 1]} ${b.scheduledAt.day}/${b.scheduledAt.month} · '
+        '${b.scheduledAt.hour.toString().padLeft(2, '0')}:${b.scheduledAt.minute.toString().padLeft(2, '0')}';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: confirmed ? AppColors.berry.withValues(alpha: 0.1) : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: confirmed ? AppColors.berry : AppColors.ink10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Eyebrow(confirmed ? 'ĐÃ CHỐT ✓' : 'ĐÃ ĐỀ XUẤT'),
+          const SizedBox(height: 6),
+          Text('${b.restaurantName} · $when',
+              style: AppTextStyles.display(size: 15, weight: FontWeight.w700, color: AppColors.ink)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              if (!confirmed && !mine)
+                Expanded(
+                  child: AnmCTA(
+                    label: 'Xác nhận →',
+                    onTap: _submitting ? () {} : _confirm,
+                    background: AppColors.berry,
+                    fullWidth: true,
+                  ),
+                ),
+              if (!confirmed && mine)
+                Expanded(
+                  child: Text('Chờ ${widget.mateName} xác nhận…',
+                      style: AppTextStyles.body(size: 13, color: AppColors.ink50)),
+                ),
+              const SizedBox(width: 10),
+              GestureDetector(
+                onTap: _submitting ? null : _cancel,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.ink10,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text('Huỷ',
+                      style: AppTextStyles.body(size: 13, weight: FontWeight.w700, color: AppColors.ink70)),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -81,21 +255,25 @@ class _BookingViewState extends State<BookingView> {
             color: AppColors.ink,
             onPressed: () => Navigator.maybePop(context),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Eyebrow('CHỐT KÈO'),
-              const SizedBox(height: 2),
-              Text(
-                'Với ${widget.mateName} tại ${widget.restaurantName}',
-                style: AppTextStyles.display(
-                  size: 16,
-                  weight: FontWeight.w700,
-                  color: AppColors.ink,
-                  letterSpacing: -0.3,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Eyebrow('CHỐT KÈO'),
+                const SizedBox(height: 2),
+                Text(
+                  'Với ${widget.mateName}${_venueName.isEmpty ? '' : ' tại $_venueName'}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.display(
+                    size: 16,
+                    weight: FontWeight.w700,
+                    color: AppColors.ink,
+                    letterSpacing: -0.3,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -114,11 +292,7 @@ class _BookingViewState extends State<BookingView> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.3),
-          width: 1.5,
-          // Dashed effect simulated via strokeAlign + decoration
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
       ),
       child: Row(
         children: [
@@ -129,9 +303,7 @@ class _BookingViewState extends State<BookingView> {
               color: Colors.white.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Center(
-              child: Text('🎟️', style: TextStyle(fontSize: 22)),
-            ),
+            child: const Center(child: Text('🎟️', style: TextStyle(fontSize: 22))),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -150,10 +322,7 @@ class _BookingViewState extends State<BookingView> {
                 const SizedBox(height: 3),
                 Text(
                   'Áp dụng khi cả hai check-in đúng giờ',
-                  style: AppTextStyles.body(
-                    size: 12,
-                    color: Colors.white.withValues(alpha: 0.85),
-                  ),
+                  style: AppTextStyles.body(size: 12, color: Colors.white.withValues(alpha: 0.85)),
                 ),
               ],
             ),
@@ -222,7 +391,6 @@ class _BookingViewState extends State<BookingView> {
   }
 
   Widget _buildCalendarGrid() {
-    // Total cells = offset + 31 days, rounded up to full rows of 7
     final totalCells = _startOffset + _daysInMonth;
     final rows = (totalCells / 7).ceil();
 
@@ -246,9 +414,7 @@ class _BookingViewState extends State<BookingView> {
 
               return Expanded(
                 child: GestureDetector(
-                  onTap: isPast
-                      ? null
-                      : () => setState(() => _selectedDay = day),
+                  onTap: isPast ? null : () => setState(() => _selectedDay = day),
                   child: Container(
                     height: 36,
                     margin: const EdgeInsets.symmetric(horizontal: 1),
@@ -278,15 +444,11 @@ class _BookingViewState extends State<BookingView> {
                       child: Text(
                         '$day',
                         style: isPast
-                            ? AppTextStyles.body(
-                                size: 13,
-                                color: AppColors.ink30,
-                              ).copyWith(decoration: TextDecoration.lineThrough)
+                            ? AppTextStyles.body(size: 13, color: AppColors.ink30)
+                                .copyWith(decoration: TextDecoration.lineThrough)
                             : AppTextStyles.display(
                                 size: 13,
-                                weight: isToday || isSelected
-                                    ? FontWeight.w700
-                                    : FontWeight.w500,
+                                weight: isToday || isSelected ? FontWeight.w700 : FontWeight.w500,
                                 color: isSelected
                                     ? Colors.white
                                     : isToday
@@ -325,11 +487,7 @@ class _BookingViewState extends State<BookingView> {
               const SizedBox(width: 4),
               Text(
                 item.$3,
-                style: AppTextStyles.mono(
-                  size: 9,
-                  color: AppColors.ink50,
-                  letterSpacing: 1,
-                ),
+                style: AppTextStyles.mono(size: 9, color: AppColors.ink50, letterSpacing: 1),
               ),
             ],
           ),
@@ -361,10 +519,7 @@ class _BookingViewState extends State<BookingView> {
               return GestureDetector(
                 onTap: () => setState(() => _selectedTimeIndex = i),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 10,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
                   decoration: BoxDecoration(
                     color: active ? AppColors.berry : Colors.white,
                     borderRadius: BorderRadius.circular(999),
@@ -420,9 +575,7 @@ class _BookingViewState extends State<BookingView> {
               color: AppColors.ocean.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Center(
-              child: Sparkle(size: 18, color: AppColors.ocean),
-            ),
+            child: const Center(child: Sparkle(size: 18, color: AppColors.ocean)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -439,20 +592,15 @@ class _BookingViewState extends State<BookingView> {
   // ── CTA button ─────────────────────────────────────────────────────────────
 
   Widget _buildCTAButton() {
-    final day = _selectedDay;
     final time = _times[_selectedTimeIndex];
-    // Day of week: May 1 2026 = Friday, so day+3 mod 7 gives Mon=0
-    // day 24 = Friday + 23 = 23 days later from May 1 = Saturday (T7)
-    const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-    // May 1 = Friday = index 4. day 1 → 4, day 24 → (4+23) % 7 = 27 % 7 = 6 = CN
-    // Actually May 24 2026: let's compute properly
-    // May 1 2026 = Friday (weekday 5 in Dart where Mon=1, Fri=5)
-    final dayOfWeek = (4 + (day - 1)) % 7; // Mon=0 offset
-    final label = dayNames[dayOfWeek];
-
+    final label = _dayNames[DateTime(_year, _month, _selectedDay).weekday - 1];
     return AnmCTA(
-      label: 'Chốt $label · $time →',
-      onTap: () {},
+      label: _submitting
+          ? 'Đang gửi…'
+          : (_existing != null && _existing!.isActive
+              ? 'Đề xuất lại $label · $time →'
+              : 'Chốt $label · $time →'),
+      onTap: _submitting ? () {} : _submit,
       background: AppColors.berry,
       fullWidth: true,
     );

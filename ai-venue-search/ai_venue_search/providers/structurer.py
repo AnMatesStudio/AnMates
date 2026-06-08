@@ -214,7 +214,12 @@ _VENUE_SCHEMA = {
 def _user_prompt(req: SuggestRequest, raw: str) -> str:
     budget = f"{req.budget_min}-{req.budget_max}đ" if req.budget_max else "không giới hạn"
     mood = ", ".join(req.mood_tags) or "không rõ"
+    query_line = (
+        f'NGƯỜI DÙNG ĐANG TÌM: "{req.query}" — ưu tiên các quán đúng món/tên này từ kết quả search.\n'
+        if req.query else ""
+    )
     return (
+        f"{query_line}"
         f"Toạ độ điểm giữa: {req.lat},{req.lng}. Gu/mood: {mood}. Ngân sách: {budget}.\n"
         f"Số quán cần chọn: tối đa {req.limit}.\n\n"
         f"KẾT QUẢ WEB SEARCH:\n{raw}\n"
@@ -233,6 +238,9 @@ _SYSTEM_PROMPT = (
     '- lat và lng LUÔN để 0 — hệ thống tự định vị theo tên quán, đừng đoán toạ độ.\n'
     "- CHỈ DÙNG TIẾNG VIỆT, không dùng chữ Hán/tiếng Trung trong intro và reason. "
     '"intro" ấm áp, ngắn (<140 ký tự). "reason" mỗi quán <60 ký tự.\n'
+    '- "intro" TUYỆT ĐỐI KHÔNG nêu tên phường/quận/khu vực cụ thể (vd "khu vực Xuân Hòa", '
+    '"ở Quận 3") — dữ liệu địa giới có thể sai. Chỉ nói chung chung kiểu "nằm giữa 2 bạn", '
+    '"gần khu vực 2 bạn"; nếu muốn nhắc địa điểm thì chỉ dựa vào địa chỉ quán trong kết quả search.\n'
     "Trả DUY NHẤT JSON đúng schema: "
     '{"intro": string, "picks": [{"name": string, "address": string, "rating": number|null, '
     '"price_min": number|null, "price_max": number|null, "lat": number, "lng": number, "reason": string}]}'

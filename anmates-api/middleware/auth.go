@@ -11,6 +11,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// errNoAuth is returned by ValidateBearer when auth fails. Callers must render
+// the 401 response themselves — ValidateBearer no longer writes the body.
+var errNoAuth = errors.New("unauthorized")
+
 const (
 	ctxUserIDKey = "anmates.user_id"
 	jwtIssuer    = "anmates"
@@ -46,7 +50,7 @@ func SignAccessToken(secret []byte, userID uuid.UUID, ttl time.Duration) (string
 func JWT(secret []byte) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		if err := ValidateBearer(c, secret); err != nil {
-			return err
+			return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "unauthorized")
 		}
 		return c.Next()
 	}
@@ -54,7 +58,8 @@ func JWT(secret []byte) fiber.Handler {
 
 // ValidateBearer parses the Authorization header (or `access_token` query),
 // validates the JWT, and stores the user id in fiber locals. Does NOT call
-// c.Next() — callers that aren't pure middleware can chain manually.
+// c.Next() and does NOT write any response body — returns errNoAuth on failure
+// so callers can render the 401 themselves.
 func ValidateBearer(c *fiber.Ctx, secret []byte) error {
 	raw := c.Get("Authorization")
 	if raw == "" {
@@ -63,11 +68,11 @@ func ValidateBearer(c *fiber.Ctx, secret []byte) error {
 		}
 	}
 	if !strings.HasPrefix(raw, "Bearer ") {
-		return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "missing bearer token")
+		return errNoAuth
 	}
 	uid, err := parseToken(raw[len("Bearer "):], secret)
 	if err != nil {
-		return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "invalid token")
+		return errNoAuth
 	}
 	c.Locals(ctxUserIDKey, uid)
 	return nil

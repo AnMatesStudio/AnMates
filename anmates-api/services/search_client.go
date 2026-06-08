@@ -39,6 +39,7 @@ type searchReq struct {
 	BudgetMax int      `json:"budget_max"`
 	MoodTags  []string `json:"mood_tags"`
 	Limit     int      `json:"limit"`
+	Query     string   `json:"query,omitempty"`
 }
 
 type searchVenue struct {
@@ -92,16 +93,22 @@ func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []stri
 		return "", nil, 0, err
 	}
 
-	picks = make([]CardPick, 0, len(parsed.Picks))
+	return parsed.Intro, mapPicks(parsed, mid), parsed.CostTokens, nil
+}
+
+// mapPicks converts a raw sidecar response into CardPick slices, recomputing
+// distance from origin when coordinates are present.
+func mapPicks(parsed searchResp, origin LatLng) []CardPick {
+	picks := make([]CardPick, 0, len(parsed.Picks))
 	for _, v := range parsed.Picks {
 		if strings.TrimSpace(v.Name) == "" {
 			continue
 		}
-		// Recompute distance from the midpoint when we have coordinates, so the
+		// Recompute distance from origin when we have coordinates, so the
 		// card's distance label never depends on the search service's own math.
 		dist := v.DistanceM
 		if v.Lat != 0 || v.Lng != 0 {
-			dist = int(HaversineM(mid, LatLng{Lat: v.Lat, Lng: v.Lng}))
+			dist = int(HaversineM(origin, LatLng{Lat: v.Lat, Lng: v.Lng}))
 		}
 		picks = append(picks, CardPick{
 			Name:      clip(v.Name, 80),
@@ -115,5 +122,39 @@ func (p *WebSearchProvider) Suggest(ctx context.Context, mid LatLng, mood []stri
 			Reason:    safeReason(v.Reason),
 		})
 	}
-	return parsed.Intro, picks, parsed.CostTokens, nil
+	return picks
+}
+
+// SearchText performs a free-text venue search via the sidecar's /search endpoint.
+// Used by the Discovery feature; lat/lng may be 0 when the user has no location.
+func (p *WebSearchProvider) SearchText(ctx context.Context, query string, loc LatLng, radiusM, limit int) ([]CardPick, error) {
+	body, _ := json.Marshal(searchReq{
+		Query:    query,
+		Lat:      loc.Lat,
+		Lng:      loc.Lng,
+		RadiusM:  radiusM,
+		MoodTags: []string{},
+		Limit:    limit,
+	})
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/search", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.hc.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ai-venue-search /search http %d", resp.StatusCode)
+	}
+
+	var parsed searchResp
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return nil, err
+	}
+	return mapPicks(parsed, loc), nil
 }
