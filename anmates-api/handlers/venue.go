@@ -27,17 +27,27 @@ type venueCacheEntry struct {
 	expires time.Time
 }
 
-// Venue handler: GET /api/v1/venues/search
-type Venue struct {
-	provider *services.WebSearchProvider
-	mu       sync.Mutex
-	cache    map[string]venueCacheEntry
+type nearbyCacheEntry struct {
+	venues  []services.NearbyVenue
+	expires time.Time
 }
 
-func NewVenue(provider *services.WebSearchProvider) *Venue {
+// Venue handler: GET /api/v1/venues/search and /api/v1/venues/nearby
+type Venue struct {
+	provider    *services.WebSearchProvider // nil ⇒ /venues/search disabled
+	nearby      services.NearbyProvider     // always set
+	mu          sync.Mutex
+	cache       map[string]venueCacheEntry
+	nearbyMu    sync.Mutex
+	nearbyCache map[string]nearbyCacheEntry
+}
+
+func NewVenue(provider *services.WebSearchProvider, nearby services.NearbyProvider) *Venue {
 	return &Venue{
-		provider: provider,
-		cache:    make(map[string]venueCacheEntry),
+		provider:    provider,
+		nearby:      nearby,
+		cache:       make(map[string]venueCacheEntry),
+		nearbyCache: make(map[string]nearbyCacheEntry),
 	}
 }
 
@@ -104,4 +114,55 @@ func (h *Venue) Search(c *fiber.Ctx) error {
 
 	h.set(key, picks)
 	return httputil.OK(c, picks)
+}
+
+func (h *Venue) getNearby(key string) ([]services.NearbyVenue, bool) {
+	h.nearbyMu.Lock()
+	defer h.nearbyMu.Unlock()
+	e, ok := h.nearbyCache[key]
+	if !ok || time.Now().After(e.expires) {
+		delete(h.nearbyCache, key)
+		return nil, false
+	}
+	return e.venues, true
+}
+
+func (h *Venue) setNearby(key string, venues []services.NearbyVenue) {
+	h.nearbyMu.Lock()
+	defer h.nearbyMu.Unlock()
+	h.nearbyCache[key] = nearbyCacheEntry{venues: venues, expires: time.Now().Add(venueCacheTTL)}
+}
+
+// Nearby returns restaurants near the caller, nearest-first.
+// GET /api/v1/venues/nearby?lat=&lng=&limit=
+func (h *Venue) Nearby(c *fiber.Ctx) error {
+	lat, err1 := strconv.ParseFloat(c.Query("lat", ""), 64)
+	lng, err2 := strconv.ParseFloat(c.Query("lng", ""), 64)
+	if err1 != nil || err2 != nil || (lat == 0 && lng == 0) {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "lat/lng required")
+	}
+
+	limit := defaultLimit
+	if lim, err := strconv.Atoi(c.Query("limit", "")); err == nil && lim > 0 {
+		if lim > maxLimit {
+			lim = maxLimit
+		}
+		limit = lim
+	}
+
+	key := venueCacheKey("nearby", lat, lng)
+	if v, ok := h.getNearby(key); ok {
+		return httputil.OK(c, v)
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), venueSearchTO)
+	defer cancel()
+
+	venues, err := h.nearby.Nearby(ctx, services.LatLng{Lat: lat, Lng: lng}, limit)
+	if err != nil {
+		return httputil.Err(c, fiber.StatusBadGateway, httputil.ErrInternal, "nearby failed")
+	}
+
+	h.setNearby(key, venues)
+	return httputil.OK(c, venues)
 }

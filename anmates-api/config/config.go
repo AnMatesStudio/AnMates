@@ -42,6 +42,14 @@ type Config struct {
 	AIMaxSeparationM int    // if the 2 users are farther apart than this, skip + warn (0 disables)
 	AIBudgetMin      int    // default shared budget band (VND) until user prefs exist
 	AIBudgetMax      int
+
+	// Discovery "HOT QUANH BẠN" — Google Places (New) nearby search.
+	// GooglePlacesAPIKey empty ⇒ nearby falls back to OSM Overpass (dev w/o key still works).
+	GooglePlacesAPIKey string
+	NearbyDailyBudget  int // hard cap on Places calls/day (VN billing throttles ~2400)
+	NearbyRadiusM      int // initial search radius
+	NearbyMaxRadiusM   int // expanded radius when initial returns < NearbyMinResults
+	NearbyMinResults   int // expand if fewer than this many venues found
 }
 
 func Load() (*Config, error) {
@@ -108,6 +116,13 @@ func Load() (*Config, error) {
 	c.AIMaxSeparationM = parseIntOr("AI_MAX_SEPARATION_M", 50000)
 	c.AIBudgetMin = parseIntOr("AI_DEFAULT_BUDGET_MIN", 80000)
 	c.AIBudgetMax = parseIntOr("AI_DEFAULT_BUDGET_MAX", 150000)
+
+	// Discovery nearby (Google Places New).
+	c.GooglePlacesAPIKey = os.Getenv("GOOGLE_PLACES_API_KEY")
+	c.NearbyDailyBudget = parseIntOr("NEARBY_DAILY_BUDGET", 2400)
+	c.NearbyRadiusM = parseIntOr("NEARBY_RADIUS_M", 3000)
+	c.NearbyMaxRadiusM = parseIntOr("NEARBY_MAX_RADIUS_M", 10000)
+	c.NearbyMinResults = parseIntOr("NEARBY_MIN_RESULTS", 5)
 
 	return c, nil
 }

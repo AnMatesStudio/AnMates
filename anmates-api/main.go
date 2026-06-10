@@ -159,6 +159,20 @@ func run(log *slog.Logger) error {
 		log.Info("AI Concierge disabled (set AI_SEARCH_URL or AI_BASE_URL)")
 	}
 
+	// Discovery "HOT QUANH BẠN" nearby provider. Google Places (New) when keyed,
+	// else OSM Overpass. Google wraps OSM as its over-budget / error fallback.
+	osmNearby := services.NewOSMNearbyProvider(cfg.NearbyMaxRadiusM)
+	var nearbyProvider services.NearbyProvider = osmNearby
+	if cfg.GooglePlacesAPIKey != "" {
+		nearbyProvider = services.NewGooglePlacesProvider(
+			cfg.GooglePlacesAPIKey, osmNearby,
+			cfg.NearbyRadiusM, cfg.NearbyMaxRadiusM, cfg.NearbyMinResults,
+		).WithDailyBudget(cfg.NearbyDailyBudget)
+		log.Info("Discovery nearby: Google Places (New)", "radius_m", cfg.NearbyRadiusM, "daily_budget", cfg.NearbyDailyBudget)
+	} else {
+		log.Info("Discovery nearby: OSM Overpass (no GOOGLE_PLACES_API_KEY)")
+	}
+
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
 	userH := handlers.NewUser(userSvc)
 	wlH := handlers.NewWishlist(wlSvc)
@@ -225,10 +239,11 @@ func run(log *slog.Logger) error {
 		auth.Post("/matches/:id/concierge/suggest", conciergeH.Suggest)
 	}
 
-	// Discovery free-text web-search: GET /api/v1/venues/search?q=...&lat=...&lng=...
-	// Only enabled when the web-search sidecar is configured.
+	// Discovery venues. /venues/nearby always available (Google→OSM fallback);
+	// /venues/search only when the web-search sidecar is configured.
+	venueH := handlers.NewVenue(webSearchProvider, nearbyProvider)
+	auth.Get("/venues/nearby", venueH.Nearby)
 	if webSearchProvider != nil {
-		venueH := handlers.NewVenue(webSearchProvider)
 		auth.Get("/venues/search", venueH.Search)
 	}
 
