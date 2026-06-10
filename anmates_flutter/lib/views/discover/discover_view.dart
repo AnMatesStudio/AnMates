@@ -7,7 +7,7 @@ import 'package:http/http.dart' as http;
 
 import '../../services/location_service.dart';
 import '../../services/maps_launcher.dart';
-import '../../services/places_service.dart';
+import '../../services/nearby_venue_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
@@ -39,7 +39,7 @@ class _DiscoverViewState extends State<DiscoverView> {
   String _locationLabel = 'TP.HCM';
 
   // --- venues ---
-  List<OsmPlace> _places = [];
+  List<NearbyVenue> _places = [];
   bool _loadingPlaces = true;
   String? _placesError;
 
@@ -150,13 +150,10 @@ class _DiscoverViewState extends State<DiscoverView> {
       final lng = coords?.lng ?? _kFallbackLng;
       final usingFallback = coords == null;
 
-      final places = await PlacesService().getNearby(lat, lng);
+      final places = await NearbyVenueService().getNearby(lat, lng);
       if (!mounted) return;
 
-      places.sort(
-        (a, b) =>
-            a.distanceMeters(lat, lng).compareTo(b.distanceMeters(lat, lng)),
-      );
+      places.sort((a, b) => a.distanceM.compareTo(b.distanceM));
 
       setState(() {
         _userLat = lat;
@@ -209,7 +206,7 @@ class _DiscoverViewState extends State<DiscoverView> {
     }
   }
 
-  List<OsmPlace> get _filteredPlaces {
+  List<NearbyVenue> get _filteredPlaces {
     var list = _places;
 
     // Genre filter
@@ -221,39 +218,30 @@ class _DiscoverViewState extends State<DiscoverView> {
     if (_searchQuery.isNotEmpty) {
       list = list.where((p) {
         final name = p.name.toLowerCase();
-        final cuisine = (p.cuisine ?? '').toLowerCase();
         final tags = p.tags.join(' ').toLowerCase();
-        return name.contains(_searchQuery) ||
-            cuisine.contains(_searchQuery) ||
-            tags.contains(_searchQuery);
+        return name.contains(_searchQuery) || tags.contains(_searchQuery);
       }).toList();
     }
 
     return list;
   }
 
-  bool _matchesGenre(OsmPlace p, String genre) {
-    final c = (p.cuisine ?? '').toLowerCase();
-    final a = p.amenity.toLowerCase();
+  bool _matchesGenre(NearbyVenue p, String genre) {
+    final t = p.tags.join(' ').toLowerCase();
     final n = p.name.toLowerCase();
     switch (genre) {
       case 'Lẩu sùng sục':
-        return c.contains('hotpot') ||
-            c.contains('lau') ||
-            n.contains('lẩu') ||
-            (c.contains('vietnamese') && n.contains('lẩu'));
+        return t.contains('hotpot') || t.contains('lau') || n.contains('lẩu');
       case 'Nướng xì xèo':
-        return c.contains('barbecue') ||
-            c.contains('bbq') ||
-            c.contains('korean') ||
-            c.contains('grill') ||
+        return t.contains('barbecue') ||
+            t.contains('bbq') ||
+            t.contains('korean') ||
+            t.contains('grill') ||
             n.contains('nướng');
       case 'Cafe chill':
-        return a == 'cafe' || c.contains('coffee') || c.contains('tea');
+        return t.contains('cafe') || t.contains('coffee') || t.contains('tea');
       case 'Ăn vặt phố':
-        return a == 'fast_food' ||
-            c.contains('street_food') ||
-            n.contains('ăn vặt');
+        return t.contains('fast_food') || n.contains('ăn vặt');
       default:
         return true;
     }
@@ -668,8 +656,6 @@ class _DiscoverViewState extends State<DiscoverView> {
           padding: EdgeInsets.only(bottom: i < visible.length - 1 ? 10 : 0),
           child: _RestaurantRow(
             place: place,
-            userLat: _userLat,
-            userLng: _userLng,
             isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
           ),
         );
@@ -936,15 +922,11 @@ class _GenreCardState extends State<_GenreCard>
 }
 
 class _RestaurantRow extends StatefulWidget {
-  final OsmPlace place;
-  final double userLat;
-  final double userLng;
+  final NearbyVenue place;
   final bool isNearest;
 
   const _RestaurantRow({
     required this.place,
-    required this.userLat,
-    required this.userLng,
     required this.isNearest,
   });
 
@@ -956,16 +938,19 @@ class _RestaurantRowState extends State<_RestaurantRow> {
   bool _hovered = false;
 
   String get _tagLine {
-    final tags = widget.place.tags.take(2).join(' · ');
-    final dist = widget.place.distanceLabel(widget.userLat, widget.userLng);
-    return '${widget.place.emoji} $tags · $dist';
+    final tags = widget.place.displayTags.join(' · ');
+    final dist = widget.place.distanceLabel;
+    final base = '${widget.place.emoji} $tags';
+    return dist.isEmpty ? base : '$base · $dist';
   }
 
-  String? get _hoursLabel {
-    final h = widget.place.openingHours;
-    if (h == null || h.isEmpty) return null;
-    return '🕒 $h';
+  String? get _ratingLabel {
+    final r = widget.place.rating;
+    if (r == null) return null;
+    return '⭐ ${r.toStringAsFixed(1)}';
   }
+
+  bool get _openNow => widget.place.openNow == true;
 
   @override
   Widget build(BuildContext context) {
@@ -976,7 +961,7 @@ class _RestaurantRowState extends State<_RestaurantRow> {
       child: GestureDetector(
         onTap: () => MapsLauncher.open(
           name: widget.place.name,
-          address: widget.place.address ?? '',
+          address: widget.place.address,
           lat: widget.place.lat,
           lng: widget.place.lng,
         ),
@@ -1035,28 +1020,41 @@ class _RestaurantRowState extends State<_RestaurantRow> {
                         color: AppColors.ink50,
                       ),
                     ),
-                    if (_hoursLabel != null) ...[
+                    if (_openNow || _ratingLabel != null) ...[
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.ocean.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          _hoursLabel!,
-                          style: AppTextStyles.mono(
-                            size: 9,
-                            weight: FontWeight.w600,
-                            color: AppColors.ocean,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      Row(
+                        children: [
+                          if (_openNow)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.ocean.withValues(alpha: 0.10),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                'Đang mở',
+                                style: AppTextStyles.mono(
+                                  size: 9,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.ocean,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                          if (_openNow && _ratingLabel != null)
+                            const SizedBox(width: 6),
+                          if (_ratingLabel != null)
+                            Text(
+                              _ratingLabel!,
+                              style: AppTextStyles.body(
+                                size: 11,
+                                color: AppColors.ink50,
+                              ),
+                            ),
+                        ],
                       ),
                     ],
                   ],
