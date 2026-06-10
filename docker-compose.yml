@@ -77,23 +77,71 @@ services:
       MCP_SERVER_CMD: ${MCP_SERVER_CMD:-uvx duckduckgo-mcp-server}
       MCP_FETCH_TOP_N: ${MCP_FETCH_TOP_N:-2}
       GEOCODE_ENABLED: ${GEOCODE_ENABLED:-1}
-      STRUCTURER: ${STRUCTURER:-pollinations}
+      # Default = the bundled `ollama` container → the structurer LLM runs fully
+      # in Docker (no host model, no cloud). Set STRUCTURER=pollinations to use the
+      # keyless cloud structurer instead.
+      STRUCTURER: ${STRUCTURER:-openai}
       POLLINATIONS_MODEL: ${POLLINATIONS_MODEL:-openai}
       POLLINATIONS_TOKEN: ${POLLINATIONS_TOKEN:-}
-      # Local LM Studio / Ollama on the host. Used as the FALLBACK when the default
-      # Pollinations structurer is rate-limited (429), and as the primary when
-      # STRUCTURER=openai. Model id must match what LM Studio has loaded.
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:1234/v1}
-      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.5-9b}
+      # Structurer LLM endpoint. Defaults to the in-Docker `ollama` service. Override
+      # to point elsewhere, e.g. host LM Studio at http://host.docker.internal:1234/v1.
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      # Ollama model tag (single source of truth, shared with the ollama_pull job).
+      LLM_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
     extra_hosts:
-      # Lets STRUCTURER=openai reach LM Studio/Ollama running on the host.
+      # Lets LLM_BASE_URL still reach a model on the host if you override it.
       - "host.docker.internal:host-gateway"
+    depends_on:
+      ollama:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8090/health').status==200 else sys.exit(1)"]
       interval: 10s
       timeout: 4s
       retries: 5
       start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Local LLM for the venue-search structurer — keeps the whole AI path inside
+  # Docker (no host LM Studio, no cloud). Exposes an OpenAI-compatible API at
+  # /v1, which the sidecar's STRUCTURER=openai path consumes. CPU by default;
+  # for GPU, run via start.sh with OLLAMA_GPU=1 (merges docker-compose.gpu.yml).
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      # `ollama list` succeeds only once the embedded server is accepting requests.
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One-shot job: pulls the structurer model into the shared ollama volume, then
+  # exits. Idempotent (a no-op once cached). Uses OLLAMA_HOST so the CLI drives the
+  # `ollama` server container instead of a local one. First run downloads ~2GB.
+  ollama_pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["sh", "-c", "ollama pull ${OLLAMA_MODEL:-qwen2.5:3b}"]
+    restart: "no"
     logging:
       driver: json-file
       options:
@@ -122,3 +170,4 @@ services:
 
 volumes:
   pgdata:
+  ollama:

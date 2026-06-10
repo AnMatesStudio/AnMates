@@ -232,6 +232,16 @@ func run(log *slog.Logger) error {
 		auth.Get("/venues/search", venueH.Search)
 	}
 
+	// Discovery venue thumbnails: GET /api/v1/venues/image?q=<venue name>.
+	// Registered on the root app (not the rate-limited /api/v1 group) and left
+	// public so the Flutter client can render it via Image.network — a burst of
+	// thumbnails in the list won't trip the limiter and <img> fetches don't carry
+	// a token. Always available; independent of the AI sidecar.
+	venueImageH := handlers.NewVenueImage(services.NewImageSearcher())
+	app.Get("/api/v1/venues/image", venueImageH.Serve)
+	// Photo count for a venue, so the detail-screen gallery knows how many to show.
+	app.Get("/api/v1/venues/images", venueImageH.Count)
+
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())
 

@@ -1,0 +1,24 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Optional GPU override for the bundled Ollama LLM.
+#
+# Kept OUT of the base docker-compose.yml on purpose: requesting an NVIDIA device
+# makes `docker compose up` fail on machines without the NVIDIA Container Toolkit.
+# So GPU is opt-in.
+#
+#   start.sh:        OLLAMA_GPU=1 ./start.sh
+#   manual compose:  docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#
+# Requires: an NVIDIA GPU + driver, and the NVIDIA Container Toolkit wired into the
+# Docker runtime (Docker Desktop WSL2 GPU support, or nvidia-container-toolkit on
+# Linux). With GPU you can comfortably bump to a larger model, e.g.
+#   OLLAMA_MODEL=qwen2.5:7b OLLAMA_GPU=1 ./start.sh
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

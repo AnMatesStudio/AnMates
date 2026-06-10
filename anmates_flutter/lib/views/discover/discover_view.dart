@@ -6,14 +6,15 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 
 import '../../services/location_service.dart';
-import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
+import '../../widgets/venue_thumbnail.dart';
 import '../profile/profile_view.dart';
+import 'venue_detail_view.dart';
 
 // Fallback coords: Quận 1 center — always yields real OSM data on web when
 // location permission is denied.
@@ -258,6 +259,11 @@ class _DiscoverViewState extends State<DiscoverView> {
         return true;
     }
   }
+
+  // Area hint appended to venue image queries. The reverse-geocode placeholder
+  // "Gần bạn" isn't a place name, so fall back to the city for better matches.
+  String get _imageArea =>
+      _locationLabel == 'Gần bạn' ? 'TP.HCM' : _locationLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -670,6 +676,8 @@ class _DiscoverViewState extends State<DiscoverView> {
             place: place,
             userLat: _userLat,
             userLng: _userLng,
+            area: _imageArea,
+            greetingName: _greetingName,
             isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
           ),
         );
@@ -689,6 +697,10 @@ class _DiscoverViewState extends State<DiscoverView> {
         ),
       );
     }
+
+    final sorted = List<VenueResult>.from(results)
+      ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -704,12 +716,14 @@ class _DiscoverViewState extends State<DiscoverView> {
             ),
           ),
         ),
-        ...results.indexed.map((entry) {
+        ...sorted.indexed.map((entry) {
           final (i, result) = entry;
           return Padding(
-            padding: EdgeInsets.only(bottom: i < results.length - 1 ? 10 : 0),
+            padding: EdgeInsets.only(bottom: i < sorted.length - 1 ? 10 : 0),
             child: _VenueResultRow(
               result: result,
+              area: _imageArea,
+              greetingName: _greetingName,
               showDistance: result.lat != 0 && result.lng != 0,
             ),
           );
@@ -939,12 +953,16 @@ class _RestaurantRow extends StatefulWidget {
   final OsmPlace place;
   final double userLat;
   final double userLng;
+  final String area;
+  final String greetingName;
   final bool isNearest;
 
   const _RestaurantRow({
     required this.place,
     required this.userLat,
     required this.userLng,
+    required this.area,
+    required this.greetingName,
     required this.isNearest,
   });
 
@@ -974,11 +992,19 @@ class _RestaurantRowState extends State<_RestaurantRow> {
       onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => MapsLauncher.open(
-          name: widget.place.name,
-          address: widget.place.address ?? '',
-          lat: widget.place.lat,
-          lng: widget.place.lng,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VenueDetailView(
+              data: VenueDetailData.fromOsm(
+                widget.place,
+                userLat: widget.userLat,
+                userLng: widget.userLng,
+                area: widget.area,
+              ),
+              greetingName: widget.greetingName,
+            ),
+          ),
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -1000,7 +1026,13 @@ class _RestaurantRowState extends State<_RestaurantRow> {
           ),
           child: Row(
             children: [
-              PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+              VenueThumbnail(
+                query: '${widget.place.name} ${widget.area}'.trim(),
+                width: 68,
+                height: 68,
+                radius: 14,
+                placeholderLabel: widget.place.emoji,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1089,9 +1121,16 @@ class _RestaurantRowState extends State<_RestaurantRow> {
 /// Row for a VenueResult from the Discovery web-search path.
 class _VenueResultRow extends StatefulWidget {
   final VenueResult result;
+  final String area;
+  final String greetingName;
   final bool showDistance;
 
-  const _VenueResultRow({required this.result, required this.showDistance});
+  const _VenueResultRow({
+    required this.result,
+    required this.area,
+    required this.greetingName,
+    required this.showDistance,
+  });
 
   @override
   State<_VenueResultRow> createState() => _VenueResultRowState();
@@ -1118,11 +1157,17 @@ class _VenueResultRowState extends State<_VenueResultRow> {
       onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => MapsLauncher.open(
-          name: widget.result.name,
-          address: widget.result.address,
-          lat: widget.result.lat,
-          lng: widget.result.lng,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VenueDetailView(
+              data: VenueDetailData.fromResult(
+                widget.result,
+                area: widget.area,
+              ),
+              greetingName: widget.greetingName,
+            ),
+          ),
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -1142,7 +1187,12 @@ class _VenueResultRowState extends State<_VenueResultRow> {
           ),
           child: Row(
             children: [
-              PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+              VenueThumbnail(
+                query: '${widget.result.name} ${widget.area}'.trim(),
+                width: 68,
+                height: 68,
+                radius: 14,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

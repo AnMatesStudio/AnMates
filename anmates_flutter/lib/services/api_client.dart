@@ -110,6 +110,17 @@ class ApiClient {
     return prefs.getString('access_token');
   }
 
+  /// Absolute URL of the public venue-photo proxy for [query]. Render it
+  /// directly with `Image.network` — the endpoint is public (no token needed)
+  /// and CORS-friendly. [index] selects which crawled photo (0 = primary), used
+  /// by the detail-screen gallery. Returns "" for queries too short to search.
+  static String imageUrl(String query, {int index = 0}) {
+    final q = query.trim();
+    if (q.length < 2) return '';
+    final base = '$_baseUrl/api/v1/venues/image?q=${Uri.encodeQueryComponent(q)}';
+    return index > 0 ? '$base&i=$index' : base;
+  }
+
   // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {
     final wsBase = _baseUrl

@@ -96,8 +96,25 @@ docker info &>/dev/null || error "Cannot connect to Docker daemon ($DOCKER_RUNTI
 export API_BASE_URL="http://$LAN_IP:$API_PORT"
 log "API_BASE_URL → $API_BASE_URL"
 
+# ── 5b. Select compose files + LLM mode (Ollama GPU is opt-in) ────────────────
+# The local LLM (ollama) runs CPU-only by default so `up` never fails on a box
+# without the NVIDIA Container Toolkit. OLLAMA_GPU=1 merges the GPU override.
+# COMPOSE_FILE is read automatically by every `docker compose` call below.
+export COMPOSE_PATH_SEPARATOR=":"
+export COMPOSE_FILE="docker-compose.yml"
+export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:3b}"
+if [[ "${OLLAMA_GPU:-0}" == "1" ]]; then
+  export COMPOSE_FILE="docker-compose.yml:docker-compose.gpu.yml"
+  log "Ollama LLM: GPU mode · model $OLLAMA_MODEL (needs NVIDIA Container Toolkit)"
+else
+  log "Ollama LLM: CPU mode · model $OLLAMA_MODEL"
+  if command -v nvidia-smi &>/dev/null && nvidia-smi -L &>/dev/null; then
+    warn "NVIDIA GPU detected — re-run as 'OLLAMA_GPU=1 ./start.sh' for faster AI suggestions"
+  fi
+fi
+
 # ── 6. Build + start all services ────────────────────────────────────────────
-log "Building and starting services (DB · API · Flutter web)..."
+log "Building and starting services (DB · API · AI search · Ollama · Flutter web)..."
 log "First run: Flutter image pull + Dart compile may take a few minutes."
 cd "$SCRIPT_DIR"
 docker compose up --build -d 2>&1 \
@@ -135,6 +152,23 @@ for i in {1..60}; do
   fi
 done
 
+# ── 8b. Wait for the local LLM model (pulled by the ollama_pull job) ──────────
+# The model download (~2GB first run) runs in parallel with the builds above. The
+# AI Concierge only needs it deep in the chat flow, so this is a soft wait.
+log "Ensuring local LLM model '$OLLAMA_MODEL' is ready (first run pulls ~2GB)..."
+MODEL_BASE="${OLLAMA_MODEL%%:*}"
+for i in {1..150}; do
+  if docker compose exec -T ollama ollama list 2>/dev/null | grep -qi "$MODEL_BASE"; then
+    log "LLM model ready ✓"
+    break
+  fi
+  sleep 4
+  if [[ $i == 150 ]]; then
+    warn "LLM model still downloading — AI suggestions will work once it finishes."
+    warn "  Watch:  docker compose logs -f ollama_pull"
+  fi
+done
+
 # ── 9. Open browser ───────────────────────────────────────────────────────────
 APP_URL="http://localhost:$WEB_PORT"
 case "$PLATFORM" in
@@ -152,6 +186,7 @@ echo -e "  Flutter web   →  ${CYAN}http://localhost:$WEB_PORT${NC}"
 echo -e "  LAN (mobile)  →  ${CYAN}http://$LAN_IP:$WEB_PORT${NC}"
 echo -e "  Go API        →  ${CYAN}http://localhost:$API_PORT${NC}"
 echo -e "  API health    →  ${CYAN}http://localhost:$API_PORT/health${NC}"
+echo -e "  Ollama LLM    →  ${CYAN}http://localhost:11434${NC}  (model: $OLLAMA_MODEL)"
 echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

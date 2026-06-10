@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -88,9 +89,20 @@ func (h *Venue) Search(c *fiber.Ctx) error {
 		limit = lim
 	}
 
+	sortByDistance := true
+	if sort := strings.ToLower(c.Query("sort_by_distance", "true")); sort == "false" {
+		sortByDistance = false
+	}
+
+	maxDistanceM := 10000
+	if maxDist, err := strconv.Atoi(c.Query("max_distance_m", "")); err == nil && maxDist > 0 {
+		maxDistanceM = maxDist
+	}
+
 	key := venueCacheKey(q, lat, lng)
 	if picks, ok := h.get(key); ok {
-		return httputil.OK(c, picks)
+		filtered := filterAndSortPicks(picks, sortByDistance, maxDistanceM)
+		return httputil.OK(c, filtered)
 	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), venueSearchTO)
@@ -102,6 +114,24 @@ func (h *Venue) Search(c *fiber.Ctx) error {
 		return httputil.Err(c, fiber.StatusBadGateway, httputil.ErrInternal, "search failed")
 	}
 
-	h.set(key, picks)
-	return httputil.OK(c, picks)
+	filtered := filterAndSortPicks(picks, sortByDistance, maxDistanceM)
+	h.set(key, filtered)
+	return httputil.OK(c, filtered)
+}
+
+func filterAndSortPicks(picks []services.CardPick, sortByDistance bool, maxDistanceM int) []services.CardPick {
+	filtered := make([]services.CardPick, 0, len(picks))
+	for _, p := range picks {
+		if p.DistanceM <= maxDistanceM {
+			filtered = append(filtered, p)
+		}
+	}
+
+	if sortByDistance {
+		sort.Slice(filtered, func(i, j int) bool {
+			return filtered[i].DistanceM < filtered[j].DistanceM
+		})
+	}
+
+	return filtered
 }
