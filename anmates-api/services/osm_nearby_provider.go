@@ -49,6 +49,8 @@ out center 100;`, p.radiusM, loc.Lat, loc.Lng, p.radiusM, loc.Lat, loc.Lng)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	// Overpass returns 406 to the default Go user-agent; identify the app.
+	req.Header.Set("User-Agent", "AnMatesApp/1.0 (discovery nearby)")
 
 	res, err := p.client.Do(req)
 	if err != nil {
