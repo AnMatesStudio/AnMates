@@ -12,6 +12,7 @@ import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
+import '../../widgets/open_now_badge.dart';
 import '../../widgets/venue_thumbnail.dart';
 import '../profile/profile_view.dart';
 import 'venue_detail_view.dart';
@@ -1073,12 +1074,6 @@ class _RestaurantRowState extends State<_RestaurantRow> {
     return '${widget.place.emoji} $tags · $dist';
   }
 
-  String? get _hoursLabel {
-    final h = widget.place.openingHours;
-    if (h == null || h.isEmpty) return null;
-    return '🕒 $h';
-  }
-
   @override
   Widget build(BuildContext context) {
     return MouseRegion(
@@ -1161,29 +1156,10 @@ class _RestaurantRowState extends State<_RestaurantRow> {
                         color: AppColors.ink50,
                       ),
                     ),
-                    if (_hoursLabel != null) ...[
+                    if (widget.place.openingHours != null &&
+                        widget.place.openingHours!.trim().isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.ocean.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          _hoursLabel!,
-                          style: AppTextStyles.mono(
-                            size: 9,
-                            weight: FontWeight.w600,
-                            color: AppColors.ocean,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      OpenNowBadge(openingHours: widget.place.openingHours),
                     ],
                   ],
                 ),

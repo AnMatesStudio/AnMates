@@ -4,10 +4,13 @@ import 'package:flutter/material.dart';
 import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
 import '../../services/venue_image_service.dart';
+import '../../services/venue_reviews_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../services/wishlist_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/opening_hours.dart';
 import '../../widgets/anm_widgets.dart';
+import '../../widgets/open_now_badge.dart';
 import '../../widgets/venue_thumbnail.dart';
 import '../match/swipe_view.dart';
 
@@ -133,12 +136,16 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   int _imageCount = 1;
   int _heroPage = 0;
 
+  // Community review signal (rating + count + snippets), scraped server-side.
+  VenueReviewInfo _reviews = VenueReviewInfo.empty;
+
   VenueDetailData get _d => widget.data;
 
   @override
   void initState() {
     super.initState();
     _loadImageCount();
+    _loadReviews();
   }
 
   @override
@@ -153,6 +160,16 @@ class _VenueDetailViewState extends State<VenueDetailView> {
     setState(() => _imageCount = n);
   }
 
+  Future<void> _loadReviews() async {
+    final info = await VenueReviewsService().fetch(_d.imageQuery);
+    if (!mounted || info.isEmpty) return;
+    setState(() => _reviews = info);
+  }
+
+  /// Rating shown in the meta line — prefer the venue's own (web-search) rating,
+  /// fall back to the scraped community rating.
+  double? get _effectiveRating => _d.rating ?? _reviews.rating;
+
   String? get _distanceLabel {
     if (_d.distanceM <= 0) return null;
     return _d.distanceM < 1000
@@ -160,16 +177,29 @@ class _VenueDetailViewState extends State<VenueDetailView> {
         : '${(_d.distanceM / 1000).toStringAsFixed(1)} km';
   }
 
-  // Real meta segments only — OSM has no rating/price, so we never invent them.
+  // Real meta segments only — we never invent a rating; ⭐ is shown only when the
+  // venue or the scraped community signal actually carries one.
   List<String> get _metaSegments {
     final segs = <String>[];
-    if (_d.rating != null) segs.add('⭐ ${_d.rating!.toStringAsFixed(1)}');
+    final rating = _effectiveRating;
+    if (rating != null) {
+      var star = '⭐ ${rating.toStringAsFixed(1)}';
+      if (_reviews.reviewCount != null) {
+        star += ' (${_formatCount(_reviews.reviewCount!)})';
+      }
+      segs.add(star);
+    }
     if (_d.priceMin != null && _d.priceMax != null) {
       segs.add('${_d.priceMin}k–${_d.priceMax}k');
     }
     final dist = _distanceLabel;
     if (dist != null) segs.add(dist);
     return segs;
+  }
+
+  static String _formatCount(int n) {
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(n >= 10000 ? 0 : 1)}k';
+    return '$n';
   }
 
   String get _tagLine {
@@ -211,7 +241,7 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   List<String> get _matchChecks {
     final checks = <String>[];
     if (_d.distanceM > 0 && _d.distanceM <= 2000) checks.add('Gần bạn');
-    if (_d.openingHours != null && _d.openingHours!.trim().isNotEmpty) {
+    if (parseOpeningHours(_d.openingHours).isOpen) {
       checks.add('Đang mở cửa');
     }
     final firstTag = _d.tags.firstWhere(
@@ -432,6 +462,13 @@ class _VenueDetailViewState extends State<VenueDetailView> {
               ),
             ),
           ],
+          if (_d.openingHours != null && _d.openingHours!.trim().isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OpenNowBadge(openingHours: _d.openingHours, detailed: true),
+            ),
+          ],
           const SizedBox(height: 18),
           _buildSocialProof(),
           const SizedBox(height: 22),
@@ -451,6 +488,69 @@ class _VenueDetailViewState extends State<VenueDetailView> {
           ),
           const SizedBox(height: 20),
           _buildMatchCard(),
+          if (_reviews.highlights.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _buildReviews(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviews() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Eyebrow('CẢM NHẬN TỪ CỘNG ĐỒNG'),
+            const Spacer(),
+            if (_reviews.reviewCount != null)
+              Text(
+                '${_formatCount(_reviews.reviewCount!)} đánh giá',
+                style: AppTextStyles.mono(
+                  size: 9,
+                  weight: FontWeight.w600,
+                  color: AppColors.ink50,
+                  letterSpacing: 0.3,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ..._reviews.highlights.map(_buildReviewCard),
+      ],
+    );
+  }
+
+  Widget _buildReviewCard(ReviewHighlight h) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.ink10, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '“${h.text}”',
+            style: AppTextStyles.body(size: 13, color: AppColors.ink70, height: 1.5),
+          ),
+          if (h.source.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Trích từ web · ${h.source}',
+              style: AppTextStyles.mono(
+                size: 9,
+                weight: FontWeight.w500,
+                color: AppColors.ink50,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
         ],
       ),
     );

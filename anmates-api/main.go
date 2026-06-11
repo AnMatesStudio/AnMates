@@ -276,6 +276,11 @@ func run(log *slog.Logger) error {
 		auth.Get("/venues/search", venueH.Search)
 	}
 
+	// Discovery venue reviews — keyless Bing web scrape (rating + count + a few
+	// snippets) for the detail card. Always on (no key); cached 24h server-side.
+	venueReviewsH := handlers.NewVenueReviews(services.NewReviewSearcher())
+	auth.Get("/venues/reviews", venueReviewsH.Reviews)
+
 	// Discovery nearby venues via TomTom (fresher VN POI data than OSM). Proxied
 	// server-side so the key never reaches the client; only enabled when set. The
 	// Flutter client falls back to Overpass when this route is absent/errors.
