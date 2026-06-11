@@ -162,8 +162,8 @@ var (
 	}
 	// Review-count patterns. Group 1 is the (possibly grouped) integer.
 	countRes = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)([\d][\d.,]*)\s*(?:đánh giá|lượt đánh giá|nhận xét|reviews?|ratings?)`),
-		regexp.MustCompile(`(?i)(?:dựa trên|based on)\s*([\d][\d.,]*)`),
+		regexp.MustCompile(`(?i)(\d[\d.,]*)\s*(?:đánh giá|lượt đánh giá|nhận xét|reviews?|ratings?)`),
+		regexp.MustCompile(`(?i)(?:dựa trên|based on)\s*(\d[\d.,]*)`),
 	}
 )
 
@@ -211,11 +211,10 @@ func parseBingReviews(htmlStr string, tokens []string) ReviewInfo {
 	return info
 }
 
-func parseRatingAndCount(htmlStr string) (float64, int) {
+func parseRatingAndCount(htmlStr string) (rating float64, count int) {
 	// Strip tags once so patterns can match across element boundaries.
 	text := wsRe.ReplaceAllString(html.UnescapeString(tagRe.ReplaceAllString(htmlStr, " ")), " ")
 
-	var rating float64
 	for _, re := range ratingRes {
 		if m := re.FindStringSubmatch(text); m != nil {
 			v, err := strconv.ParseFloat(strings.Replace(m[1], ",", ".", 1), 64)
@@ -226,7 +225,6 @@ func parseRatingAndCount(htmlStr string) (float64, int) {
 		}
 	}
 
-	var count int
 	for _, re := range countRes {
 		if m := re.FindStringSubmatch(text); m != nil {
 			digits := strings.NewReplacer(".", "", ",", "", " ", "").Replace(m[1])
@@ -237,7 +235,7 @@ func parseRatingAndCount(htmlStr string) (float64, int) {
 			}
 		}
 	}
-	return rating, count
+	return
 }
 
 // reviewWords flag a snippet as review-flavoured even when it doesn't repeat the
