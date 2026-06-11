@@ -95,25 +95,6 @@ func TestPrepareVenueSearchQuery(t *testing.T) {
 	}
 }
 
-func TestCategoryStockQuery(t *testing.T) {
-	tests := []struct {
-		in   string
-		want string
-	}{
-		{"Trung tâm Hội nghị - Tiệc cưới Claris Palace", "nhà hàng tiệc cưới sang trọng"},
-		{"Tara Coffee", "quán cà phê đẹp"},
-		{"Quán Lẩu Bò Tươi", "nhà hàng lẩu nướng"},
-		{"Saigon Beer Garden", "quán bar pub đẹp"},
-		{"Phở Hùng", "nhà hàng món việt"},
-		{"Somewhere Mysterious", "nhà hàng quán ăn đẹp"}, // default
-	}
-	for _, tt := range tests {
-		if got := categoryStockQuery(tt.in); got != tt.want {
-			t.Errorf("categoryStockQuery(%q) = %q, want %q", tt.in, got, tt.want)
-		}
-	}
-}
-
 func TestIsJunkImage(t *testing.T) {
 	junk := []string{
 		"https://x.vn/assets/logo.png",

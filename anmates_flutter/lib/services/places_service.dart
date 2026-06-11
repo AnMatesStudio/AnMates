@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 
+import 'api_client.dart';
+
 class OsmPlace {
   final String id;
   final String name;
@@ -85,6 +87,27 @@ class OsmPlace {
     return d < 1000 ? '${d.round()}m' : '${(d / 1000).toStringAsFixed(1)}km';
   }
 
+  /// Builds a place from the backend `/venues/nearby` (TomTom) normalized shape:
+  /// `{id,name,lat,lng,amenity,cuisine,address,phone,opening_hours}`.
+  factory OsmPlace.fromBackend(Map<String, dynamic> json) {
+    String? str(String k) {
+      final v = json[k];
+      return (v is String && v.trim().isNotEmpty) ? v : null;
+    }
+
+    return OsmPlace(
+      id: (json['id'] ?? '').toString(),
+      name: str('name') ?? 'Không tên',
+      lat: (json['lat'] as num?)?.toDouble() ?? 0,
+      lng: (json['lng'] as num?)?.toDouble() ?? 0,
+      amenity: str('amenity') ?? 'restaurant',
+      cuisine: str('cuisine'),
+      address: str('address'),
+      phone: str('phone'),
+      openingHours: str('opening_hours'),
+    );
+  }
+
   factory OsmPlace.fromJson(Map<String, dynamic> json) {
     final tags = (json['tags'] as Map<String, dynamic>? ?? {});
     final type = json['type'] as String;
@@ -136,6 +159,29 @@ class PlacesService {
     _cacheLng = null;
   }
 
+  /// Tries the backend TomTom proxy. Returns null on any failure (disabled /
+  /// offline / error) so the caller falls back to Overpass.
+  Future<List<OsmPlace>?> _getNearbyFromApi(
+    double lat,
+    double lng,
+    int radiusM,
+  ) async {
+    try {
+      final data = await ApiClient().get(
+        '/api/v1/venues/nearby?lat=$lat&lng=$lng&radius=$radiusM',
+      );
+      final list = (data is Map ? data['venues'] : null);
+      if (list is! List) return null;
+      return list
+          .whereType<Map<String, dynamic>>()
+          .map(OsmPlace.fromBackend)
+          .where((p) => p.lat != 0 && p.lng != 0)
+          .toList();
+    } catch (_) {
+      return null; // route absent (no key) / network / parse → Overpass fallback
+    }
+  }
+
   static Future<Map<String, dynamic>> httpGet(String url) async {
     final res = await http.get(Uri.parse(url));
     if (res.statusCode != 200) throw Exception('HTTP ${res.statusCode}');
@@ -151,6 +197,16 @@ class PlacesService {
         _cacheLat != null &&
         (lat - _cacheLat!).abs() < 0.005 &&
         (lng - _cacheLng!).abs() < 0.005) {
+      return _cache;
+    }
+
+    // Prefer the backend TomTom proxy (fresher VN data). If it's disabled (no
+    // key → route absent → 404) or errors, fall back to Overpass below.
+    final fromApi = await _getNearbyFromApi(lat, lng, radiusM);
+    if (fromApi != null && fromApi.isNotEmpty) {
+      _cache = fromApi;
+      _cacheLat = lat;
+      _cacheLng = lng;
       return _cache;
     }
 

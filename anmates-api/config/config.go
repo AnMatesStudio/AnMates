@@ -23,6 +23,11 @@ type Config struct {
 	CORSOrigins           string
 	RedisURL              string // optional; when set the WebSocket hub uses Redis pub/sub
 
+	// TomTom Search — fresher VN POI data than OSM/Overpass for the Discovery
+	// "nearby" list. When TOMTOM_API_KEY is set the /venues/nearby proxy serves
+	// TomTom results; otherwise the Flutter client falls back to Overpass.
+	TomTomAPIKey string
+
 	// Email OTP (passwordless login via emailed code). When SMTPHost+SMTPUsername
 	// are set the email-OTP endpoints deliver real mail; otherwise the codes are
 	// logged (dev only). Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587,
@@ -100,6 +105,7 @@ func Load() (*Config, error) {
 	c.PGMaxConns = int32(parseInt32(getOr("PG_MAX_CONNS", "4")))
 	c.PGMinConns = int32(parseInt32(getOr("PG_MIN_CONNS", "1")))
 	c.RedisURL = os.Getenv("REDIS_URL")
+	c.TomTomAPIKey = os.Getenv("TOMTOM_API_KEY")
 
 	// Email OTP.
 	c.SMTPHost = os.Getenv("SMTP_HOST")

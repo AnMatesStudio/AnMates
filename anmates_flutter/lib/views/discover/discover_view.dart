@@ -44,6 +44,15 @@ class _DiscoverViewState extends State<DiscoverView> {
   bool _loadingPlaces = true;
   String? _placesError;
 
+  // --- infinite scroll (OSM browse path) ---
+  // Venues are fetched once within a 5km radius, then revealed in pages of 6 as
+  // the user scrolls; loading stops when every venue inside 5km is shown.
+  static const int _kNearbyRadiusM = 5000;
+  static const int _kPageSize = 6;
+  final ScrollController _scrollCtrl = ScrollController();
+  int _visibleCount = _kPageSize;
+  bool _showBackToTop = false;
+
   // --- filters ---
   String? _activeGenre; // null = no filter
   final TextEditingController _searchCtrl = TextEditingController();
@@ -64,6 +73,7 @@ class _DiscoverViewState extends State<DiscoverView> {
     _loadProfile();
     _loadNearby();
     _searchCtrl.addListener(_onSearchChanged);
+    _scrollCtrl.addListener(_onScroll);
   }
 
   @override
@@ -71,7 +81,35 @@ class _DiscoverViewState extends State<DiscoverView> {
     _debounce?.cancel();
     _searchCtrl.removeListener(_onSearchChanged);
     _searchCtrl.dispose();
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollCtrl.position;
+
+    // Toggle the back-to-top button past one screen of scroll.
+    final show = pos.pixels > 400;
+    if (show != _showBackToTop) setState(() => _showBackToTop = show);
+
+    // Infinite reveal — only on the OSM browse path (not web-search results).
+    if (_searchResults == null && pos.pixels >= pos.maxScrollExtent - 240) {
+      final total = _filteredPlaces.length;
+      if (_visibleCount < total) {
+        setState(() {
+          _visibleCount = (_visibleCount + _kPageSize).clamp(0, total);
+        });
+      }
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollCtrl.animateTo(
+      0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _onSearchChanged() {
@@ -81,6 +119,7 @@ class _DiscoverViewState extends State<DiscoverView> {
       final q = _searchCtrl.text.trim();
       setState(() {
         _searchQuery = q.toLowerCase();
+        _visibleCount = _kPageSize; // re-page from the top on a new filter
         // Clearing the box → return to OSM nearby browse.
         if (q.isEmpty) {
           _searchResults = null;
@@ -151,7 +190,11 @@ class _DiscoverViewState extends State<DiscoverView> {
       final lng = coords?.lng ?? _kFallbackLng;
       final usingFallback = coords == null;
 
-      final places = await PlacesService().getNearby(lat, lng);
+      final places = await PlacesService().getNearby(
+        lat,
+        lng,
+        radiusM: _kNearbyRadiusM,
+      );
       if (!mounted) return;
 
       places.sort(
@@ -164,6 +207,7 @@ class _DiscoverViewState extends State<DiscoverView> {
         _userLng = lng;
         _usingFallbackLocation = usingFallback;
         _places = places;
+        _visibleCount = _kPageSize;
         _loadingPlaces = false;
       });
 
@@ -269,7 +313,22 @@ class _DiscoverViewState extends State<DiscoverView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mint,
+      floatingActionButton: _showBackToTop
+          ? Padding(
+              // Lift above the bottom nav bar.
+              padding: const EdgeInsets.only(bottom: 84),
+              child: FloatingActionButton.small(
+                onPressed: _scrollToTop,
+                backgroundColor: AppColors.berry,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                tooltip: 'Lên đầu trang',
+                child: const Icon(Icons.keyboard_arrow_up_rounded, size: 26),
+              ),
+            )
+          : null,
       body: SingleChildScrollView(
+        controller: _scrollCtrl,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -450,6 +509,7 @@ class _DiscoverViewState extends State<DiscoverView> {
           onGenreTap: (label) {
             setState(() {
               _activeGenre = (_activeGenre == label) ? null : label;
+              _visibleCount = _kPageSize; // re-page from the top on filter change
             });
           },
           items: [
@@ -653,9 +713,9 @@ class _DiscoverViewState extends State<DiscoverView> {
       );
     }
 
-    final visible = _filteredPlaces.take(6).toList();
+    final all = _filteredPlaces;
 
-    if (visible.isEmpty) {
+    if (all.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
@@ -667,21 +727,48 @@ class _DiscoverViewState extends State<DiscoverView> {
       );
     }
 
+    final visible = all.take(_visibleCount).toList();
+    final hasMore = _visibleCount < all.length;
+
     return Column(
-      children: visible.indexed.map((entry) {
-        final (i, place) = entry;
-        return Padding(
-          padding: EdgeInsets.only(bottom: i < visible.length - 1 ? 10 : 0),
-          child: _RestaurantRow(
-            place: place,
-            userLat: _userLat,
-            userLng: _userLng,
-            area: _imageArea,
-            greetingName: _greetingName,
-            isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
+      children: [
+        ...visible.indexed.map((entry) {
+          final (i, place) = entry;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _RestaurantRow(
+              place: place,
+              userLat: _userLat,
+              userLng: _userLng,
+              area: _imageArea,
+              greetingName: _greetingName,
+              isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
+            ),
+          );
+        }),
+        // Footer: a spinner while more pages remain (revealed on scroll), or an
+        // end-marker once every venue inside the 5km radius is shown.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Center(
+            child: hasMore
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    'Đã hiển thị ${all.length} quán gần bạn',
+                    style: AppTextStyles.mono(
+                      size: 10,
+                      weight: FontWeight.w600,
+                      color: AppColors.ink50,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
           ),
-        );
-      }).toList(),
+        ),
+      ],
     );
   }
 
@@ -973,6 +1060,13 @@ class _RestaurantRow extends StatefulWidget {
 class _RestaurantRowState extends State<_RestaurantRow> {
   bool _hovered = false;
 
+  // Venue photo search = "name + address" (most specific), else "name + area".
+  String get _imageQuery {
+    final addr = widget.place.address?.trim() ?? '';
+    if (addr.isNotEmpty) return '${widget.place.name} $addr';
+    return '${widget.place.name} ${widget.area}'.trim();
+  }
+
   String get _tagLine {
     final tags = widget.place.tags.take(2).join(' · ');
     final dist = widget.place.distanceLabel(widget.userLat, widget.userLng);
@@ -1027,7 +1121,7 @@ class _RestaurantRowState extends State<_RestaurantRow> {
           child: Row(
             children: [
               VenueThumbnail(
-                query: '${widget.place.name} ${widget.area}'.trim(),
+                query: _imageQuery,
                 width: 68,
                 height: 68,
                 radius: 14,
@@ -1188,7 +1282,9 @@ class _VenueResultRowState extends State<_VenueResultRow> {
           child: Row(
             children: [
               VenueThumbnail(
-                query: '${widget.result.name} ${widget.area}'.trim(),
+                query: widget.result.address.isNotEmpty
+                    ? '${widget.result.name} ${widget.result.address}'
+                    : '${widget.result.name} ${widget.area}'.trim(),
                 width: 68,
                 height: 68,
                 radius: 14,

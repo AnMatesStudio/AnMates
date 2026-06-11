@@ -276,6 +276,18 @@ func run(log *slog.Logger) error {
 		auth.Get("/venues/search", venueH.Search)
 	}
 
+	// Discovery nearby venues via TomTom (fresher VN POI data than OSM). Proxied
+	// server-side so the key never reaches the client; only enabled when set. The
+	// Flutter client falls back to Overpass when this route is absent/errors.
+	tomtom := services.NewTomTomClient(cfg.TomTomAPIKey)
+	if tomtom.Enabled() {
+		nearbyH := handlers.NewVenueNearby(tomtom)
+		auth.Get("/venues/nearby", nearbyH.Serve)
+		log.Info("TomTom nearby enabled")
+	} else {
+		log.Info("TomTom nearby disabled (set TOMTOM_API_KEY) — client uses Overpass")
+	}
+
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())
 

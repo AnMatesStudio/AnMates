@@ -41,7 +41,7 @@ const (
 	imageCacheTTL      = 24 * time.Hour   // a found photo set is good for a day
 	imageEmptyCacheTTL = 30 * time.Minute // re-try misses sooner
 	imageHTTPTimeout   = 10 * time.Second
-	maxImagesPerQuery  = 10 // cap photos returned per venue
+	maxImagesPerQuery  = 5 // cap photos returned per venue (max 5 per user spec)
 	htmlReadCap        = 2 << 20 // 2 MiB — Bing results page is larger than DDG Lite
 
 	// Bing lists many dead / hotlink-protected image URLs. We pull a larger
@@ -51,11 +51,6 @@ const (
 	candidatePoolSize = maxImagesPerQuery * 3
 	imageProbeTimeout = 4 * time.Second
 	imageProbeWorkers = 6 // bounded concurrency for candidate validation
-
-	// When a venue has no real photos (Bing has none about it), we fall back to a
-	// representative category stock photo so the hero isn't blank. Fewer than the
-	// real-photo cap — these aren't the actual venue, just on-theme illustration.
-	fallbackImageCount = 5
 )
 
 func NewImageSearcher() *ImageSearcher {
@@ -152,84 +147,10 @@ func (s *ImageSearcher) crawl(ctx context.Context, venueQuery string) []string {
 	}
 	candidates := parseBingImages(string(body))
 	relevant := filterRelevantImages(candidates, significantTokens(venueQuery))
-	urls := s.validate(ctx, relevant, maxImagesPerQuery)
-	if len(urls) == 0 {
-		// No photos that are actually about this venue — show an on-theme
-		// category stock photo instead of a blank hero (product decision).
-		urls = s.crawlCategory(ctx, venueQuery)
-	}
-	return urls
-}
-
-// crawlCategory fetches generic on-theme stock photos for the venue's category
-// (e.g. "nhà hàng tiệc cưới sang trọng"). It deliberately skips the relevance
-// filter — the query is intentionally generic — but still validates reachability.
-func (s *ImageSearcher) crawlCategory(ctx context.Context, venueQuery string) []string {
-	cat := categoryStockQuery(venueQuery)
-	if cat == "" {
-		return nil
-	}
-	q := url.Values{
-		"q":     {cat},
-		"first": {"1"},
-		"count": {strconv.Itoa(candidatePoolSize)},
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://www.bing.com/images/search?"+q.Encode(), http.NoBody)
-	if err != nil {
-		return nil
-	}
-	req.Header.Set("User-Agent", ImageBrowserUA)
-	req.Header.Set("Accept-Language", "vi,en;q=0.9")
-	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil
-	}
-	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
-	if resp.StatusCode != http.StatusOK {
-		return nil
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, htmlReadCap))
-	if err != nil {
-		return nil
-	}
-	imgs := parseBingImages(string(body))
-	urls := make([]string, 0, len(imgs))
-	for _, im := range imgs {
-		urls = append(urls, im.url)
-	}
-	return s.validate(ctx, urls, fallbackImageCount)
-}
-
-// categoryStockQuery maps a venue name to a generic, image-rich Vietnamese query
-// for its category, used only as the no-real-photo fallback.
-func categoryStockQuery(name string) string {
-	s := strings.ToLower(name)
-	switch {
-	case containsAny(s, "tiệc cưới", "tiec cuoi", "wedding", "hội nghị", "hoi nghi", "palace", "banquet", "sự kiện", "su kien"):
-		return "nhà hàng tiệc cưới sang trọng"
-	case containsAny(s, "cà phê", "ca phe", "coffee", "cafe", "café", "trà sữa", "tra sua", "tea", "milk"):
-		return "quán cà phê đẹp"
-	case containsAny(s, "lẩu", "lau", "hotpot", "nướng", "nuong", "bbq", "barbecue", "grill", "korean", "nhật", "sushi"):
-		return "nhà hàng lẩu nướng"
-	case containsAny(s, "bar", "beer", "bia", "pub", "lounge", "club"):
-		return "quán bar pub đẹp"
-	case containsAny(s, "phở", "pho", "bún", "bun", "cơm", "com", "quán ăn", "quan an", "restaurant", "nhà hàng", "nha hang", "ăn"):
-		return "nhà hàng món việt"
-	default:
-		return "nhà hàng quán ăn đẹp"
-	}
-}
-
-func containsAny(s string, subs ...string) bool {
-	for _, sub := range subs {
-		if strings.Contains(s, sub) {
-			return true
-		}
-	}
-	return false
+	// Only real, venue-matched photos are returned. When none match we return
+	// empty so the client shows an honest per-category placeholder rather than a
+	// misleading stock photo (product decision: accuracy over prettiness).
+	return s.validate(ctx, relevant, maxImagesPerQuery)
 }
 
 // validate probes candidate image URLs concurrently and returns the first `want`

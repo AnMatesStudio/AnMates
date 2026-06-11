@@ -94,9 +94,15 @@ must be probed because search engines list many dead/hotlink-protected images; r
 checked because search engines return *plausible-looking junk* for queries they can't satisfy.
 
 ## Gotchas / Related issues
+- **UPDATE 2026-06-11 (same day): the category-stock fallback was REMOVED.** Seeing the generic
+  stock photo repeat across same-category venues, the user chose honest per-category placeholders
+  instead. `crawl` now returns empty when no venue-matched photo exists; the client shows the
+  `PhotoSlot` gradient+emoji placeholder. `crawlCategory`/`categoryStockQuery`/`containsAny`/
+  `rotateByKey`/`fallbackImageCount` deleted; `maxImagesPerQuery` 10→5. So the pipeline now shows
+  ONLY real venue-matched photos (relevance-filtered) or an honest placeholder — never stock.
+  See session 2026-06-11-discovery-tomtom-nearby-infinite-scroll.
 - **Trade-off:** strict relevance can drop real photos of obscure venues whose Bing title doesn't
-  echo the name → those fall through to category stock. Showing a category photo is the user-chosen
-  behavior; a wrong/real-looking photo was judged worse than an on-theme stock one.
+  echo the name → those now show the category placeholder (no fake stock).
 - **Possible follow-up:** an "ảnh minh hoạ" badge when the category fallback is in use, so users
   aren't misled the stock photo is the actual venue.
 - **DuckDuckGo Lite is dead for server-side scraping** (CAPTCHA) — don't revert to it.

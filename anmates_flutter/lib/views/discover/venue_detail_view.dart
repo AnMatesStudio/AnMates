@@ -73,7 +73,7 @@ class VenueDetailData {
       priceMin: null,
       priceMax: null,
       reason: null,
-      imageQuery: _query(p.name, area),
+      imageQuery: _query(p.name, p.address, area),
     );
   }
 
@@ -92,12 +92,18 @@ class VenueDetailData {
       priceMin: r.priceMin,
       priceMax: r.priceMax,
       reason: r.reason.isNotEmpty ? r.reason : null,
-      imageQuery: _query(r.name, area),
+      imageQuery: _query(r.name, r.address, area),
     );
   }
 
-  static String _query(String name, String area) =>
-      area.trim().isNotEmpty ? '$name ${area.trim()}' : name;
+  /// Builds the venue photo search query as "name + address" (most specific,
+  /// per user request), falling back to "name + area" then bare name when the
+  /// venue has no street address.
+  static String _query(String name, String? address, String area) {
+    final addr = address?.trim() ?? '';
+    if (addr.isNotEmpty) return '$name $addr';
+    return area.trim().isNotEmpty ? '$name ${area.trim()}' : name;
+  }
 }
 
 /// Screen 12.1 — Chi tiết quán. Hero photo + venue facts + match/social-proof
