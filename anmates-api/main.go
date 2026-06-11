@@ -123,13 +123,14 @@ func run(log *slog.Logger) error {
 	// configured; a log-only sender in DEV_MODE so local flows work without
 	// credentials; otherwise left disabled (routes not registered).
 	var emailSender services.EmailSender
-	if cfg.SMTPHost != "" && cfg.SMTPUsername != "" {
+	switch {
+	case cfg.SMTPHost != "" && cfg.SMTPUsername != "":
 		emailSender = services.NewSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPFromName)
 		log.Info("Email OTP enabled (SMTP)", "host", cfg.SMTPHost, "from", cfg.SMTPFrom)
-	} else if cfg.DevMode {
+	case cfg.DevMode:
 		emailSender = services.NewLogSender(log)
 		log.Warn("Email OTP enabled with LOG sender (DEV_MODE, no SMTP) — codes are written to logs, not emailed")
-	} else {
+	default:
 		log.Info("Email OTP disabled (set SMTP_HOST + SMTP_USERNAME to enable)")
 	}
 	if emailSender != nil {

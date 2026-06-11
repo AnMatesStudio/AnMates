@@ -130,7 +130,7 @@ func (s *ImageSearcher) crawl(ctx context.Context, venueQuery string) []string {
 		"count": {strconv.Itoa(candidatePoolSize)}, // over-fetch; we filter + validate down
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://www.bing.com/images/search?"+q.Encode(), nil)
+		"https://www.bing.com/images/search?"+q.Encode(), http.NoBody)
 	if err != nil {
 		return nil
 	}
@@ -142,7 +142,7 @@ func (s *ImageSearcher) crawl(ctx context.Context, venueQuery string) []string {
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
 	if resp.StatusCode != http.StatusOK {
 		return nil
 	}
@@ -175,7 +175,7 @@ func (s *ImageSearcher) crawlCategory(ctx context.Context, venueQuery string) []
 		"count": {strconv.Itoa(candidatePoolSize)},
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"https://www.bing.com/images/search?"+q.Encode(), nil)
+		"https://www.bing.com/images/search?"+q.Encode(), http.NoBody)
 	if err != nil {
 		return nil
 	}
@@ -187,7 +187,7 @@ func (s *ImageSearcher) crawlCategory(ctx context.Context, venueQuery string) []
 	if err != nil {
 		return nil
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
 	if resp.StatusCode != http.StatusOK {
 		return nil
 	}
@@ -272,7 +272,7 @@ func (s *ImageSearcher) validate(ctx context.Context, candidates []string, want 
 func (s *ImageSearcher) reachableImage(ctx context.Context, u string) bool {
 	pctx, cancel := context.WithTimeout(ctx, imageProbeTimeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(pctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(pctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return false
 	}
@@ -285,7 +285,7 @@ func (s *ImageSearcher) reachableImage(ctx context.Context, u string) bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		return false
 	}

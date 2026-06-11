@@ -454,11 +454,11 @@ func (s *AuthService) upsertEmailUser(ctx context.Context, email string) (*model
 
 // randomNumericCode returns an n-digit, zero-padded decimal code from crypto/rand.
 func randomNumericCode(n int) (string, error) {
-	max := big.NewInt(1)
+	upper := big.NewInt(1)
 	for i := 0; i < n; i++ {
-		max.Mul(max, big.NewInt(10))
+		upper.Mul(upper, big.NewInt(10))
 	}
-	v, err := rand.Int(rand.Reader, max)
+	v, err := rand.Int(rand.Reader, upper)
 	if err != nil {
 		return "", err
 	}

@@ -62,7 +62,7 @@ func (h *VenueImage) Serve(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusNotFound)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, remote, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, remote, http.NoBody)
 	if err != nil {
 		return c.SendStatus(fiber.StatusBadGateway)
 	}
@@ -78,7 +78,7 @@ func (h *VenueImage) Serve(c *fiber.Ctx) error {
 	if err != nil {
 		return c.SendStatus(fiber.StatusBadGateway)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
 	if resp.StatusCode != http.StatusOK {
 		return c.SendStatus(fiber.StatusBadGateway)
 	}

@@ -90,7 +90,7 @@ func (h *Venue) Search(c *fiber.Ctx) error {
 	}
 
 	sortByDistance := true
-	if sort := strings.ToLower(c.Query("sort_by_distance", "true")); sort == "false" {
+	if sortParam := strings.ToLower(c.Query("sort_by_distance", "true")); sortParam == "false" {
 		sortByDistance = false
 	}
 

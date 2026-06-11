@@ -61,11 +61,18 @@ plus the existing global per-IP rate limiter.
 - gofmt flags every repo file (CRLF artifact on Windows) → not touched.
 
 ## PENDING (live verify — blocked on user)
-1. Set real `SMTP_HOST=smtp.gmail.com` + `SMTP_USERNAME` + `SMTP_PASSWORD` (Gmail App
-   Password) in `.env`, OR rely on DEV_MODE LogSender (code printed to API logs).
-2. `./start.sh` → on phone screen tap "Đăng nhập bằng email" → enter email → receive code
-   → enter 6 digits → lands in app (new email users route through onboarding).
-3. When confirmed → migrate this session to a resolution (R-007 or next free).
+1. ✅ Local SMTP CONFIRMED — user received a real OTP email (Gmail, anmates.studio@gmail.com).
+2. Full round-trip not yet confirmed: tap "Đăng nhập bằng email" → enter email → enter the
+   6 digits → lands in app (new email users route through onboarding).
+3. Branded HTML email: visually preview by triggering a FRESH OTP (the screenshotted email
+   was the old plain-text version).
+4. Deployed API: create GH vars `SMTP_HOST` + `SMTP_USERNAME` + secret `SMTP_PASSWORD`, then a
+   deploy will carry SMTP to Cloud Run.
+5. Commit/push this branch (`feat/implement-quan-detail`) — changes are still in the working
+   tree, CI (incl. the now-fixed golangci-lint) runs on push.
+6. When the full login round-trip is confirmed → migrate this session to a resolution
+   (R-007 or next free): tags `email-otp`, `auth`, `smtp`, `passwordless`, `go-backend`,
+   `flutter`, `ci-cd`.
 
 ## Addendum — branded HTML email (2026-06-11, after user got live SMTP working)
 User asked to make the OTP email look professional. Upgraded the transport + content:
@@ -80,6 +87,36 @@ User asked to make the OTP email look professional. Upgraded the transport + con
   note + footer. `RequestEmailOTP` now sends both `text` and `html`.
 - Re-verified: go build/vet/test GREEN. To preview: trigger a fresh OTP (the old plain-text
   email predates this change).
+
+## Addendum — CI/CD passes SMTP env to Cloud Run (2026-06-11)
+Local SMTP works (user received a real branded OTP email). For the DEPLOYED API to also send,
+the deploy must inject SMTP env — `gcloud run deploy --set-env-vars` REPLACES the whole env
+set, so anything omitted is wiped (same gotcha as AI_SEARCH_URL in R-006).
+- Added 3 `--set-env-vars` to BOTH `.github/workflows/cd.go-api.yml` (prod, push main) and
+  `.github/workflows/ci.go-api.yml` `deploy-dev` job (PR → shared dev Cloud Run):
+  - `SMTP_HOST=${{ vars.SMTP_HOST || 'smtp.gmail.com' }}` (GH **var**, has default)
+  - `SMTP_USERNAME=${{ vars.SMTP_USERNAME }}` (GH **var**, non-sensitive)
+  - `SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}` (GH **secret**, Gmail App Password)
+- `SMTP_FROM` defaults to username, `SMTP_FROM_NAME` defaults to "ĂnMates" in config → these 3
+  are enough.
+- **User action**: create GH **vars** `SMTP_HOST` + `SMTP_USERNAME` and **secret**
+  `SMTP_PASSWORD` (repo-level, or per-environment in both `production` + `dev`).
+- ⚠️ Security: a real-looking Gmail App Password is currently committed in `.env.example`
+  (tracked) — should be replaced with a placeholder + the password revoked/rotated. Flagged to
+  user, not yet actioned.
+
+## Addendum — golangci-lint CI fix (2026-06-11)
+CI step `golangci-lint-action@v7` (v2.12.2) failed with 11 issues, blocking merge. Fixed to 0:
+- From this feature: `main.go` if-else-chain → `switch` (gocritic ifElseChain);
+  `services/auth.go` `randomNumericCode` local `max` → `upper` (gocritic builtinShadow).
+- Pre-existing on this branch (venue work, fixed together): `handlers/venue.go` local `sort`
+  → `sortParam` (importShadow); `handlers/venue_image.go` + `services/venue_image.go`
+  request body `nil` → `http.NoBody` ×4 (httpNoBody) and `defer resp.Body.Close()` +
+  `//nolint:errcheck` ×4 (errcheck) — matching the existing convention in `services/auth.go`.
+- Verified: `golangci-lint run` (v2.12.2 in docker) → **0 issues**; go build + test GREEN.
+- Decision: **KEEP Bing** as the venue image source — user asked about switching to Google but
+  server-side Google Images scraping would hit the same CAPTCHA/429 wall that retired DDG
+  (the "proper" Google path needs the Custom Search JSON API + key, deferred).
 
 ## Key facts
 - Routes only exist when an email sender is configured (`EmailOTPEnabled()`), so prod without

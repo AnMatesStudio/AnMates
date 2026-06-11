@@ -105,6 +105,9 @@ jobs:
             --set-env-vars "JWT_SECRET=${{ secrets.JWT_SECRET }}" \
             --set-env-vars "FIREBASE_WEB_API_KEY=${{ secrets.FIREBASE_WEB_API_KEY }}" \
             --set-env-vars "AI_SEARCH_URL=${{ vars.AI_SEARCH_URL || 'https://ai-venue-search-492509819332.asia-southeast1.run.app' }}" \
+            --set-env-vars "SMTP_HOST=${{ vars.SMTP_HOST || 'smtp.gmail.com' }}" \
+            --set-env-vars "SMTP_USERNAME=${{ vars.SMTP_USERNAME }}" \
+            --set-env-vars "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" \
             --quiet
 
       - name: Smoke check /health
