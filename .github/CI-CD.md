@@ -59,6 +59,8 @@ Vào `Settings → Secrets and variables → Actions → New repository secret` 
 | `DATABASE_URL` | Supabase project settings | Postgres connection string |
 | `JWT_SECRET` | Generated locally (min 32 chars) | JWT signing key |
 | `FIREBASE_WEB_API_KEY` | Firebase Console → Project settings → General | Web API key |
+| `TOMTOM_API_KEY` *(optional)* | [developer.tomtom.com](https://developer.tomtom.com) (free key) | Discovery `/venues/nearby` proxy (fresher VN POI than OSM). Bỏ trống = client fallback Overpass |
+| `SMTP_PASSWORD` *(optional)* | Gmail App Password (Account → Security → App passwords) | Email OTP gửi mã thật. Bỏ trống = email OTP chỉ bật trong DEV_MODE |
 
 ### Bước 3 (optional): Repo variables
 
