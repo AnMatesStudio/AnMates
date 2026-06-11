@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 import '../../services/location_service.dart';
 import '../../services/places_service.dart';
 import '../../services/profile_service.dart';
-import '../../services/venue_image_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
@@ -83,13 +82,6 @@ class _DiscoverViewState extends State<DiscoverView> {
   int _visibleCount = _kPageSize;
   bool _showBackToTop = false;
 
-  // --- photo gate: only venues with a real Bing-found photo enter the list ---
-  // (user rule: "quán nào ko có hình phù hợp thì ko lấy vào list"). Each venue's
-  // image query is probed once; id → true (has photo) / false (drop). Cached so
-  // switching filters never re-probes.
-  final Map<String, bool> _photoOk = {};
-  bool _photoScanning = false;
-
   // --- filters ---
   String? _activeGenre; // null = no filter
   final TextEditingController _searchCtrl = TextEditingController();
@@ -108,7 +100,7 @@ class _DiscoverViewState extends State<DiscoverView> {
   void initState() {
     super.initState();
     _loadProfile();
-    _loadNearby();
+    _initLocationAndLoad();
     _searchCtrl.addListener(_onSearchChanged);
     _scrollCtrl.addListener(_onScroll);
   }
@@ -132,14 +124,12 @@ class _DiscoverViewState extends State<DiscoverView> {
 
     // Infinite reveal — only on the OSM browse path (not web-search results).
     if (_searchResults == null && pos.pixels >= pos.maxScrollExtent - 240) {
-      if (_visibleCount < _withPhotos.length) {
+      final total = _filteredPlaces.length;
+      if (_visibleCount < total) {
         setState(() {
-          _visibleCount =
-              (_visibleCount + _kPageSize).clamp(0, _withPhotos.length);
+          _visibleCount = (_visibleCount + _kPageSize).clamp(0, total);
         });
       }
-      // Probe more candidates so the next page has confirmed-photo venues ready.
-      if (_photoScanMore) _scanPhotos(_visibleCount + _kPageSize);
     }
   }
 
@@ -165,7 +155,6 @@ class _DiscoverViewState extends State<DiscoverView> {
           _searchError = null;
         }
       });
-      _scanPhotos(_kPageSize); // ensure the new filter has photo-confirmed venues
     });
   }
 
@@ -215,7 +204,25 @@ class _DiscoverViewState extends State<DiscoverView> {
     }
   }
 
-  Future<void> _loadNearby() async {
+  /// First paint loads venues fast (at the real position if permission is already
+  /// granted, else the fallback city). On web the geolocation prompt often
+  /// resolves AFTER this first load, so we then poll briefly: the moment a real
+  /// position becomes available (user tapped "Allow"), reload venues at it.
+  Future<void> _initLocationAndLoad() async {
+    await _loadNearby();
+    for (var i = 0; i < 12; i++) {
+      if (!mounted || !_usingFallbackLocation) return; // got real coords already
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      final coords = await LocationService().currentLatLng();
+      if (coords != null && mounted) {
+        await _loadNearby(coordsOverride: coords); // permission granted → reload
+        return;
+      }
+    }
+  }
+
+  Future<void> _loadNearby({({double lat, double lng})? coordsOverride}) async {
     if (!mounted) return;
     setState(() {
       _loadingPlaces = true;
@@ -223,7 +230,7 @@ class _DiscoverViewState extends State<DiscoverView> {
     });
 
     try {
-      final coords = await LocationService().currentLatLng();
+      final coords = coordsOverride ?? await LocationService().currentLatLng();
       if (!mounted) return;
 
       final lat = coords?.lat ?? _kFallbackLat;
@@ -248,11 +255,8 @@ class _DiscoverViewState extends State<DiscoverView> {
         _usingFallbackLocation = usingFallback;
         _places = places;
         _visibleCount = _kPageSize;
-        _photoOk.clear(); // fresh venue set → re-probe photos
         _loadingPlaces = false;
       });
-
-      _scanPhotos(_kPageSize); // gate the list to venues that have a real photo
 
       // Async label — don't block the list on it.
       _reverseGeocode(lat, lng);
@@ -351,51 +355,6 @@ class _DiscoverViewState extends State<DiscoverView> {
   // "Gần bạn" isn't a place name, so fall back to the city for better matches.
   String get _imageArea =>
       _locationLabel == 'Gần bạn' ? 'TP.HCM' : _locationLabel;
-
-  // Venues confirmed to have a real photo — the only ones shown in the list.
-  List<OsmPlace> get _withPhotos =>
-      _filteredPlaces.where((p) => _photoOk[p.id] == true).toList();
-
-  // Probes candidate venues (genre/search-filtered) for a real photo until at
-  // least [want] are confirmed, or candidates run out. Venues with no suitable
-  // photo are recorded false and never enter the list (user rule). Probes run in
-  // small parallel batches; the /venues/images count is cached server-side.
-  Future<void> _scanPhotos(int want) async {
-    if (_photoScanning) return;
-    _photoScanning = true;
-    try {
-      final cands = _filteredPlaces;
-      var i = 0;
-      while (_withPhotos.length < want && i < cands.length) {
-        final batch = <OsmPlace>[];
-        while (i < cands.length && batch.length < 8) {
-          final p = cands[i];
-          i++;
-          if (!_photoOk.containsKey(p.id)) batch.add(p);
-        }
-        if (batch.isEmpty) continue;
-        await Future.wait(
-          batch.map((p) async {
-            try {
-              final n = await VenueImageService().count(venueImageQuery(p, _imageArea));
-              _photoOk[p.id] = n > 0;
-            } catch (_) {
-              _photoOk[p.id] = false; // probe failed → treat as no photo
-            }
-          }),
-        );
-        if (!mounted) return;
-        setState(() {}); // reveal newly confirmed venues
-      }
-    } finally {
-      _photoScanning = false;
-      if (mounted) setState(() {}); // refresh footer (scan finished)
-    }
-  }
-
-  // True while more candidates remain to probe for the current filter.
-  bool get _photoScanMore =>
-      _filteredPlaces.any((p) => !_photoOk.containsKey(p.id));
 
   @override
   Widget build(BuildContext context) {
@@ -599,7 +558,6 @@ class _DiscoverViewState extends State<DiscoverView> {
               _activeGenre = (_activeGenre == label) ? null : label;
               _visibleCount = _kPageSize; // re-page from the top on filter change
             });
-            _scanPhotos(_kPageSize); // probe photos for the newly-filtered set
           },
           items: [
             (
@@ -802,31 +760,22 @@ class _DiscoverViewState extends State<DiscoverView> {
       );
     }
 
-    // Only venues confirmed to have a real photo enter the list (user rule).
-    final all = _withPhotos;
-    final scanning = _photoScanning || _photoScanMore;
+    final all = _filteredPlaces;
 
     if (all.isEmpty) {
-      // Still probing → spinner; finished with nothing → honest empty state.
       return Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 28),
-          child: scanning
-              ? const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  'Chưa tìm thấy quán có ảnh quanh đây',
-                  style: AppTextStyles.body(size: 14, color: AppColors.ink50),
-                ),
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Text(
+            'Chưa tìm thấy quán quanh đây',
+            style: AppTextStyles.body(size: 14, color: AppColors.ink50),
+          ),
         ),
       );
     }
 
     final visible = all.take(_visibleCount).toList();
-    final hasMore = _visibleCount < all.length || scanning;
+    final hasMore = _visibleCount < all.length;
 
     return Column(
       children: [
@@ -856,7 +805,7 @@ class _DiscoverViewState extends State<DiscoverView> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Text(
-                    'Đã hiển thị ${all.length} quán có ảnh gần bạn',
+                    'Đã hiển thị ${all.length} quán gần bạn',
                     style: AppTextStyles.mono(
                       size: 10,
                       weight: FontWeight.w600,

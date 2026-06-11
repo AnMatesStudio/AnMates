@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"hash/fnv"
 	"html"
 	"io"
 	"net"
@@ -45,10 +46,9 @@ type imgCacheEntry struct {
 }
 
 const (
-	imageEmptyCacheTTL = 30 * time.Minute // re-try misses sooner (only when ttl>0)
-	imageHTTPTimeout   = 10 * time.Second
-	maxImagesPerQuery  = 5 // cap photos returned per venue (max 5 per user spec)
-	htmlReadCap        = 2 << 20 // 2 MiB — Bing results page is larger than DDG Lite
+	imageHTTPTimeout  = 10 * time.Second
+	maxImagesPerQuery = 5       // cap photos returned per venue (max 5 per user spec)
+	htmlReadCap       = 2 << 20 // 2 MiB — Bing results page is larger than DDG Lite
 
 	// Bing lists many dead / hotlink-protected image URLs. We pull a larger
 	// candidate pool, probe each, and keep the first maxImagesPerQuery that
@@ -57,6 +57,10 @@ const (
 	candidatePoolSize = maxImagesPerQuery * 3
 	imageProbeTimeout = 4 * time.Second
 	imageProbeWorkers = 6 // bounded concurrency for candidate validation
+
+	// Priority-3 fallback: when no real venue photo is found, serve on-theme
+	// F&B category photos so the list ALWAYS has an image (user rule).
+	fallbackImageCount = 5
 )
 
 func NewImageSearcher() *ImageSearcher {
@@ -94,15 +98,13 @@ func (s *ImageSearcher) cached(key string) ([]string, bool) {
 }
 
 func (s *ImageSearcher) store(key string, urls []string) {
-	if s.ttl <= 0 {
-		return // caching disabled
-	}
-	ttl := s.ttl
-	if len(urls) == 0 && imageEmptyCacheTTL < ttl {
-		ttl = imageEmptyCacheTTL // re-try genuine misses sooner
+	// Never cache an empty result: a transient Bing/network hiccup must NOT pin a
+	// venue to "no image" — the next render re-resolves and the cascade fills it.
+	if s.ttl <= 0 || len(urls) == 0 {
+		return
 	}
 	s.mu.Lock()
-	s.cache[key] = imgCacheEntry{urls: urls, expires: time.Now().Add(ttl)}
+	s.cache[key] = imgCacheEntry{urls: urls, expires: time.Now().Add(s.ttl)}
 	s.mu.Unlock()
 }
 
@@ -173,10 +175,105 @@ func (s *ImageSearcher) crawl(ctx context.Context, venueQuery string) []string {
 	}
 	candidates := parseBingImages(string(body))
 	relevant := filterRelevantImages(candidates, significantTokens(venueQuery))
-	// Only real, venue-matched photos are returned. When none match we return
-	// empty so the client shows an honest per-category placeholder rather than a
-	// misleading stock photo (product decision: accuracy over prettiness).
-	return s.validate(ctx, relevant, maxImagesPerQuery)
+	// Priority 1-2: the venue's real photos (website / Maps-indexed pages), kept
+	// only when a result actually names this venue.
+	urls := s.validate(ctx, relevant, maxImagesPerQuery)
+	if len(urls) == 0 {
+		// Priority 3: no real venue photo → an on-theme F&B category photo so the
+		// list ALWAYS has an image (user rule). NSFW/junk already filtered out.
+		urls = s.crawlCategory(ctx, venueQuery)
+	}
+	return urls
+}
+
+// crawlCategory fetches generic on-theme F&B photos for the venue's category
+// (e.g. "quán cà phê đẹp"). It skips the name-relevance filter — the query is
+// intentionally generic — but still drops junk/NSFW and validates reachability.
+func (s *ImageSearcher) crawlCategory(ctx context.Context, venueQuery string) []string {
+	cat := categoryStockQuery(venueQuery)
+	if cat == "" {
+		return nil
+	}
+	q := url.Values{
+		"q":     {cat},
+		"first": {"1"},
+		"count": {strconv.Itoa(candidatePoolSize)},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://www.bing.com/images/search?"+q.Encode(), http.NoBody)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("User-Agent", ImageBrowserUA)
+	req.Header.Set("Accept-Language", "vi,en;q=0.9")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close() //nolint:errcheck // HTTP response body close; error unrecoverable
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, htmlReadCap))
+	if err != nil {
+		return nil
+	}
+	imgs := parseBingImages(string(body))
+	urls := make([]string, 0, len(imgs))
+	for _, im := range imgs {
+		urls = append(urls, im.url)
+	}
+	// Same-category venues share this generic query → identical image list. Rotate
+	// per-venue so neighbouring venues of the same type don't show the same photo.
+	urls = rotateByKey(urls, venueQuery)
+	return s.validate(ctx, urls, fallbackImageCount)
+}
+
+// rotateByKey deterministically rotates a slice by an offset derived from key, so
+// different keys surface a different element first while reusing the same pool.
+func rotateByKey(s []string, key string) []string {
+	if len(s) < 2 {
+		return s
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(key))
+	off := int(h.Sum32()) % len(s)
+	if off < 0 {
+		off += len(s)
+	}
+	return append(append([]string{}, s[off:]...), s[:off]...)
+}
+
+// categoryStockQuery maps a venue name to a generic, image-rich Vietnamese F&B
+// query for its category, used only as the no-real-photo fallback. Every branch
+// is food/drink so the fallback is always F&B-relevant (user rule 3 + 4).
+func categoryStockQuery(name string) string {
+	s := strings.ToLower(name)
+	switch {
+	case containsAny(s, "tiệc cưới", "tiec cuoi", "wedding", "hội nghị", "hoi nghi", "palace", "banquet", "sự kiện", "su kien"):
+		return "nhà hàng tiệc cưới sang trọng"
+	case containsAny(s, "cà phê", "ca phe", "coffee", "cafe", "café", "trà sữa", "tra sua", "tea", "milk"):
+		return "quán cà phê đẹp"
+	case containsAny(s, "lẩu", "lau", "hotpot", "nướng", "nuong", "bbq", "barbecue", "grill", "korean", "nhật", "sushi"):
+		return "nhà hàng lẩu nướng"
+	case containsAny(s, "bar", "beer", "bia", "pub", "lounge", "club"):
+		return "quán bar pub đẹp"
+	case containsAny(s, "phở", "pho", "bún", "bun", "cơm", "com", "quán ăn", "quan an", "restaurant", "nhà hàng", "nha hang", "ăn"):
+		return "nhà hàng món việt"
+	default:
+		return "nhà hàng quán ăn đẹp"
+	}
+}
+
+func containsAny(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 // validate probes candidate image URLs concurrently and returns the first `want`
@@ -362,11 +459,15 @@ func prepareVenueSearchQuery(venue string) string {
 	return clean + " ảnh"
 }
 
-// Substrings that mark a non-photo asset (site chrome, ads, tracking, UI icons).
+// Substrings that mark a non-photo asset (site chrome, ads, tracking, UI icons)
+// OR an unsafe / clearly non-F&B image (adult content) we must never serve.
 var junkImageMarkers = []string{
 	"logo", "icon", "favicon", "sprite", "avatar", "banner", "/ads", "advert",
 	"pixel", "placeholder", "loading", "blank", "spacer", "share", "social",
 	"button", "/flag", "emoji", "thumb_default", "no-image", "noimage",
+	// Safety: drop adult / pornographic sources (user rule: no "đồi trụy" images).
+	"porn", "xxx", "sex", "nude", "nsfw", "adult", "erotic", "xvideos",
+	"pornhub", "xhamster", "onlyfans", "hentai", "boob", "lingerie",
 }
 
 func isJunkImage(u string) bool {
