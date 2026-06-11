@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/url"
@@ -40,26 +41,20 @@ func NewVenueImage(searcher *services.ImageSearcher) *VenueImage {
 	}
 }
 
-// Serve handles GET /api/v1/venues/image?q=<venue name>&i=<index>.
-// `i` (default 0) selects which crawled photo to stream — the detail-screen
-// gallery walks 0..count-1; the list thumbnails just use 0.
+// Serve streams a venue photo as raw image bytes. Two modes:
+//
+//	?u=<base64url remote URL> → agentic/enrich path: stream that exact image
+//	    (SSRF-guarded). The detail gallery uses this so photos are realtime and
+//	    consistent with no server-side cache.
+//	?q=<venue name>&i=<index> → keyless Bing fallback: stream the i-th crawled
+//	    photo (i default 0). The Discovery list thumbnails use this.
 func (h *VenueImage) Serve(c *fiber.Ctx) error {
-	q := strings.TrimSpace(c.Query("q"))
-	if utf8.RuneCountInString(q) < 2 {
-		return c.SendStatus(fiber.StatusBadRequest)
-	}
-
-	idx := 0
-	if v, err := strconv.Atoi(c.Query("i", "0")); err == nil && v > 0 {
-		idx = v
-	}
-
 	ctx, cancel := context.WithTimeout(c.UserContext(), imageProxyTimeout)
 	defer cancel()
 
-	remote := h.searcher.ResolveURLAt(ctx, q, idx)
-	if remote == "" {
-		return c.SendStatus(fiber.StatusNotFound)
+	remote, status := h.resolveRemote(ctx, c)
+	if status != 0 {
+		return c.SendStatus(status)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, remote, http.NoBody)
@@ -96,6 +91,52 @@ func (h *VenueImage) Serve(c *fiber.Ctx) error {
 	c.Set("Content-Type", ct)
 	c.Set("Cache-Control", "public, max-age=86400")
 	return c.Send(body)
+}
+
+// resolveRemote picks the remote image URL to proxy from the request. Returns
+// (url, 0) on success, or ("", httpStatus) describing the error to send.
+func (h *VenueImage) resolveRemote(ctx context.Context, c *fiber.Ctx) (remoteURL string, status int) {
+	// Enrich path: a caller-supplied remote URL (from the agentic crawl). It is
+	// SSRF-guarded — the endpoint is public, so we must never proxy an internal/
+	// private address (e.g. cloud metadata).
+	if enc := strings.TrimSpace(c.Query("u")); enc != "" {
+		raw, err := decodeProxyURL(enc)
+		if err != nil {
+			return "", fiber.StatusBadRequest
+		}
+		if !services.IsPublicHTTPImageURL(ctx, raw) {
+			return "", fiber.StatusForbidden
+		}
+		return raw, 0
+	}
+
+	// Fallback path: resolve the i-th Bing-crawled photo for the venue name.
+	q := strings.TrimSpace(c.Query("q"))
+	if utf8.RuneCountInString(q) < 2 {
+		return "", fiber.StatusBadRequest
+	}
+	idx := 0
+	if v, err := strconv.Atoi(c.Query("i", "0")); err == nil && v > 0 {
+		idx = v
+	}
+	remote := h.searcher.ResolveURLAt(ctx, q, idx)
+	if remote == "" {
+		return "", fiber.StatusNotFound
+	}
+	return remote, 0
+}
+
+// decodeProxyURL decodes the `u=` parameter, accepting both raw (unpadded) and
+// standard URL-safe base64 so the Flutter client can encode without padding.
+func decodeProxyURL(enc string) (string, error) {
+	if b, err := base64.RawURLEncoding.DecodeString(enc); err == nil {
+		return string(b), nil
+	}
+	b, err := base64.URLEncoding.DecodeString(enc)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 // Count handles GET /api/v1/venues/images?q=<venue name>, returning how many

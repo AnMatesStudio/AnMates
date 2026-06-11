@@ -74,6 +74,17 @@ class Settings:
     # correctly instead of stacking on the midpoint). Disable for fully-offline runs.
     geocode_enabled: bool = field(default_factory=lambda: os.getenv("GEOCODE_ENABLED", "1") not in ("0", "false", ""))
 
+    # --- agentic venue enrichment (detail screen: realtime Google crawl) -----
+    # Drives a headless Chromium over google.com to find the venue's own pages,
+    # then verifies photos + extracts facts with the structurer LLM. All optional:
+    # if Playwright isn't installed the crawler falls back to Bing, and a failed
+    # crawl returns empty (the client shows a placeholder) — nothing else breaks.
+    enrich_headless: bool = field(default_factory=lambda: os.getenv("ENRICH_HEADLESS", "1") not in ("0", "false", ""))
+    enrich_nav_timeout_ms: int = field(default_factory=lambda: int(os.getenv("ENRICH_NAV_TIMEOUT_MS", "15000")))
+    enrich_max_pages: int = field(default_factory=lambda: int(os.getenv("ENRICH_MAX_PAGES", "4")))
+    enrich_max_iterations: int = field(default_factory=lambda: int(os.getenv("ENRICH_MAX_ITERATIONS", "2")))
+    enrich_bing_fallback: bool = field(default_factory=lambda: os.getenv("ENRICH_BING_FALLBACK", "1") not in ("0", "false", ""))
+
     # --- misc ----------------------------------------------------------------
     request_timeout_s: float = field(default_factory=lambda: float(os.getenv("REQUEST_TIMEOUT_S", "55")))
 

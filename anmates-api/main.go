@@ -235,6 +235,16 @@ func run(log *slog.Logger) error {
 	app.Get("/api/v1/venues/image", venueImageH.Serve)
 	app.Get("/api/v1/venues/images", venueImageH.Count)
 
+	// Agentic realtime venue enrichment for the detail screen: a headless Google
+	// crawl + LLM verification returns photos that are genuinely THIS food venue
+	// (fixing unrelated-photo results) plus extracted facts. Public + uncached;
+	// degrades to the Bing thumbnail above when AI_SEARCH_URL is unset or blocked.
+	venueEnrichH := handlers.NewVenueEnrich(services.NewVenueEnricher(cfg.AISearchURL))
+	app.Get("/api/v1/venues/enrich", venueEnrichH.Serve)
+	if cfg.AISearchURL != "" {
+		log.Info("Venue enrichment enabled (agentic Google crawl)", "search_url", cfg.AISearchURL)
+	}
+
 	// Authenticated.
 	auth := api.Use(jwtMW)
 	auth.Get("/profile", userH.GetProfile)

@@ -8,6 +8,10 @@ mcp>=1.0
 # `uv` provides `uvx`, used to launch the FREE, keyless DuckDuckGo MCP server
 # (uvx duckduckgo-mcp-server). No API key required.
 uv>=0.4
+# Headless browser for the agentic venue-enrichment crawl (drives google.com to
+# find a venue's pages). Optional at runtime: if the Chromium binary is missing
+# the crawler falls back to a keyless Bing httpx search.
+playwright>=1.44
 # Optional, ONLY if you set STRUCTURER=anthropic (paid). Not needed for the free
 # default (STRUCTURER=openai → local LM Studio / Ollama).
 # anthropic>=0.39

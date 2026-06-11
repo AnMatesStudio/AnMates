@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -116,6 +117,41 @@ func TestIsJunkImage(t *testing.T) {
 	for _, u := range good {
 		if isJunkImage(u) {
 			t.Errorf("isJunkImage(%q) = true, want false", u)
+		}
+	}
+}
+
+func TestIsPublicHTTPImageURL(t *testing.T) {
+	// Uses IP literals (no DNS) so the SSRF guard is exercised without network.
+	public := []string{
+		"https://1.2.3.4/photo.jpg",
+		"http://8.8.8.8/x.png",
+		"https://203.0.113.10/a/b.webp",
+	}
+	ctx := context.Background()
+	for _, u := range public {
+		if !IsPublicHTTPImageURL(ctx, u) {
+			t.Errorf("IsPublicHTTPImageURL(%q) = false, want true", u)
+		}
+	}
+
+	blocked := []string{
+		"http://127.0.0.1/x.jpg",                       // loopback
+		"http://10.0.0.5/x.jpg",                        // RFC1918
+		"http://192.168.1.1/x.jpg",                     // RFC1918
+		"http://172.16.5.5/x.jpg",                      // RFC1918
+		"http://169.254.169.254/latest/meta-data",      // cloud metadata (link-local)
+		"https://[::1]/x.jpg",                          // IPv6 loopback
+		"http://[fc00::1]/x.jpg",                       // IPv6 ULA (private)
+		"http://0.0.0.0/x.jpg",                         // unspecified
+		"ftp://1.2.3.4/x.jpg",                          // non-http scheme
+		"file:///etc/passwd",                           // non-http scheme
+		"not a url at all",                             // unparseable as http
+		"https:///nohost.jpg",                          // empty host
+	}
+	for _, u := range blocked {
+		if IsPublicHTTPImageURL(ctx, u) {
+			t.Errorf("IsPublicHTTPImageURL(%q) = true, want false (SSRF)", u)
 		}
 	}
 }

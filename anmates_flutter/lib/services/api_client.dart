@@ -121,6 +121,18 @@ class ApiClient {
     return index > 0 ? '$base&i=$index' : base;
   }
 
+  /// Absolute URL of the public image proxy for a specific [remoteUrl] (a photo
+  /// the agentic enrich crawl already resolved). The remote URL is base64url-
+  /// encoded into the `u=` param; the backend re-fetches its bytes through our
+  /// own CORS-friendly, SSRF-guarded origin. Returns "" for an empty/invalid URL.
+  static String imageProxyUrl(String remoteUrl) {
+    final u = remoteUrl.trim();
+    if (u.isEmpty || !u.startsWith('http')) return '';
+    // Unpadded base64url — matches Go's base64.RawURLEncoding on the server.
+    final enc = base64Url.encode(utf8.encode(u)).replaceAll('=', '');
+    return '$_baseUrl/api/v1/venues/image?u=$enc';
+  }
+
   // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {
     final wsBase = _baseUrl

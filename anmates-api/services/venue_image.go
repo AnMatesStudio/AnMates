@@ -4,8 +4,10 @@ import (
 	"context"
 	"html"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,6 +32,11 @@ type ImageSearcher struct {
 	client *http.Client
 	mu     sync.Mutex
 	cache  map[string]imgCacheEntry
+	// ttl is how long a resolved photo set is cached. Default is 0 (caching OFF) so
+	// the keyless Bing fallback path re-resolves each time — the user asked for
+	// realtime, not stale, images. Re-enable/tune via VENUE_IMAGE_CACHE_TTL (a Go
+	// duration, e.g. "10m"); the agentic detail path is always uncached regardless.
+	ttl time.Duration
 }
 
 type imgCacheEntry struct {
@@ -38,8 +45,7 @@ type imgCacheEntry struct {
 }
 
 const (
-	imageCacheTTL      = 24 * time.Hour   // a found photo set is good for a day
-	imageEmptyCacheTTL = 30 * time.Minute // re-try misses sooner
+	imageEmptyCacheTTL = 30 * time.Minute // re-try misses sooner (only when ttl>0)
 	imageHTTPTimeout   = 10 * time.Second
 	maxImagesPerQuery  = 5 // cap photos returned per venue (max 5 per user spec)
 	htmlReadCap        = 2 << 20 // 2 MiB — Bing results page is larger than DDG Lite
@@ -57,10 +63,27 @@ func NewImageSearcher() *ImageSearcher {
 	return &ImageSearcher{
 		client: &http.Client{Timeout: imageHTTPTimeout},
 		cache:  make(map[string]imgCacheEntry),
+		ttl:    imageCacheTTLFromEnv(),
 	}
 }
 
+// imageCacheTTLFromEnv reads VENUE_IMAGE_CACHE_TTL (a Go duration). Default 0 =
+// caching disabled (re-resolve every request) so photos stay realtime.
+func imageCacheTTLFromEnv() time.Duration {
+	v := strings.TrimSpace(os.Getenv("VENUE_IMAGE_CACHE_TTL"))
+	if v == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(v); err == nil && d > 0 {
+		return d
+	}
+	return 0
+}
+
 func (s *ImageSearcher) cached(key string) ([]string, bool) {
+	if s.ttl <= 0 {
+		return nil, false // caching disabled — always re-resolve
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.cache[key]
@@ -71,9 +94,12 @@ func (s *ImageSearcher) cached(key string) ([]string, bool) {
 }
 
 func (s *ImageSearcher) store(key string, urls []string) {
-	ttl := imageCacheTTL
-	if len(urls) == 0 {
-		ttl = imageEmptyCacheTTL
+	if s.ttl <= 0 {
+		return // caching disabled
+	}
+	ttl := s.ttl
+	if len(urls) == 0 && imageEmptyCacheTTL < ttl {
+		ttl = imageEmptyCacheTTL // re-try genuine misses sooner
 	}
 	s.mu.Lock()
 	s.cache[key] = imgCacheEntry{urls: urls, expires: time.Now().Add(ttl)}
@@ -351,4 +377,53 @@ func isJunkImage(u string) bool {
 		}
 	}
 	return false
+}
+
+// IsPublicHTTPImageURL reports whether raw is a plain http(s) URL that resolves to
+// a public (globally-routable) host — the SSRF guard for the proxy's `?u=` mode,
+// which streams a caller-supplied remote URL. It rejects non-http schemes and any
+// host that resolves to a loopback / private / link-local / multicast / unspecified
+// address (e.g. 127.0.0.1, 10.x, 192.168.x, ::1, fc00::/7, and the cloud-metadata
+// 169.254.169.254), so the open endpoint can't be turned into an internal-network
+// probe. DNS is resolved here and EVERY resolved IP must be public.
+func IsPublicHTTPImageURL(ctx context.Context, raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	host := u.Hostname()
+	if host == "" {
+		return false
+	}
+
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+		if err != nil || len(addrs) == 0 {
+			return false
+		}
+		for _, a := range addrs {
+			ips = append(ips, a.IP)
+		}
+	}
+	for _, ip := range ips {
+		if !isPublicIP(ip) {
+			return false
+		}
+	}
+	return true
+}
+
+func isPublicIP(ip net.IP) bool {
+	// IsPrivate covers RFC1918 (10/8, 172.16/12, 192.168/16) and IPv6 ULA (fc00::/7).
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsUnspecified() ||
+		ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsMulticast() {
+		return false
+	}
+	return true
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
+import '../../services/venue_enrich_service.dart';
 import '../../services/venue_image_service.dart';
 import '../../services/venue_reviews_service.dart';
 import '../../services/venue_search_service.dart';
@@ -107,6 +108,34 @@ class VenueDetailData {
     if (addr.isNotEmpty) return '$name $addr';
     return area.trim().isNotEmpty ? '$name ${area.trim()}' : name;
   }
+
+  /// Returns a copy with facts from the agentic crawl ([e]) filled in. Existing
+  /// (more-trusted, on-device) values win; the agent only supplies what was blank,
+  /// so enrichment never overwrites a known address/rating with a scraped guess.
+  VenueDetailData withEnrichment(VenueEnrichInfo e) {
+    bool blank(String? s) => s == null || s.trim().isEmpty;
+    final mergedTags = (tags.isEmpty && e.cuisine.trim().isNotEmpty)
+        ? <String>[e.cuisine.trim()]
+        : tags;
+    return VenueDetailData(
+      name: name,
+      emoji: emoji,
+      tags: mergedTags,
+      address: blank(address) && e.address.trim().isNotEmpty ? e.address.trim() : address,
+      lat: lat,
+      lng: lng,
+      openingHours: blank(openingHours) && e.openingHours.trim().isNotEmpty
+          ? e.openingHours.trim()
+          : openingHours,
+      phone: blank(phone) && e.phone.trim().isNotEmpty ? e.phone.trim() : phone,
+      distanceM: distanceM,
+      rating: rating ?? e.rating,
+      priceMin: priceMin ?? e.priceMin,
+      priceMax: priceMax ?? e.priceMax,
+      reason: blank(reason) && e.description.trim().isNotEmpty ? e.description.trim() : reason,
+      imageQuery: imageQuery,
+    );
+  }
 }
 
 /// Screen 12.1 — Chi tiết quán. Hero photo + venue facts + match/social-proof
@@ -139,12 +168,18 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   // Community review signal (rating + count + snippets), scraped server-side.
   VenueReviewInfo _reviews = VenueReviewInfo.empty;
 
-  VenueDetailData get _d => widget.data;
+  // Agentic realtime crawl result (verified photos + extracted facts). When it
+  // yields photos they replace the hero gallery; its facts merge into _d.
+  VenueEnrichment _enrich = VenueEnrichment.empty;
+
+  // Mutable so the agentic enrichment can merge in fresher facts after load.
+  late VenueDetailData _d;
 
   @override
   void initState() {
     super.initState();
-    _loadImageCount();
+    _d = widget.data;
+    _loadEnrichment();
     _loadReviews();
   }
 
@@ -152,6 +187,30 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   void dispose() {
     _heroCtrl.dispose();
     super.dispose();
+  }
+
+  /// Realtime agentic enrichment: a headless Google crawl + LLM verification
+  /// returns photos that are genuinely THIS food venue (fixing the unrelated-
+  /// photo bug) plus extracted facts. On hit, the hero gallery switches to the
+  /// verified photos and the facts merge into _d. On miss (crawl blocked / venue
+  /// not found), we fall back to the keyless Bing photo path below.
+  Future<void> _loadEnrichment() async {
+    final e = await VenueEnrichService().enrich(
+      name: _d.name,
+      address: _d.address ?? '',
+      lat: _d.lat,
+      lng: _d.lng,
+    );
+    if (!mounted) return;
+    if (e.hasImages) {
+      setState(() {
+        _enrich = e;
+        _imageCount = e.imageUrls.length;
+        _d = _d.withEnrichment(e.info);
+      });
+    } else {
+      _loadImageCount(); // no agentic photos → keep the Bing fallback gallery
+    }
   }
 
   Future<void> _loadImageCount() async {
@@ -375,6 +434,7 @@ class _VenueDetailViewState extends State<VenueDetailView> {
               onPageChanged: (i) => setState(() => _heroPage = i),
               itemBuilder: (_, i) => VenueThumbnail(
                 query: _d.imageQuery,
+                imageUrl: _enrich.hasImages ? _enrich.imageUrls[i] : null,
                 index: i,
                 width: double.infinity,
                 height: 280,
