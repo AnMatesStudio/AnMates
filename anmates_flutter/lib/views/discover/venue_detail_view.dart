@@ -100,13 +100,30 @@ class VenueDetailData {
     );
   }
 
-  /// Builds the venue photo search query as "name + address" (most specific,
-  /// per user request), falling back to "name + area" then bare name when the
-  /// venue has no street address.
+  /// Builds the venue photo search query as "name + short address". A verbose
+  /// TomTom `freeformAddress` (…, city, city, postal) over-specifies the Bing
+  /// query and finds nothing, so keep only the first two distinct, non-postal
+  /// segments (street + ward). Falls back to "name + area" then bare name.
   static String _query(String name, String? address, String area) {
-    final addr = address?.trim() ?? '';
+    final addr = _shortAddress(address);
     if (addr.isNotEmpty) return '$name $addr';
     return area.trim().isNotEmpty ? '$name ${area.trim()}' : name;
+  }
+
+  static String _shortAddress(String? address) {
+    if (address == null || address.trim().isEmpty) return '';
+    final seen = <String>{};
+    final kept = <String>[];
+    for (var part in address.split(',')) {
+      part = part.trim();
+      if (part.isEmpty || RegExp(r'^\d{4,}$').hasMatch(part)) continue;
+      final key = part.toLowerCase();
+      if (seen.contains(key)) continue;
+      seen.add(key);
+      kept.add(part);
+      if (kept.length >= 2) break;
+    }
+    return kept.join(', ');
   }
 
   /// Returns a copy with facts from the agentic crawl ([e]) filled in. Existing
