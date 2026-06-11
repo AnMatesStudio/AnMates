@@ -2,27 +2,27 @@ package services
 
 import (
 	"context"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
-// ImageBrowserUA is a realistic desktop User-Agent. Search engines and many blog
-// CDNs reject obvious bots, so every outbound request (search, page fetch, byte
-// proxy) sends it.
+// ImageBrowserUA is a realistic desktop User-Agent. Bing and CDNs reject obvious
+// bots, so every outbound request sends it.
 const ImageBrowserUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-	"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+	"AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
-// ImageSearcher resolves representative photos for a venue by web-searching its
-// name (keyless DuckDuckGo Lite) and scraping the photos off the top result pages
-// — the venue's own food-blog / review articles, whose `og:image` + inline photos
-// are far more on-point than a generic image-search engine (which mangles a
-// multi-word Vietnamese venue name into noise). Resolved URL lists are cached
-// in-memory — venue photos are effectively static, so a long TTL is fine.
+// ImageSearcher resolves representative photos for a venue by searching Bing Images
+// (keyless, no API key required) and extracting the direct `murl` image URLs that
+// Bing embeds in its results HTML. Resolved URL lists are cached in-memory — venue
+// photos are effectively static, so a long TTL is fine.
 //
 // Every failure path returns an empty list so the caller can fall back to a
 // placeholder: the feature degrades gracefully and never blocks the UI.
@@ -41,10 +41,21 @@ const (
 	imageCacheTTL      = 24 * time.Hour   // a found photo set is good for a day
 	imageEmptyCacheTTL = 30 * time.Minute // re-try misses sooner
 	imageHTTPTimeout   = 10 * time.Second
-	maxResultPages     = 5       // web-search result pages to crawl
-	maxImagesPerQuery  = 6       // cap photos returned per venue
-	maxImagesPerPage   = 4       // cap photos taken from any single page
-	htmlReadCap        = 1 << 20 // 1 MiB of HTML per page
+	maxImagesPerQuery  = 10 // cap photos returned per venue
+	htmlReadCap        = 2 << 20 // 2 MiB — Bing results page is larger than DDG Lite
+
+	// Bing lists many dead / hotlink-protected image URLs. We pull a larger
+	// candidate pool, probe each, and keep the first maxImagesPerQuery that
+	// actually return image bytes — so Count never reports unservable photos
+	// (which would render as blank/502 gallery pages on the client).
+	candidatePoolSize = maxImagesPerQuery * 3
+	imageProbeTimeout = 4 * time.Second
+	imageProbeWorkers = 6 // bounded concurrency for candidate validation
+
+	// When a venue has no real photos (Bing has none about it), we fall back to a
+	// representative category stock photo so the hero isn't blank. Fewer than the
+	// real-photo cap — these aren't the actual venue, just on-theme illustration.
+	fallbackImageCount = 5
 )
 
 func NewImageSearcher() *ImageSearcher {
@@ -74,9 +85,8 @@ func (s *ImageSearcher) store(key string, urls []string) {
 	s.mu.Unlock()
 }
 
-// ResolveURLs returns up to maxImagesPerQuery photo URLs for query, crawled from
-// the venue's web pages and cached per normalized query. Empty when nothing was
-// found or the lookup was blocked.
+// ResolveURLs returns up to maxImagesPerQuery photo URLs for query, fetched from
+// Bing Images and cached per normalized query. Empty when nothing was found.
 func (s *ImageSearcher) ResolveURLs(ctx context.Context, query string) []string {
 	key := strings.ToLower(strings.TrimSpace(query))
 	if key == "" {
@@ -108,41 +118,25 @@ func (s *ImageSearcher) ResolveURLAt(ctx context.Context, query string, i int) s
 	return urls[i]
 }
 
-// crawl web-searches the venue name, then scrapes photos off the top result pages.
-func (s *ImageSearcher) crawl(ctx context.Context, query string) []string {
-	pages := s.searchPages(ctx, query)
-	out := make([]string, 0, maxImagesPerQuery)
-	seen := make(map[string]bool)
-	for _, page := range pages {
-		if len(out) >= maxImagesPerQuery {
-			break
-		}
-		for _, img := range s.imagesFromPage(ctx, page) {
-			if len(out) >= maxImagesPerQuery {
-				break
-			}
-			if seen[img] {
-				continue
-			}
-			seen[img] = true
-			out = append(out, img)
-		}
+// crawl performs a Bing Images search for venueQuery (the raw venue name, area
+// included), drops results whose title/description/page-URL don't mention a
+// distinctive token of the venue name — Bing returns unrelated junk for venues
+// it has no photos of — then validates the survivors so only reachable images
+// are returned (Bing also lists many dead / hotlink-protected URLs).
+func (s *ImageSearcher) crawl(ctx context.Context, venueQuery string) []string {
+	q := url.Values{
+		"q":     {prepareVenueSearchQuery(venueQuery)},
+		"first": {"1"},
+		"count": {strconv.Itoa(candidatePoolSize)}, // over-fetch; we filter + validate down
 	}
-	return out
-}
-
-// searchPages runs a keyless DuckDuckGo Lite web search and returns the top result
-// page URLs (skipping social / shopping / login-walled domains we can't scrape).
-func (s *ImageSearcher) searchPages(ctx context.Context, query string) []string {
-	form := url.Values{"q": {query}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		"https://lite.duckduckgo.com/lite/", strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://www.bing.com/images/search?"+q.Encode(), nil)
 	if err != nil {
 		return nil
 	}
 	req.Header.Set("User-Agent", ImageBrowserUA)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept-Language", "vi,en;q=0.9")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -156,17 +150,38 @@ func (s *ImageSearcher) searchPages(ctx context.Context, query string) []string 
 	if err != nil {
 		return nil
 	}
-	return parseResultURLs(string(body), maxResultPages)
+	candidates := parseBingImages(string(body))
+	relevant := filterRelevantImages(candidates, significantTokens(venueQuery))
+	urls := s.validate(ctx, relevant, maxImagesPerQuery)
+	if len(urls) == 0 {
+		// No photos that are actually about this venue — show an on-theme
+		// category stock photo instead of a blank hero (product decision).
+		urls = s.crawlCategory(ctx, venueQuery)
+	}
+	return urls
 }
 
-// imagesFromPage fetches a result page and extracts its representative photos.
-func (s *ImageSearcher) imagesFromPage(ctx context.Context, pageURL string) []string {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
+// crawlCategory fetches generic on-theme stock photos for the venue's category
+// (e.g. "nhà hàng tiệc cưới sang trọng"). It deliberately skips the relevance
+// filter — the query is intentionally generic — but still validates reachability.
+func (s *ImageSearcher) crawlCategory(ctx context.Context, venueQuery string) []string {
+	cat := categoryStockQuery(venueQuery)
+	if cat == "" {
+		return nil
+	}
+	q := url.Values{
+		"q":     {cat},
+		"first": {"1"},
+		"count": {strconv.Itoa(candidatePoolSize)},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://www.bing.com/images/search?"+q.Encode(), nil)
 	if err != nil {
 		return nil
 	}
 	req.Header.Set("User-Agent", ImageBrowserUA)
 	req.Header.Set("Accept-Language", "vi,en;q=0.9")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -180,138 +195,224 @@ func (s *ImageSearcher) imagesFromPage(ctx context.Context, pageURL string) []st
 	if err != nil {
 		return nil
 	}
-	return extractImages(string(body), pageURL, maxImagesPerPage)
+	imgs := parseBingImages(string(body))
+	urls := make([]string, 0, len(imgs))
+	for _, im := range imgs {
+		urls = append(urls, im.url)
+	}
+	return s.validate(ctx, urls, fallbackImageCount)
 }
 
-// --- HTML parsing (pure, unit-tested) ------------------------------------------
-
-var (
-	hrefRe    = regexp.MustCompile(`(?i)href="(https?://[^"]+|//duckduckgo\.com/l/\?[^"]+)"`)
-	ogImageRe = regexp.MustCompile(`(?i)<meta[^>]+(?:property|name)=["']og:image(?::secure_url)?["'][^>]*\scontent=["']([^"']+)["']`)
-	ogImageRe2 = regexp.MustCompile(`(?i)<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']og:image(?::secure_url)?["']`)
-	imgSrcRe   = regexp.MustCompile(`(?i)(?:src|data-src|data-lazy-src|data-original)=["']([^"']+?\.(?:jpe?g|png|webp))(?:\?[^"']*)?["']`)
-)
-
-// Domains whose result pages we can't usefully scrape (login walls / social /
-// shopping / video / maps). The article blogs and review sites we DO want are
-// everything else.
-var blockedPageDomains = []string{
-	"facebook.com", "fb.com", "instagram.com", "youtube.com", "youtu.be",
-	"tiktok.com", "twitter.com", "x.com", "pinterest.", "linkedin.com",
-	"shopee.vn", "lazada.vn", "tiki.vn", "sendo.vn",
-	"google.com", "maps.google.", "duckduckgo.com",
+// categoryStockQuery maps a venue name to a generic, image-rich Vietnamese query
+// for its category, used only as the no-real-photo fallback.
+func categoryStockQuery(name string) string {
+	s := strings.ToLower(name)
+	switch {
+	case containsAny(s, "tiệc cưới", "tiec cuoi", "wedding", "hội nghị", "hoi nghi", "palace", "banquet", "sự kiện", "su kien"):
+		return "nhà hàng tiệc cưới sang trọng"
+	case containsAny(s, "cà phê", "ca phe", "coffee", "cafe", "café", "trà sữa", "tra sua", "tea", "milk"):
+		return "quán cà phê đẹp"
+	case containsAny(s, "lẩu", "lau", "hotpot", "nướng", "nuong", "bbq", "barbecue", "grill", "korean", "nhật", "sushi"):
+		return "nhà hàng lẩu nướng"
+	case containsAny(s, "bar", "beer", "bia", "pub", "lounge", "club"):
+		return "quán bar pub đẹp"
+	case containsAny(s, "phở", "pho", "bún", "bun", "cơm", "com", "quán ăn", "quan an", "restaurant", "nhà hàng", "nha hang", "ăn"):
+		return "nhà hàng món việt"
+	default:
+		return "nhà hàng quán ăn đẹp"
+	}
 }
 
-func isBlockedPageDomain(u string) bool {
-	low := strings.ToLower(u)
-	for _, d := range blockedPageDomains {
-		if strings.Contains(low, d) {
+func containsAny(s string, subs ...string) bool {
+	for _, sub := range subs {
+		if strings.Contains(s, sub) {
 			return true
 		}
 	}
 	return false
 }
 
-// parseResultURLs extracts up to n distinct result page URLs from a DuckDuckGo
-// Lite results page, decoding DDG's `/l/?uddg=` redirect wrapper and dropping
-// un-scrapable domains.
-func parseResultURLs(html string, n int) []string {
-	out := make([]string, 0, n)
+// validate probes candidate image URLs concurrently and returns the first `want`
+// that are actually reachable and serve image bytes, preserving Bing's order
+// (so the best-ranked photos stay first). The proxy will re-fetch each URL when
+// streaming, but probing here keeps Count honest so no blank gallery pages render.
+func (s *ImageSearcher) validate(ctx context.Context, candidates []string, want int) []string {
+	if len(candidates) == 0 {
+		return nil
+	}
+	ok := make([]bool, len(candidates))
+	sem := make(chan struct{}, imageProbeWorkers)
+	var wg sync.WaitGroup
+	for i, u := range candidates {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			ok[i] = s.reachableImage(ctx, u)
+		}(i, u)
+	}
+	wg.Wait()
+
+	out := make([]string, 0, want)
+	for i, good := range ok {
+		if good {
+			out = append(out, candidates[i])
+			if len(out) >= want {
+				break
+			}
+		}
+	}
+	return out
+}
+
+// reachableImage does a lightweight ranged GET to confirm a candidate URL is
+// live and serves image bytes (matching the headers the proxy will later send,
+// so a URL that passes here will almost always stream successfully).
+func (s *ImageSearcher) reachableImage(ctx context.Context, u string) bool {
+	pctx, cancel := context.WithTimeout(ctx, imageProbeTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(pctx, http.MethodGet, u, nil)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", ImageBrowserUA)
+	req.Header.Set("Range", "bytes=0-1023") // only need the first bytes to verify
+	if pu, perr := url.Parse(u); perr == nil && pu.Host != "" {
+		req.Header.Set("Referer", pu.Scheme+"://"+pu.Host+"/")
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
+		return false
+	}
+	if !strings.HasPrefix(resp.Header.Get("Content-Type"), "image/") {
+		return false
+	}
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1024))
+	return true
+}
+
+// --- HTML parsing (pure, unit-tested) ------------------------------------------
+
+// bingImage is one parsed Bing image result: the direct URL plus a lowercased
+// "haystack" (title + description + source-page URL) used to judge relevance.
+type bingImage struct {
+	url      string
+	haystack string
+}
+
+// Bing embeds each image result as an HTML element with an `m="{...}"` attribute
+// holding entity-encoded JSON (so `"` is `&quot;`). We pull the whole blob, then
+// extract the individual fields from it.
+var (
+	mBlobRe     = regexp.MustCompile(`m="(\{[^"]*\})"`)
+	fieldMurlRe = regexp.MustCompile(`&quot;murl&quot;:&quot;(https?://[^&]+)`)
+	fieldTRe    = regexp.MustCompile(`&quot;t&quot;:&quot;([^&]*)`)
+	fieldDescRe = regexp.MustCompile(`&quot;desc&quot;:&quot;([^&]*)`)
+	fieldPurlRe = regexp.MustCompile(`&quot;purl&quot;:&quot;([^&]*)`)
+)
+
+// adminSuffixRe strips Vietnamese ward/district/city suffixes that OSM often
+// appends to POI display names (e.g. "Phường Hiệp Bình", "Quận 1"). They make
+// image searches too specific to match venue review pages.
+var adminSuffixRe = regexp.MustCompile(`(?i)\s+(Phường|P\.|Quận|Q\.|Huyện|H\.|Thành phố|TP\.?|Xã|Tỉnh|Thị trấn|Thị xã)\s+\S.*$`)
+
+// parseBingImages extracts the distinct image results from Bing's HTML, dropping
+// junk assets (logos, icons, ads) and duplicates, preserving Bing's rank order.
+func parseBingImages(htmlStr string) []bingImage {
+	out := make([]bingImage, 0, candidatePoolSize)
 	seen := make(map[string]bool)
-	for _, m := range hrefRe.FindAllStringSubmatch(html, -1) {
-		u := normalizeResultURL(m[1])
-		if u == "" || seen[u] || isBlockedPageDomain(u) {
+	for _, b := range mBlobRe.FindAllStringSubmatch(htmlStr, -1) {
+		blob := b[1]
+		mu := fieldMurlRe.FindStringSubmatch(blob)
+		if mu == nil {
+			continue
+		}
+		u := html.UnescapeString(mu[1])
+		if seen[u] || isJunkImage(u) {
 			continue
 		}
 		seen[u] = true
-		out = append(out, u)
-		if len(out) >= n {
-			break
+
+		parts := make([]string, 0, 3)
+		for _, re := range []*regexp.Regexp{fieldTRe, fieldDescRe, fieldPurlRe} {
+			if m := re.FindStringSubmatch(blob); m != nil {
+				parts = append(parts, m[1])
+			}
 		}
+		hay := strings.ToLower(html.UnescapeString(strings.Join(parts, " ")))
+		out = append(out, bingImage{url: u, haystack: hay})
 	}
 	return out
 }
 
-// normalizeResultURL unwraps a DuckDuckGo `/l/?...&uddg=<encoded target>` redirect
-// to the real destination, and passes through plain absolute URLs.
-func normalizeResultURL(raw string) string {
-	if strings.Contains(raw, "duckduckgo.com/l/") {
-		if i := strings.Index(raw, "uddg="); i >= 0 {
-			enc := raw[i+len("uddg="):]
-			if amp := strings.IndexByte(enc, '&'); amp >= 0 {
-				enc = enc[:amp]
-			}
-			if dec, err := url.QueryUnescape(enc); err == nil && strings.HasPrefix(dec, "http") {
-				return dec
-			}
-		}
-		return ""
-	}
-	if strings.HasPrefix(raw, "http") {
-		return raw
-	}
-	return ""
+// venueStopwords are generic Vietnamese venue words (and the "ảnh" suffix we add)
+// that carry no identifying signal — matching on them would let unrelated wedding
+// / restaurant / coffee stock photos through. We key relevance on the remaining
+// distinctive tokens (brand / proper nouns like "claris", "palace", "tara").
+var venueStopwords = map[string]bool{
+	"trung": true, "tâm": true, "hội": true, "nghị": true, "tiệc": true,
+	"cưới": true, "nhà": true, "hàng": true, "quán": true, "cà": true,
+	"phê": true, "ảnh": true, "the": true, "và": true, "số": true,
+	"đường": true, "khu": true, "chi": true, "nhánh": true,
 }
 
-// extractImages pulls the og:image plus inline content photos out of a page's
-// HTML, absolutizes them against pageURL, drops obvious chrome (logos, icons,
-// avatars, sprites, ad/share/loader assets), and returns up to n distinct URLs.
-func extractImages(html, pageURL string, n int) []string {
-	out := make([]string, 0, n)
+// significantTokens returns the distinctive lowercased tokens of a venue name
+// (admin suffix stripped, stopwords + 1-char tokens dropped), used to test
+// whether a Bing image result is actually about this venue.
+func significantTokens(name string) []string {
+	clean := adminSuffixRe.ReplaceAllString(strings.TrimSpace(name), "")
+	fields := strings.FieldsFunc(strings.ToLower(clean), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
+	out := make([]string, 0, len(fields))
 	seen := make(map[string]bool)
-
-	add := func(raw string) bool {
-		u := absolutizeURL(raw, pageURL)
-		if u == "" || seen[u] || isJunkImage(u) {
-			return false
+	for _, f := range fields {
+		if len([]rune(f)) < 2 || venueStopwords[f] || seen[f] {
+			continue
 		}
-		seen[u] = true
-		out = append(out, u)
-		return len(out) >= n
+		seen[f] = true
+		out = append(out, f)
 	}
+	return out
+}
 
-	// og:image first — it's the page's curated hero shot.
-	for _, re := range []*regexp.Regexp{ogImageRe, ogImageRe2} {
-		for _, m := range re.FindAllStringSubmatch(html, -1) {
-			if add(m[1]) {
-				return out
+// filterRelevantImages keeps only images whose haystack mentions at least one
+// distinctive venue token. When the name has no distinctive token (fully generic),
+// it can't judge — it returns every URL rather than dropping the whole set.
+func filterRelevantImages(imgs []bingImage, tokens []string) []string {
+	if len(tokens) == 0 {
+		urls := make([]string, 0, len(imgs))
+		for _, im := range imgs {
+			urls = append(urls, im.url)
+		}
+		return urls
+	}
+	out := make([]string, 0, len(imgs))
+	for _, im := range imgs {
+		for _, t := range tokens {
+			if strings.Contains(im.haystack, t) {
+				out = append(out, im.url)
+				break
 			}
-		}
-	}
-	for _, m := range imgSrcRe.FindAllStringSubmatch(html, -1) {
-		if add(m[1]) {
-			return out
 		}
 	}
 	return out
 }
 
-// absolutizeURL resolves a possibly-relative image URL against the page it came
-// from, returning "" for data: URIs and unparseable values.
-func absolutizeURL(raw, pageURL string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || strings.HasPrefix(raw, "data:") {
-		return ""
+// prepareVenueSearchQuery strips Vietnamese admin-division suffixes that OSM
+// attaches to POI display names and appends "ảnh" (photo) to bias Bing toward
+// image-rich review/blog pages rather than directory listings.
+func prepareVenueSearchQuery(venue string) string {
+	clean := strings.TrimSpace(adminSuffixRe.ReplaceAllString(strings.TrimSpace(venue), ""))
+	if clean == "" {
+		clean = strings.TrimSpace(venue)
 	}
-	if strings.HasPrefix(raw, "//") {
-		return "https:" + raw
-	}
-	if strings.HasPrefix(raw, "http") {
-		return raw
-	}
-	base, err := url.Parse(pageURL)
-	if err != nil {
-		return ""
-	}
-	ref, err := url.Parse(raw)
-	if err != nil {
-		return ""
-	}
-	resolved := base.ResolveReference(ref)
-	if resolved.Scheme != "http" && resolved.Scheme != "https" {
-		return ""
-	}
-	return resolved.String()
+	return clean + " ảnh"
 }
 
 // Substrings that mark a non-photo asset (site chrome, ads, tracking, UI icons).

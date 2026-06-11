@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/maps_launcher.dart';
@@ -320,22 +321,30 @@ class _VenueDetailViewState extends State<VenueDetailView> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Swipeable gallery of the photos crawled from the venue's web pages.
-          // 1 image → behaves exactly like the old single hero.
-          PageView.builder(
-            controller: _heroCtrl,
-            physics: _imageCount > 1
-                ? const ClampingScrollPhysics()
-                : const NeverScrollableScrollPhysics(),
-            itemCount: _imageCount,
-            onPageChanged: (i) => setState(() => _heroPage = i),
-            itemBuilder: (_, i) => VenueThumbnail(
-              query: _d.imageQuery,
-              index: i,
-              width: double.infinity,
-              height: 280,
-              radius: 0,
-              placeholderLabel: _d.emoji,
+          // Swipeable gallery — ScrollConfiguration enables mouse-drag on Flutter web
+          // in addition to the default touch swipe on mobile.
+          ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(
+              dragDevices: {
+                PointerDeviceKind.touch,
+                PointerDeviceKind.mouse,
+              },
+            ),
+            child: PageView.builder(
+              controller: _heroCtrl,
+              physics: _imageCount > 1
+                  ? const ClampingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              itemCount: _imageCount,
+              onPageChanged: (i) => setState(() => _heroPage = i),
+              itemBuilder: (_, i) => VenueThumbnail(
+                query: _d.imageQuery,
+                index: i,
+                width: double.infinity,
+                height: 280,
+                radius: 0,
+                placeholderLabel: _d.emoji,
+              ),
             ),
           ),
           // Subtle scrims so the round top-bar buttons stay legible on any photo.

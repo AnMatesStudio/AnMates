@@ -15,6 +15,12 @@
 # ─────────────────────────────────────────────────────────────────────────────
 services:
   ollama:
+    # NVIDIA_VISIBLE_DEVICES + NVIDIA_DRIVER_CAPABILITIES are the legacy env-var
+    # knobs recognised by the NVIDIA container runtime (needed on some Docker
+    # Desktop / WSL2 setups even when deploy.resources is present).
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     deploy:
       resources:
         reservations:

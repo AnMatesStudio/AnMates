@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Host-Ollama override: use the Ollama instance already running on the host
+# instead of launching one inside Docker.
+#
+# Applied automatically by start.sh when port 11434 is already occupied (e.g.
+# the user installed Ollama natively and it's running with GPU support).
+#
+# What this does:
+#   - Replaces the real `ollama` container with a lightweight Alpine no-op so
+#     that ai_venue_search's depends_on: ollama is still satisfied.
+#   - Replaces `ollama_pull` with a no-op (host already has the model).
+#   - Points ai_venue_search at the host's Ollama via host.docker.internal.
+#
+# Manual use:
+#   docker compose -f docker-compose.yml -f docker-compose.host-ollama.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+  ollama:
+    image: alpine
+    entrypoint: ["sh", "-c", "sleep infinity"]
+    restart: unless-stopped
+    # Healthcheck always passes → ai_venue_search's depends_on is satisfied
+    # without waiting for a real Ollama to be ready.
+    healthcheck:
+      test: ["CMD", "sh", "-c", "exit 0"]
+      interval: 5s
+      timeout: 2s
+      retries: 1
+      start_period: 1s
+
+  ollama_pull:
+    image: alpine
+    entrypoint: ["sh", "-c", "echo 'Host Ollama in use — skipping Docker model pull'"]
+    restart: "no"
+
+  ai_venue_search:
+    environment:
+      # Route LLM calls to the host's Ollama instead of the Docker service.
+      LLM_BASE_URL: http://host.docker.internal:11434/v1

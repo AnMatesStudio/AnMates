@@ -115,8 +115,9 @@ services:
     restart: unless-stopped
     volumes:
       - ollama:/root/.ollama
-    ports:
-      - "127.0.0.1:11434:11434"
+    # Internal service only — no host port binding to avoid conflict with a
+    # host-installed Ollama. Containers reach it via http://ollama:11434.
+    # Use `docker compose exec ollama ollama list` to inspect from the host.
     healthcheck:
       # `ollama list` succeeds only once the embedded server is accepting requests.
       test: ["CMD", "ollama", "list"]

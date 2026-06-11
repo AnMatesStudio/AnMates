@@ -9,6 +9,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 import 'auth_error_messages.dart';
+import 'email_input_view.dart';
 import 'otp_view.dart';
 
 // Dev bypass — must match backend DEV_BYPASS_SECRET. Override via:
@@ -180,6 +181,15 @@ class _PhoneInputViewState extends State<PhoneInputView> {
     );
   }
 
+  void _goToEmailLogin() {
+    if (_loading) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EmailInputView(onAuthenticated: widget.onAuthenticated),
+      ),
+    );
+  }
+
   Future<void> _devSkipOtp() async {
     if (_loading) return;
     setState(() => _loading = true);
@@ -254,6 +264,10 @@ class _PhoneInputViewState extends State<PhoneInputView> {
                                 ? AppColors.berry
                                 : AppColors.ink30,
                           ),
+                          const SizedBox(height: 16),
+                          _EmailLoginButton(
+                            onTap: _loading ? null : _goToEmailLogin,
+                          ),
                           if (_devBypassEnabled) ...[
                             const SizedBox(height: 12),
                             _DevModeButton(
@@ -281,6 +295,52 @@ class _PhoneInputViewState extends State<PhoneInputView> {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Secondary "login with email instead" button ────────────────────────────
+class _EmailLoginButton extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _EmailLoginButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Đăng nhập bằng email',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.ink10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.mail_outline, size: 18, color: AppColors.ink70),
+                const SizedBox(width: 8),
+                Text(
+                  'Đăng nhập bằng email',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.ink70,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

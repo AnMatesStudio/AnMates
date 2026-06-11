@@ -104,11 +104,41 @@ func run(log *slog.Logger) error {
 	}
 	rlHandler := func(c *fiber.Ctx) error { return c.Next() }
 	if !rateLimitOff {
-		rlHandler = rl.Handler()
+		rlBase := rl.Handler()
+		rlHandler = func(c *fiber.Ctx) error {
+			// Image proxy is a public CDN-style endpoint: up to ~6 simultaneous
+			// requests per list render burst, responses already cached 24h — exempt
+			// from the per-IP API rate limit.
+			if strings.HasPrefix(c.Path(), "/api/v1/venues/image") {
+				return c.Next()
+			}
+			return rlBase(c)
+		}
 	}
 
 	fbClient := &http.Client{Timeout: cfg.FirebaseVerifyTimeout}
 	authSvc := services.NewAuthService(pool, cfg.JWTSecret, cfg.JWTAccessExpire, cfg.JWTRefreshExpire, cfg.FirebaseWebAPIKey, fbClient)
+
+	// Email OTP (passwordless login alongside phone OTP). Real SMTP when
+	// configured; a log-only sender in DEV_MODE so local flows work without
+	// credentials; otherwise left disabled (routes not registered).
+	var emailSender services.EmailSender
+	if cfg.SMTPHost != "" && cfg.SMTPUsername != "" {
+		emailSender = services.NewSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPFromName)
+		log.Info("Email OTP enabled (SMTP)", "host", cfg.SMTPHost, "from", cfg.SMTPFrom)
+	} else if cfg.DevMode {
+		emailSender = services.NewLogSender(log)
+		log.Warn("Email OTP enabled with LOG sender (DEV_MODE, no SMTP) — codes are written to logs, not emailed")
+	} else {
+		log.Info("Email OTP disabled (set SMTP_HOST + SMTP_USERNAME to enable)")
+	}
+	if emailSender != nil {
+		authSvc.SetEmailOTP(emailSender, services.EmailOTPOptions{
+			Expire:         cfg.EmailOTPExpire,
+			ResendCooldown: cfg.EmailOTPResendCooldown,
+			MaxAttempts:    cfg.EmailOTPMaxAttempts,
+		})
+	}
 	userSvc := services.NewUserService(pool)
 	wlSvc := services.NewWishlistService(pool)
 	matchSvc := services.NewMatchingService(pool)
@@ -184,12 +214,25 @@ func run(log *slog.Logger) error {
 	api.Post("/auth/register", authH.Register)
 	api.Post("/auth/login", authH.Login)
 	api.Post("/auth/phone-verify", authH.PhoneVerify)
+	if authSvc.EmailOTPEnabled() {
+		api.Post("/auth/email/request-otp", authH.RequestEmailOTP)
+		api.Post("/auth/email/verify-otp", authH.VerifyEmailOTP)
+		log.Info("email OTP routes registered: POST /api/v1/auth/email/request-otp + /verify-otp")
+	}
 	api.Post("/auth/refresh", authH.Refresh)
 	api.Post("/auth/logout", authH.Logout)
 	if cfg.DevMode {
 		api.Post("/auth/dev-login", authH.DevLogin)
 		log.Warn("DEV_MODE on — /api/v1/auth/dev-login is open (requires DEV_BYPASS_SECRET)")
 	}
+
+	// Discovery venue thumbnails — public, no JWT, registered on root app (not the
+	// rate-limited api group) so a burst of list thumbnails won't trip 429s.
+	// MUST be registered before api.Use(jwtMW) below; Fiber v2 applies that
+	// catch-all middleware to any /api/v1* route registered after it, even on app.
+	venueImageH := handlers.NewVenueImage(services.NewImageSearcher())
+	app.Get("/api/v1/venues/image", venueImageH.Serve)
+	app.Get("/api/v1/venues/images", venueImageH.Count)
 
 	// Authenticated.
 	auth := api.Use(jwtMW)
@@ -231,16 +274,6 @@ func run(log *slog.Logger) error {
 		venueH := handlers.NewVenue(webSearchProvider)
 		auth.Get("/venues/search", venueH.Search)
 	}
-
-	// Discovery venue thumbnails: GET /api/v1/venues/image?q=<venue name>.
-	// Registered on the root app (not the rate-limited /api/v1 group) and left
-	// public so the Flutter client can render it via Image.network — a burst of
-	// thumbnails in the list won't trip the limiter and <img> fetches don't carry
-	// a token. Always available; independent of the AI sidecar.
-	venueImageH := handlers.NewVenueImage(services.NewImageSearcher())
-	app.Get("/api/v1/venues/image", venueImageH.Serve)
-	// Photo count for a venue, so the detail-screen gallery knows how many to show.
-	app.Get("/api/v1/venues/images", venueImageH.Count)
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())
