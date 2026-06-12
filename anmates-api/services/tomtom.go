@@ -53,6 +53,19 @@ type NearbyVenue struct {
 	DistanceM    int     `json:"distance_m"`
 }
 
+// tomtomDateTime / tomtomTimeRange model TomTom's openingHours payload (with
+// openingHours=nextSevenDays each entry is one concrete open period).
+type tomtomDateTime struct {
+	Date   string `json:"date"` // "2006-01-02"
+	Hour   int    `json:"hour"`
+	Minute int    `json:"minute"`
+}
+
+type tomtomTimeRange struct {
+	StartTime tomtomDateTime `json:"startTime"`
+	EndTime   tomtomDateTime `json:"endTime"`
+}
+
 // tomtomResponse models the subset of the TomTom nearbySearch payload we read.
 type tomtomResponse struct {
 	Results []struct {
@@ -65,6 +78,9 @@ type tomtomResponse struct {
 			Classifications []struct {
 				Code string `json:"code"`
 			} `json:"classifications"`
+			OpeningHours struct {
+				TimeRanges []tomtomTimeRange `json:"timeRanges"`
+			} `json:"openingHours"`
 		} `json:"poi"`
 		Address struct {
 			FreeformAddress string `json:"freeformAddress"`
@@ -95,7 +111,10 @@ func (t *TomTomClient) Nearby(ctx context.Context, lat, lng float64, radiusM, li
 		"radius":      {strconv.Itoa(radiusM)},
 		"limit":       {strconv.Itoa(limit)},
 		"categorySet": {tomtomFoodCategories},
-		"language":    {"vi-VN"},
+		// Ask TomTom for the next 7 days of hours so we can backfill the open/closed
+		// badge for venues OSM hasn't tagged with opening_hours.
+		"openingHours": {"nextSevenDays"},
+		"language":     {"vi-VN"},
 	}
 	endpoint := "https://api.tomtom.com/search/2/nearbySearch/.json?" + q.Encode()
 
@@ -138,12 +157,56 @@ func (t *TomTomClient) Nearby(ctx context.Context, lat, lng float64, radiusM, li
 			Lng:       r.Position.Lon,
 			Amenity:   tomtomAmenity(r.Poi.Classifications),
 			Cuisine:   tomtomCuisine(r.Poi.Categories),
-			Address:   addr,
-			Phone:     strings.TrimSpace(r.Poi.Phone),
-			DistanceM: int(r.Dist + 0.5),
+			Address:      addr,
+			Phone:        strings.TrimSpace(r.Poi.Phone),
+			OpeningHours: tomtomHoursToOSM(r.Poi.OpeningHours.TimeRanges),
+			DistanceM:    int(r.Dist + 0.5),
 		})
 	}
 	return out, nil
+}
+
+// tomtomHoursToOSM converts TomTom's next-seven-days time ranges into an OSM-style
+// opening_hours string (e.g. "Mo 09:00-22:00; Sa 09:00-23:00") — the exact format
+// the Flutter OpenNowBadge already parses, so this backfills the badge with no UI
+// change. A range crossing midnight (bars) becomes a wrap like "21:00-04:00".
+// Returns "" when TomTom supplied no hours, keeping the UI honest (no badge) rather
+// than inventing a schedule.
+func tomtomHoursToOSM(ranges []tomtomTimeRange) string {
+	if len(ranges) == 0 {
+		return ""
+	}
+	abbr := map[time.Weekday]string{
+		time.Monday: "Mo", time.Tuesday: "Tu", time.Wednesday: "We", time.Thursday: "Th",
+		time.Friday: "Fr", time.Saturday: "Sa", time.Sunday: "Su",
+	}
+	spansByDay := map[time.Weekday][]string{}
+	seen := map[string]bool{}
+	for _, r := range ranges {
+		d, err := time.Parse("2006-01-02", r.StartTime.Date)
+		if err != nil {
+			continue
+		}
+		span := fmt.Sprintf("%02d:%02d-%02d:%02d",
+			r.StartTime.Hour, r.StartTime.Minute, r.EndTime.Hour, r.EndTime.Minute)
+		key := abbr[d.Weekday()] + "|" + span
+		if seen[key] {
+			continue // same weekday can recur across the 7-day window
+		}
+		seen[key] = true
+		spansByDay[d.Weekday()] = append(spansByDay[d.Weekday()], span)
+	}
+	order := []time.Weekday{
+		time.Monday, time.Tuesday, time.Wednesday, time.Thursday,
+		time.Friday, time.Saturday, time.Sunday,
+	}
+	rules := make([]string, 0, len(order))
+	for _, wd := range order {
+		if spans := spansByDay[wd]; len(spans) > 0 {
+			rules = append(rules, abbr[wd]+" "+strings.Join(spans, ","))
+		}
+	}
+	return strings.Join(rules, "; ")
 }
 
 // tomtomAmenity maps TomTom POI classification codes to the OSM amenity values
