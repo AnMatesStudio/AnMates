@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
@@ -283,24 +284,12 @@ class _VenueDetailViewState extends State<VenueDetailView> {
     return t.isEmpty ? 'Quán ăn' : t.join(' · ');
   }
 
-  // Description: prefer the web-search "why", else compose from real OSM facts.
+  // Description: the "why this place" blurb from web-search / enrichment.
+  // Address, phone, and hours are shown in _buildInfoSection() below.
   String get _description {
     if (_d.reason != null && _d.reason!.trim().isNotEmpty) return _d.reason!;
-    final parts = <String>[];
-    if (_d.address != null && _d.address!.trim().isNotEmpty) {
-      parts.add('Địa chỉ: ${_d.address}');
-    }
-    if (_d.openingHours != null && _d.openingHours!.trim().isNotEmpty) {
-      parts.add('Giờ mở cửa: ${_d.openingHours}');
-    }
-    if (_d.phone != null && _d.phone!.trim().isNotEmpty) {
-      parts.add('Điện thoại: ${_d.phone}');
-    }
-    if (parts.isEmpty) {
-      return 'Quán ${_d.name} — ${_tagLine.toLowerCase()}. '
-          'Ghé thử rồi rủ một Mate cùng vibe đi ăn nhé!';
-    }
-    return parts.join('\n');
+    return 'Quán ${_d.name} — ${_tagLine.toLowerCase()}. '
+        'Ghé thử rồi rủ một Mate cùng vibe đi ăn nhé!';
   }
 
   // Derived "taste" chips for the venue (from its cuisine/amenity tags).
@@ -504,6 +493,122 @@ class _VenueDetailViewState extends State<VenueDetailView> {
     );
   }
 
+  /// Structured info card — address, phone, opening hours — each as a tappable
+  /// or display row. Shown only when at least one field is non-empty.
+  Widget _buildInfoSection() {
+    final hasAddress = _d.address != null && _d.address!.trim().isNotEmpty;
+    final hasPhone = _d.phone != null && _d.phone!.trim().isNotEmpty;
+    final hasHours = _d.openingHours != null && _d.openingHours!.trim().isNotEmpty;
+    if (!hasAddress && !hasPhone && !hasHours) return const SizedBox.shrink();
+
+    final rows = <Widget>[];
+
+    if (hasAddress) {
+      final subtitle =
+          _distanceLabel != null ? '$_distanceLabel từ vị trí bạn' : null;
+      rows.add(_buildInfoRow(
+        icon: Icons.location_on_outlined,
+        iconColor: const Color(0xFFE53E3E),
+        text: _d.address!,
+        subtitle: subtitle,
+        onTap: _openDirections,
+      ));
+    }
+    if (hasPhone) {
+      rows.add(_buildInfoRow(
+        icon: Icons.phone_outlined,
+        iconColor: const Color(0xFF38A169),
+        text: _d.phone!,
+        onTap: () => launchUrl(Uri.parse('tel:${_d.phone}')),
+      ));
+    }
+    if (hasHours) {
+      // Raw OSM hours like "Mo-Fr 08:00-22:00; Sa-Su 09:00-22:00" → split at "; "
+      // so each rule appears on its own line.
+      final hoursText = _d.openingHours!.replaceAll('; ', '\n');
+      rows.add(_buildInfoRow(
+        icon: Icons.access_time_outlined,
+        iconColor: const Color(0xFF805AD5),
+        text: hoursText,
+      ));
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.ink10, width: 1),
+      ),
+      child: Column(
+        children: [
+          for (int i = 0; i < rows.length; i++) ...[
+            if (i > 0)
+              const Divider(height: 1, thickness: 0.5, indent: 48, endIndent: 0),
+            rows[i],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow({
+    required IconData icon,
+    required Color iconColor,
+    required String text,
+    String? subtitle,
+    VoidCallback? onTap,
+  }) {
+    Widget content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  text,
+                  style: AppTextStyles.body(
+                      size: 13, color: AppColors.ink, height: 1.5),
+                ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: AppTextStyles.mono(
+                      size: 10,
+                      weight: FontWeight.w500,
+                      color: AppColors.ink50,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.ink30),
+          ],
+        ],
+      ),
+    );
+
+    if (onTap != null) {
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(onTap: onTap, child: content),
+      );
+    }
+    return content;
+  }
+
   Widget _buildSheet() {
     return Container(
       width: double.infinity,
@@ -545,6 +650,14 @@ class _VenueDetailViewState extends State<VenueDetailView> {
               alignment: Alignment.centerLeft,
               child: OpenNowBadge(openingHours: _d.openingHours, detailed: true),
             ),
+          ],
+          if (_d.address != null ||
+              _d.phone != null ||
+              _d.openingHours != null) ...[
+            const SizedBox(height: 16),
+            Eyebrow('THÔNG TIN'),
+            const SizedBox(height: 8),
+            _buildInfoSection(),
           ],
           const SizedBox(height: 18),
           _buildSocialProof(),
