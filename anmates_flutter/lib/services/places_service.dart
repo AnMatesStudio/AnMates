@@ -14,6 +14,12 @@ class OsmPlace {
   final String? address;
   final String? phone;
   final String? openingHours;
+  // Ambiance signals consumed by the Discover vibe filters. OSM tags these
+  // sparsely, so the filters also fall back to name/cuisine heuristics — see
+  // DiscoverView._matchesVibe.
+  final String? airConditioning; // OSM air_conditioning = yes/no
+  final String? outdoorSeating; // OSM outdoor_seating = yes/no/only
+  final String? stars; // OSM stars (upscale signal)
 
   const OsmPlace({
     required this.id,
@@ -25,6 +31,9 @@ class OsmPlace {
     this.address,
     this.phone,
     this.openingHours,
+    this.airConditioning,
+    this.outdoorSeating,
+    this.stars,
   });
 
   String get emoji {
@@ -104,6 +113,11 @@ class OsmPlace {
       address: blank(address) ? other.address : address,
       phone: blank(phone) ? other.phone : phone,
       openingHours: blank(openingHours) ? other.openingHours : openingHours,
+      airConditioning:
+          blank(airConditioning) ? other.airConditioning : airConditioning,
+      outdoorSeating:
+          blank(outdoorSeating) ? other.outdoorSeating : outdoorSeating,
+      stars: blank(stars) ? other.stars : stars,
     );
   }
 
@@ -161,6 +175,9 @@ class OsmPlace {
       address: addr,
       phone: (tags['phone'] ?? tags['contact:phone']) as String?,
       openingHours: tags['opening_hours'] as String?,
+      airConditioning: tags['air_conditioning'] as String?,
+      outdoorSeating: tags['outdoor_seating'] as String?,
+      stars: tags['stars']?.toString(),
     );
   }
 }

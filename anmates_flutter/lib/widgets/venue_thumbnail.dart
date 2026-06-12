@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../theme/app_theme.dart';
 import 'anm_widgets.dart';
 
 /// Loads a web-searched venue photo through the backend image proxy and renders
@@ -48,6 +49,23 @@ class VenueThumbnail extends StatelessWidget {
       label: placeholderLabel,
     );
 
+    // Distinct from [placeholder]: a spinner over the slot so a slow (uncached,
+    // live-scraped) photo reads as "loading" rather than "no photo found".
+    final loadingPlaceholder = Stack(
+      alignment: Alignment.center,
+      children: [
+        placeholder,
+        SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation(AppColors.berry.withValues(alpha: 0.7)),
+          ),
+        ),
+      ],
+    );
+
     final url = (imageUrl != null && imageUrl!.isNotEmpty)
         ? imageUrl!
         : ApiClient.imageUrl(query, index: index);
@@ -61,16 +79,24 @@ class VenueThumbnail extends StatelessWidget {
         height: height,
         fit: fit,
         gaplessPlayback: true,
-        // Keep the last good frame so the browser cache makes re-renders instant.
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : placeholder,
+        // Drive the loading visual from frameBuilder (frame == null), NOT
+        // loadingBuilder: the slow part is the server holding the connection during
+        // the live Bing scrape, when no bytes have arrived yet so loadingProgress
+        // stays null. frame == null covers that whole pending window, so a slow
+        // photo shows the spinner placeholder instead of a blank slot ("no photo").
         frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
           if (wasSynchronouslyLoaded) return child;
-          return AnimatedOpacity(
-            opacity: frame == null ? 0 : 1,
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-            child: child,
+          return Stack(
+            fit: StackFit.passthrough,
+            children: [
+              if (frame == null) loadingPlaceholder,
+              AnimatedOpacity(
+                opacity: frame == null ? 0 : 1,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+                child: child,
+              ),
+            ],
           );
         },
         errorBuilder: (context, error, stack) => placeholder,

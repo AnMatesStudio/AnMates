@@ -10,6 +10,7 @@ import '../../services/places_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/opening_hours.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
 import '../../widgets/open_now_badge.dart';
@@ -93,8 +94,10 @@ class _DiscoverViewState extends State<DiscoverView> {
   bool _searchLoading = false;
   String? _searchError;
 
-  // --- vibe chips (visual-only; OSM has no reliable mapping) ---
-  final Set<String> _activeVibes = {'❄️ Máy lạnh'};
+  // --- vibe chips (multi-select; union filter over OSM tags + heuristics) ---
+  // Empty by default so the initial list is the full nearby browse; tapping a
+  // chip narrows to venues matching that vibe (see _matchesVibe).
+  final Set<String> _activeVibes = {};
 
   @override
   void initState() {
@@ -309,6 +312,13 @@ class _DiscoverViewState extends State<DiscoverView> {
       list = list.where((p) => _matchesGenre(p, _activeGenre!)).toList();
     }
 
+    // Vibe filter (multi-select, union): keep venues matching ANY active vibe.
+    if (_activeVibes.isNotEmpty) {
+      list = list
+          .where((p) => _activeVibes.any((v) => _matchesVibe(p, v)))
+          .toList();
+    }
+
     // Search filter (client-side, no refetch)
     if (_searchQuery.isNotEmpty) {
       list = list.where((p) {
@@ -350,6 +360,108 @@ class _DiscoverViewState extends State<DiscoverView> {
         return true;
     }
   }
+
+  /// Maps a vibe chip to venue data. OSM rarely tags ambiance, so each vibe
+  /// combines whatever real tags exist (air_conditioning, outdoor_seating,
+  /// stars, opening_hours) with name/cuisine/amenity heuristics. Heuristic by
+  /// design — the aim is to reshape the list meaningfully, not be exhaustive.
+  bool _matchesVibe(OsmPlace p, String vibe) {
+    final name = p.name.toLowerCase();
+    final cuisine = (p.cuisine ?? '').toLowerCase();
+    final amenity = p.amenity.toLowerCase();
+    final addr = (p.address ?? '').toLowerCase();
+
+    switch (vibe) {
+      case '❄️ Máy lạnh': // indoor / air-conditioned
+        // Indoor chains (Lotteria/KFC/…) are OSM fast_food but are A/C, not street.
+        if (p.airConditioning == 'yes' || _isIndoorChain(name)) return true;
+        if (p.airConditioning == 'no' || p.outdoorSeating == 'only') {
+          return false;
+        }
+        return amenity == 'restaurant' ||
+            amenity == 'cafe' ||
+            name.contains('buffet') ||
+            name.contains('coffee') ||
+            cuisine.contains('buffet') ||
+            cuisine.contains('japanese') ||
+            cuisine.contains('korean');
+      case '🌿 Vỉa hè': // open-air / sidewalk eats
+        // OSM tags both street stalls AND A/C chains as fast_food → exclude the
+        // chains (and anything explicitly A/C) so Lotteria & co. don't show here.
+        if (_isIndoorChain(name) || p.airConditioning == 'yes') return false;
+        if (p.outdoorSeating == 'yes' || p.outdoorSeating == 'only') {
+          return true;
+        }
+        return amenity == 'fast_food' ||
+            cuisine.contains('street_food') ||
+            name.contains('vỉa hè') ||
+            name.contains('lề đường') ||
+            name.contains('ốc') ||
+            name.contains('nướng') ||
+            name.contains('bún') ||
+            name.contains('phở') ||
+            name.contains('bánh');
+      case '🔇 Khuất hẻm': // tucked away in an alley
+        return name.contains('hẻm') ||
+            addr.contains('hẻm') ||
+            name.contains('ngõ') ||
+            addr.contains('ngõ') ||
+            name.contains('ngách') ||
+            name.contains('kiệt') ||
+            RegExp(r'\d+/\d+').hasMatch(addr); // "12/3 …" alley-style address
+      case '✨ Sang chảnh': // upscale / fancy
+        if (p.stars != null && p.stars!.trim().isNotEmpty) return true;
+        return cuisine.contains('french') ||
+            cuisine.contains('japanese') ||
+            cuisine.contains('sushi') ||
+            cuisine.contains('steak') ||
+            cuisine.contains('italian') ||
+            cuisine.contains('fine_dining') ||
+            name.contains('fine') ||
+            name.contains('luxury') ||
+            name.contains('sang') ||
+            name.contains('rooftop') ||
+            name.contains('sky') ||
+            name.contains('lounge') ||
+            name.contains('signature') ||
+            name.contains('premium');
+      case '🌙 Ngồi khuya': // open late
+        if (_opensLate(p.openingHours)) return true;
+        return amenity == 'bar' ||
+            name.contains('khuya') ||
+            name.contains('đêm') ||
+            name.contains('night') ||
+            name.contains('24h') ||
+            name.contains('24/24') ||
+            name.contains('bar') ||
+            name.contains('pub') ||
+            name.contains('beer');
+      default:
+        return true;
+    }
+  }
+
+  /// True if the venue is still open at ~23:00 per its OSM opening_hours (24/7
+  /// or a window running into the late evening). Unknown hours → false (honest:
+  /// we don't claim a late vibe we can't see in the data).
+  bool _opensLate(String? hours) {
+    if (hours == null || hours.trim().isEmpty) return false;
+    final now = DateTime.now();
+    final lateProbe = DateTime(now.year, now.month, now.day, 23, 0);
+    return parseOpeningHours(hours, now: lateProbe).isOpen;
+  }
+
+  // International quick-service chains: OSM tags them amenity=fast_food, but they
+  // are air-conditioned sit-in spots — the opposite of "vỉa hè" street food. Used
+  // to route them to Máy lạnh and keep them out of Vỉa hè.
+  static const List<String> _indoorChains = [
+    'lotteria', 'kfc', 'mcdonald', 'burger king', 'jollibee', 'popeyes',
+    'texas chicken', 'pizza hut', 'domino', 'the pizza company', 'subway',
+    'carl', 'wendy', 'dairy queen', 'baskin', 'starbucks',
+  ];
+
+  bool _isIndoorChain(String lowerName) =>
+      _indoorChains.any(lowerName.contains);
 
   // Area hint appended to venue image queries. The reverse-geocode placeholder
   // "Gần bạn" isn't a place name, so fall back to the city for better matches.
@@ -623,8 +735,8 @@ class _DiscoverViewState extends State<DiscoverView> {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          // Vibe chips are visual-only toggles. OSM has no reliable tag mapping
-          // for ambiance (máy lạnh, vỉa hè, etc.) — wire to data in a future sprint.
+          // Vibe chips are multi-select filters (union) over OSM ambiance tags +
+          // name/cuisine heuristics — see _matchesVibe / _filteredPlaces.
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -641,6 +753,7 @@ class _DiscoverViewState extends State<DiscoverView> {
                     } else {
                       _activeVibes.add(v);
                     }
+                    _visibleCount = _kPageSize; // re-page from the top on filter change
                   });
                 },
               );
@@ -763,11 +876,15 @@ class _DiscoverViewState extends State<DiscoverView> {
     final all = _filteredPlaces;
 
     if (all.isEmpty) {
+      final filtering = _activeVibes.isNotEmpty || _activeGenre != null;
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Text(
-            'Chưa tìm thấy quán quanh đây',
+            filtering
+                ? 'Không có quán hợp vibe này quanh đây — thử bỏ bớt filter'
+                : 'Chưa tìm thấy quán quanh đây',
+            textAlign: TextAlign.center,
             style: AppTextStyles.body(size: 14, color: AppColors.ink50),
           ),
         ),
@@ -789,7 +906,10 @@ class _DiscoverViewState extends State<DiscoverView> {
               userLng: _userLng,
               area: _imageArea,
               greetingName: _greetingName,
-              isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
+              isNearest: i == 0 &&
+                  _activeGenre == null &&
+                  _searchQuery.isEmpty &&
+                  _activeVibes.isEmpty,
             ),
           );
         }),
