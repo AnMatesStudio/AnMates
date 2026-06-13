@@ -297,7 +297,7 @@ func run(log *slog.Logger) error {
 	// Overpass when this route is absent/errors.
 	nearbyProvider := services.NewNearbyProvider(cfg.MapProvider, cfg.GoongAPIKey, cfg.TomTomAPIKey)
 	if nearbyProvider.Enabled() {
-		nearbyH := handlers.NewVenueNearby(nearbyProvider)
+		nearbyH := handlers.NewVenueNearby(nearbyProvider, userSvc)
 		auth.Get("/venues/nearby", nearbyH.Serve)
 		log.Info("Nearby provider enabled: " + nearbyProvider.Name())
 	} else {

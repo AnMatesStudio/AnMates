@@ -29,7 +29,10 @@ type NearbyVenue struct {
 type NearbyProvider interface {
 	Enabled() bool
 	Name() string
-	Nearby(ctx context.Context, lat, lng float64, radiusM, limit int) ([]NearbyVenue, error)
+	// Nearby returns food venues near (lat,lng). keywords are optional search terms
+	// (derived from the user's onboarding tags) — Goong uses them to bias its
+	// keyword search; TomTom ignores them (it queries by POI category).
+	Nearby(ctx context.Context, lat, lng float64, radiusM, limit int, keywords []string) ([]NearbyVenue, error)
 }
 
 // NewNearbyProvider picks the provider named by `provider` (case/space-insensitive):

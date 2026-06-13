@@ -84,8 +84,9 @@ type tomtomResponse struct {
 }
 
 // Nearby returns up to `limit` food venues within radiusM metres of (lat,lng),
-// ordered by distance (TomTom returns nearest-first).
-func (t *TomTomClient) Nearby(ctx context.Context, lat, lng float64, radiusM, limit int) ([]NearbyVenue, error) {
+// ordered by distance (TomTom returns nearest-first). The keywords arg is part of
+// the NearbyProvider contract but TomTom ignores it — it queries by POI category.
+func (t *TomTomClient) Nearby(ctx context.Context, lat, lng float64, radiusM, limit int, _ []string) ([]NearbyVenue, error) {
 	if !t.Enabled() {
 		return nil, fmt.Errorf("tomtom disabled")
 	}

@@ -163,6 +163,36 @@ nearest "Lẩu Nướng TuBi" 1612 m, amenity inference correct.
 - **Live verify (user):** set `GOONG_API_KEY` (and optionally `MAP_PROVIDER=goong`) →
   `./start.sh` → Discovery shows Goong-sourced quán with photos resolved via name+address.
 
+## Rev 3 (2026-06-13) — personalized keywords from onboarding + Goong V2
+
+After the user saw the live list was thin/generic ("Nhà Hàng", "Quán ăn"), root cause
+reconfirmed: generic category keywords only match POI *names*. Fix = derive keywords
+from the user's **onboarding tags** (food/vibe/culture), which decode to **dish names**
+— and dish names DO appear in real venue names, so they surface real venues.
+
+- **`services/food_keywords.go` (new):** `FoodKeywordsFromOnboarding(food, vibe, culture)`
+  maps the playful onboarding slang keys (fwb/ons/419/bx/ox/kr/jp/street/fancy/…) to real
+  VN search terms (quán nhậu, trà sữa, bún, bò nướng, lẩu bò, ốc, hải sản, sushi, ramen,
+  ăn vặt, nhà hàng…), deduped + capped at 8 (bounds the per-keyword API fan-out). Dietary/
+  generic tags (no_onion/yolo/chill/explore) map to nothing → caller uses defaults.
+- **Personalization is backend-derived, zero Flutter change:** `/venues/nearby` is authed,
+  so `handlers/venue_nearby.go` reads the caller's tags via `ProfileLookup.GetProfile`
+  (UserService), maps them, and passes them to `provider.Nearby(..., keywords)`. Best-
+  effort: no profile/tags → nil → default keywords.
+- **`NearbyProvider.Nearby` gained a `keywords []string` param.** Goong uses them (override
+  default set; cache key now includes the keywords so users don't collide); TomTom ignores
+  them (queries by category).
+- **Goong V2 endpoints:** `/v2/place/autocomplete` + `/v2/place/detail` (same response
+  shapes as v1; verified live). V2 Detail adds a `types` array → `goongAmenityFromTypes`
+  sets amenity from the real category (cafe/bar/fast_food/restaurant), falling back to the
+  keyword's amenity when types are absent.
+- **Live result (real key, Quận 1, sample beef+seafood+spicy+Korean+street user):** keywords
+  `[bò nướng, lẩu bò, ốc, hải sản, lẩu thái, mì cay, quán hàn, gà hàn quốc]` → **14 venues,
+  mostly REAL named** (Lẩu bò Bé Ba, Bò nướng tảng 5S, Lẩu bò Đức Hiến, Lẩu Thái Hào Ký,
+  Ốc…) vs the old 4 generic. Minor noise possible (a non-food POI can match a dish token).
+- Tests: `food_keywords_test.go` (mapping/dedup/cap), `goong_test.go` (+`types`→amenity,
+  V2 paths, keyword param, types-precedence). Go build/vet/test + golangci-lint v2.12.2 → 0.
+
 ## Out of scope
 
 - Goong-powered search-bar autocomplete (typed search still uses the web-search path).

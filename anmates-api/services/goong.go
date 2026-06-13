@@ -95,14 +95,20 @@ func (g *GoongClient) Name() string  { return "goong" }
 // "all venues, no distance limit"). It returns an error only when no keyword query
 // succeeded (network down); an empty-but-successful result (key set, genuinely no
 // venues) yields an empty list so the client shows an honest empty state.
-func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, limit int) ([]NearbyVenue, error) {
+func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, limit int, keywords []string) ([]NearbyVenue, error) {
 	if !g.Enabled() {
 		return nil, fmt.Errorf("goong disabled")
 	}
 	if limit <= 0 || limit > 200 {
 		limit = goongDefaultLimit
 	}
-	if v, ok := g.cached(lat, lng, radiusM); ok {
+	// Personalized keywords (from the user's onboarding tags) take precedence;
+	// fall back to the configured default set when none were supplied.
+	kws := g.keywords
+	if len(keywords) > 0 {
+		kws = keywords
+	}
+	if v, ok := g.cached(lat, lng, radiusM, kws); ok {
 		return v, nil
 	}
 
@@ -115,12 +121,13 @@ func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, lim
 	}
 
 	// 1) Fan out keywords through AutoComplete → ordered unique place ids. The
-	//    amenity/name of the FIRST keyword that surfaced a place id wins.
+	//    keyword-derived amenity/name of the FIRST keyword that surfaced a place id
+	//    is kept as a fallback (the V2 Detail `types` override it when present).
 	order := make([]string, 0, limit)
 	amenityByID := make(map[string]string)
 	nameByID := make(map[string]string)
 	anyOK := false
-	for _, kw := range g.keywords {
+	for _, kw := range kws {
 		preds, err := g.autocomplete(ctx, kw, lat, lng, radiusKm)
 		if err != nil {
 			continue // best-effort per keyword
@@ -177,12 +184,17 @@ func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, lim
 			if name == "" {
 				return
 			}
+			// Prefer the V2 Detail category; fall back to the keyword's amenity.
+			amenity := goongAmenityFromTypes(d.Types)
+			if amenity == "" {
+				amenity = amenityByID[pid]
+			}
 			v := NearbyVenue{
 				ID:        "goong_" + pid,
 				Name:      name,
 				Lat:       d.Lat,
 				Lng:       d.Lng,
-				Amenity:   amenityByID[pid],
+				Amenity:   amenity,
 				Address:   strings.TrimSpace(d.FormattedAddress),
 				DistanceM: int(dist + 0.5),
 			}
@@ -194,7 +206,7 @@ func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, lim
 	wg.Wait()
 
 	sort.Slice(venues, func(i, j int) bool { return venues[i].DistanceM < venues[j].DistanceM })
-	g.store(lat, lng, radiusM, venues)
+	g.store(lat, lng, radiusM, kws, venues)
 	return venues, nil
 }
 
@@ -207,7 +219,7 @@ func (g *GoongClient) autocomplete(ctx context.Context, keyword string, lat, lng
 		"location": {fmt.Sprintf("%f,%f", lat, lng)},
 		"radius":   {strconv.FormatFloat(radiusKm, 'f', 1, 64)},
 	}
-	body, err := g.get(ctx, "/Place/AutoComplete", q)
+	body, err := g.get(ctx, "/v2/place/autocomplete", q)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +228,7 @@ func (g *GoongClient) autocomplete(ctx context.Context, keyword string, lat, lng
 
 func (g *GoongClient) detail(ctx context.Context, placeID string) (goongDetail, error) {
 	q := url.Values{"api_key": {g.apiKey}, "place_id": {placeID}}
-	body, err := g.get(ctx, "/Place/Detail", q)
+	body, err := g.get(ctx, "/v2/place/detail", q)
 	if err != nil {
 		return goongDetail{}, err
 	}
@@ -254,6 +266,7 @@ type goongDetail struct {
 	FormattedAddress string
 	Lat              float64
 	Lng              float64
+	Types            []string // Goong V2 category hints, e.g. ["restaurant"]
 }
 
 func parseGoongAutocomplete(body []byte) ([]goongPrediction, error) {
@@ -288,6 +301,7 @@ func parseGoongDetail(body []byte) (goongDetail, error) {
 			PlaceID          string `json:"place_id"`
 			Name             string `json:"name"`
 			FormattedAddress string `json:"formatted_address"`
+			Types            []string `json:"types"`
 			Geometry         struct {
 				Location struct {
 					Lat float64 `json:"lat"`
@@ -305,7 +319,32 @@ func parseGoongDetail(body []byte) (goongDetail, error) {
 		FormattedAddress: raw.Result.FormattedAddress,
 		Lat:              raw.Result.Geometry.Location.Lat,
 		Lng:              raw.Result.Geometry.Location.Lng,
+		Types:            raw.Result.Types,
 	}, nil
+}
+
+// goongAmenityFromTypes maps Goong V2 Place `types` to the OSM amenity value the
+// Flutter model understands. Returns "" when types are absent or non-food, so the
+// caller can fall back to the keyword that surfaced the place.
+func goongAmenityFromTypes(types []string) string {
+	for _, ty := range types {
+		switch strings.ToLower(strings.TrimSpace(ty)) {
+		case "cafe", "coffee_shop":
+			return "cafe"
+		case "bar", "night_club", "pub":
+			return "bar"
+		case "meal_takeaway", "fast_food":
+			return "fast_food"
+		}
+	}
+	// A generic food type still means "restaurant"; check after the specific ones.
+	for _, ty := range types {
+		switch strings.ToLower(strings.TrimSpace(ty)) {
+		case "restaurant", "food", "meal_delivery":
+			return "restaurant"
+		}
+	}
+	return ""
 }
 
 // goongAmenityForKeyword maps the food keyword that surfaced a place to the OSM
@@ -324,30 +363,32 @@ func goongAmenityForKeyword(keyword string) string {
 
 // --- cache --------------------------------------------------------------------
 
-func (g *GoongClient) cacheKey(lat, lng float64, radiusM int) string {
-	return fmt.Sprintf("%.3f,%.3f,%d", lat, lng, radiusM)
+// cacheKey includes the effective keywords so per-user personalized lists never
+// collide (user A's "lẩu dê" results must not be served to user B).
+func (g *GoongClient) cacheKey(lat, lng float64, radiusM int, keywords []string) string {
+	return fmt.Sprintf("%.3f,%.3f,%d|%s", lat, lng, radiusM, strings.Join(keywords, ","))
 }
 
-func (g *GoongClient) cached(lat, lng float64, radiusM int) ([]NearbyVenue, bool) {
+func (g *GoongClient) cached(lat, lng float64, radiusM int, keywords []string) ([]NearbyVenue, bool) {
 	if g.ttl <= 0 {
 		return nil, false
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	e, ok := g.cache[g.cacheKey(lat, lng, radiusM)]
+	e, ok := g.cache[g.cacheKey(lat, lng, radiusM, keywords)]
 	if !ok || time.Now().After(e.expires) {
 		return nil, false
 	}
 	return e.venues, true
 }
 
-func (g *GoongClient) store(lat, lng float64, radiusM int, venues []NearbyVenue) {
+func (g *GoongClient) store(lat, lng float64, radiusM int, keywords []string, venues []NearbyVenue) {
 	// Never cache an empty result: a transient outage must not pin a location to
 	// "no venues" — the next request re-resolves.
 	if g.ttl <= 0 || len(venues) == 0 {
 		return
 	}
 	g.mu.Lock()
-	g.cache[g.cacheKey(lat, lng, radiusM)] = goongCacheEntry{venues: venues, expires: time.Now().Add(g.ttl)}
+	g.cache[g.cacheKey(lat, lng, radiusM, keywords)] = goongCacheEntry{venues: venues, expires: time.Now().Add(g.ttl)}
 	g.mu.Unlock()
 }
