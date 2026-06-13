@@ -59,7 +59,8 @@ Vào `Settings → Secrets and variables → Actions → New repository secret` 
 | `DATABASE_URL` | Supabase project settings | Postgres connection string |
 | `JWT_SECRET` | Generated locally (min 32 chars) | JWT signing key |
 | `FIREBASE_WEB_API_KEY` | Firebase Console → Project settings → General | Web API key |
-| `TOMTOM_API_KEY` *(optional)* | [developer.tomtom.com](https://developer.tomtom.com) (free key) | Discovery `/venues/nearby` proxy (fresher VN POI than OSM). Bỏ trống = client fallback Overpass |
+| `GOONG_API_KEY` *(optional)* | [account.goong.io](https://account.goong.io) (free key) | Discovery `/venues/nearby` provider (VN-legal Google-Maps alt). Dùng khi `MAP_PROVIDER=goong` hoặc auto. Bỏ trống = client fallback Overpass |
+| `TOMTOM_API_KEY` *(optional)* | [developer.tomtom.com](https://developer.tomtom.com) (free key) | Discovery `/venues/nearby` provider thay thế (dùng khi `MAP_PROVIDER=tomtom`). Bỏ trống = không dùng TomTom |
 | `SMTP_PASSWORD` *(optional)* | Gmail App Password (Account → Security → App passwords) | Email OTP gửi mã thật. Bỏ trống = email OTP chỉ bật trong DEV_MODE |
 
 ### Bước 3 (optional): Repo variables
@@ -69,6 +70,7 @@ Vào `Settings → Secrets and variables → Actions → Variables → New repos
 | Variable name | Default value | Mục đích |
 |---|---|---|
 | `API_BASE_URL` | `https://anmates-api-492509819332.asia-southeast1.run.app` | Override khi đổi Cloud Run URL |
+| `MAP_PROVIDER` *(optional)* | *(trống = auto)* | Chọn nguồn Discovery nearby: `goong` \| `tomtom` \| trống (auto: ưu tiên Goong nếu có key) |
 
 ### Bước 4: Tạo GitHub Environments `dev` + `production`
 

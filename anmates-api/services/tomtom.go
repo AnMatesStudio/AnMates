@@ -37,21 +37,10 @@ func NewTomTomClient(apiKey string) *TomTomClient {
 }
 
 func (t *TomTomClient) Enabled() bool { return t != nil && t.apiKey != "" }
+func (t *TomTomClient) Name() string  { return "tomtom" }
 
-// NearbyVenue is the normalized venue shape returned to the Flutter client. JSON
-// keys mirror what OsmPlace.fromBackend reads, so the UI model is unchanged.
-type NearbyVenue struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Lat          float64 `json:"lat"`
-	Lng          float64 `json:"lng"`
-	Amenity      string  `json:"amenity"`
-	Cuisine      string  `json:"cuisine,omitempty"`
-	Address      string  `json:"address,omitempty"`
-	Phone        string  `json:"phone,omitempty"`
-	OpeningHours string  `json:"opening_hours,omitempty"`
-	DistanceM    int     `json:"distance_m"`
-}
+// NearbyVenue and the NearbyProvider interface live in nearby.go (shared across
+// the TomTom and Goong providers).
 
 // tomtomDateTime / tomtomTimeRange model TomTom's openingHours payload (with
 // openingHours=nextSevenDays each entry is one concrete open period).

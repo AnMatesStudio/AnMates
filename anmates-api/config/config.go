@@ -23,9 +23,15 @@ type Config struct {
 	CORSOrigins           string
 	RedisURL              string // optional; when set the WebSocket hub uses Redis pub/sub
 
-	// TomTom Search — fresher VN POI data than OSM/Overpass for the Discovery
-	// "nearby" list. When TOMTOM_API_KEY is set the /venues/nearby proxy serves
-	// TomTom results; otherwise the Flutter client falls back to Overpass.
+	// Discovery "nearby" list provider — pluggable behind services.NearbyProvider.
+	// MapProvider ("goong" | "tomtom" | "" = auto) selects the source; the matching
+	// key must be set for /venues/nearby to serve. Auto prefers Goong when its key
+	// is present, else TomTom. When neither is configured the route is left off and
+	// the Flutter client falls back to Overpass.
+	//   GOONG_API_KEY  — Goong (goong.io), VN-legal Google-Maps alternative.
+	//   TOMTOM_API_KEY — TomTom Search.
+	MapProvider  string
+	GoongAPIKey  string
 	TomTomAPIKey string
 
 	// Email OTP (passwordless login via emailed code). When SMTPHost+SMTPUsername
@@ -105,6 +111,8 @@ func Load() (*Config, error) {
 	c.PGMaxConns = int32(parseInt32(getOr("PG_MAX_CONNS", "4")))
 	c.PGMinConns = int32(parseInt32(getOr("PG_MIN_CONNS", "1")))
 	c.RedisURL = os.Getenv("REDIS_URL")
+	c.MapProvider = os.Getenv("MAP_PROVIDER")
+	c.GoongAPIKey = os.Getenv("GOONG_API_KEY")
 	c.TomTomAPIKey = os.Getenv("TOMTOM_API_KEY")
 
 	// Email OTP.

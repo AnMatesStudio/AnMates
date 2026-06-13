@@ -251,8 +251,10 @@ class PlacesService {
     _cacheLng = null;
   }
 
-  /// Tries the backend TomTom proxy. Returns null on any failure (disabled /
-  /// offline / error) so the caller falls back to Overpass.
+  /// Tries the backend nearby provider (Goong or TomTom, chosen server-side by
+  /// MAP_PROVIDER). Returns null on any failure (route absent — no provider key —
+  /// offline / parse error) so the caller falls back to Overpass. A non-null
+  /// result, even an empty list, means the provider answered authoritatively.
   Future<List<OsmPlace>?> _getNearbyFromApi(
     double lat,
     double lng,
@@ -292,34 +294,24 @@ class PlacesService {
       return _cache;
     }
 
-    // Fetch both sources concurrently and merge them (Feature C): the backend
-    // TomTom proxy (fresher VN data, but close-in and key-gated → null when
-    // disabled) and Overpass/OSM (wider 5km coverage). Combining them yields a
-    // fuller, deduped list where each venue carries whichever source has the
-    // richer fields (e.g. TomTom phone + OSM opening_hours).
-    final results = await Future.wait([
-      _getNearbyFromApi(lat, lng, radiusM),
-      _getFromOverpass(lat, lng, radiusM),
-    ]);
-    final tomtom = results[0] ?? const <OsmPlace>[];
-    final osm = results[1] ?? const <OsmPlace>[];
-
-    final List<OsmPlace> merged;
-    if (tomtom.isEmpty) {
-      merged = osm;
-    } else if (osm.isEmpty) {
-      merged = tomtom;
+    // The backend nearby provider (Goong or TomTom, chosen server-side by
+    // MAP_PROVIDER) is the authoritative source. A non-null result — even an empty
+    // list — is taken as-is (the provider genuinely found nothing here). Only when
+    // the route is absent/errored (null → no provider key configured, or a 502) do
+    // we fall back to Overpass so dev-without-key and outages aren't a blank screen.
+    final fromApi = await _getNearbyFromApi(lat, lng, radiusM);
+    final List<OsmPlace> result;
+    if (fromApi != null) {
+      result = fromApi;
     } else {
-      merged = mergeNearbyPlaces(tomtom, osm);
+      final osm = await _getFromOverpass(lat, lng, radiusM);
+      if (osm == null) {
+        throw Exception('Không tải được quán quanh đây');
+      }
+      result = osm;
     }
 
-    // Only a real failure (Overpass errored AND nothing else returned) surfaces
-    // as an error; an empty-but-successful fetch just shows "no venues".
-    if (merged.isEmpty && results[1] == null) {
-      throw Exception('Không tải được quán quanh đây');
-    }
-
-    _cache = merged;
+    _cache = result;
     _cacheLat = lat;
     _cacheLng = lng;
     return _cache;

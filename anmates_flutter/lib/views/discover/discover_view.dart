@@ -23,10 +23,11 @@ import 'venue_detail_view.dart';
 const double _kFallbackLat = 10.7769;
 const double _kFallbackLng = 106.7009;
 
-/// Builds the venue photo search query as "name + short address". TomTom returns
-/// a verbose `freeformAddress` (street, ward, city, city again, postal) — passing
-/// it whole over-specifies the Bing query and finds nothing, so we keep only the
-/// first two distinct, non-postal segments (street + ward). Falls back to area.
+/// Builds the venue photo search query as "name + short address". A nearby
+/// provider (Goong/TomTom) can return a verbose address (street, ward, city, city
+/// again, postal) — passing it whole over-specifies the Bing query and finds
+/// nothing, so we keep only the first two distinct, non-postal segments (street +
+/// ward). Falls back to area.
 String venueImageQuery(OsmPlace p, String area) {
   final addr = shortVenueAddress(p.address);
   if (addr.isNotEmpty) return '${p.name} $addr';

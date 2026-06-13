@@ -291,16 +291,17 @@ func run(log *slog.Logger) error {
 	venueReviewsH := handlers.NewVenueReviews(services.NewReviewSearcher())
 	auth.Get("/venues/reviews", venueReviewsH.Reviews)
 
-	// Discovery nearby venues via TomTom (fresher VN POI data than OSM). Proxied
-	// server-side so the key never reaches the client; only enabled when set. The
-	// Flutter client falls back to Overpass when this route is absent/errors.
-	tomtom := services.NewTomTomClient(cfg.TomTomAPIKey)
-	if tomtom.Enabled() {
-		nearbyH := handlers.NewVenueNearby(tomtom)
+	// Discovery nearby venues via a pluggable provider (Goong | TomTom, chosen by
+	// MAP_PROVIDER). Proxied server-side so the key never reaches the client; only
+	// enabled when the selected provider has a key. The Flutter client falls back to
+	// Overpass when this route is absent/errors.
+	nearbyProvider := services.NewNearbyProvider(cfg.MapProvider, cfg.GoongAPIKey, cfg.TomTomAPIKey)
+	if nearbyProvider.Enabled() {
+		nearbyH := handlers.NewVenueNearby(nearbyProvider)
 		auth.Get("/venues/nearby", nearbyH.Serve)
-		log.Info("TomTom nearby enabled")
+		log.Info("Nearby provider enabled: " + nearbyProvider.Name())
 	} else {
-		log.Info("TomTom nearby disabled (set TOMTOM_API_KEY) — client uses Overpass")
+		log.Info("Nearby provider disabled (set GOONG_API_KEY or TOMTOM_API_KEY) — client uses Overpass")
 	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.

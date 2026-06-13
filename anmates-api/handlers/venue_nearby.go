@@ -16,16 +16,16 @@ const (
 	nearbyMaxRadius     = 50000
 )
 
-// VenueNearby serves fresher-than-OSM nearby food venues via the TomTom Search
-// proxy, so the API key stays server-side. Registered only when TomTom is
-// enabled; the Flutter client falls back to Overpass when this route is absent
-// or errors.
+// VenueNearby serves fresher-than-OSM nearby food venues via a pluggable provider
+// (TomTom or Goong, chosen by env MAP_PROVIDER), so the API key stays server-side.
+// Registered only when the selected provider is enabled; the Flutter client falls
+// back to Overpass when this route is absent or errors.
 type VenueNearby struct {
-	tomtom *services.TomTomClient
+	provider services.NearbyProvider
 }
 
-func NewVenueNearby(tomtom *services.TomTomClient) *VenueNearby {
-	return &VenueNearby{tomtom: tomtom}
+func NewVenueNearby(provider services.NearbyProvider) *VenueNearby {
+	return &VenueNearby{provider: provider}
 }
 
 // Serve handles GET /api/v1/venues/nearby?lat=&lng=&radius=&limit=
@@ -51,7 +51,7 @@ func (h *VenueNearby) Serve(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), nearbyTimeout)
 	defer cancel()
 
-	venues, err := h.tomtom.Nearby(ctx, lat, lng, radius, limit)
+	venues, err := h.provider.Nearby(ctx, lat, lng, radius, limit)
 	if err != nil {
 		// Let the client degrade to its Overpass fallback.
 		return httputil.Err(c, fiber.StatusBadGateway, httputil.ErrInternal, "nearby lookup failed")
