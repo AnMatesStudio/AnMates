@@ -70,10 +70,14 @@ func TestFilterRelevantImages(t *testing.T) {
 		t.Errorf("filterRelevantImages kept %v, want the two tara-coffee urls", got)
 	}
 
-	// No distinctive tokens → cannot judge → keep everything.
+	// No distinctive tokens → require F&B context marker (not "keep everything" —
+	// that let garbage through for generic names like "Quán nhậu").
+	// imgs[0] has "quán"+"cà phê", imgs[3] has "review" — both pass.
+	// imgs[1] ("whatsapp") and imgs[2] ("flag history") have no food context → dropped.
 	all := filterRelevantImages(imgs, nil)
-	if len(all) != len(imgs) {
-		t.Errorf("with no tokens kept %d, want %d", len(all), len(imgs))
+	wantURLs := []string{"https://a.vn/1.jpg", "https://d.vn/4.jpg"}
+	if len(all) != len(wantURLs) || all[0] != wantURLs[0] || all[1] != wantURLs[1] {
+		t.Errorf("with no tokens got %v, want %v", all, wantURLs)
 	}
 }
 
