@@ -161,6 +161,9 @@ services:
       dockerfile: Dockerfile
       args:
         API_BASE_URL: ${API_BASE_URL:-http://127.0.0.1:8080}
+        # Client-side Goong Maptiles key for the "Bản đồ" tab. Read from .env
+        # (or the shell env exported by start.sh). Empty = blank map, build OK.
+        GOONG_MAPTILES_KEY: ${GOONG_MAPTILES_KEY:-}
     restart: unless-stopped
     ports:
       - "0.0.0.0:${FLUTTER_WEB_PORT:-54180}:80"

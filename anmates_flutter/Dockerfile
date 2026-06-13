@@ -3,6 +3,9 @@
 
 FROM ghcr.io/cirruslabs/flutter:stable AS builder
 ARG API_BASE_URL=http://localhost:8080
+# Goong Maptiles key (client-side map tiles). Empty = blank "Bản đồ" tab (build
+# still succeeds). Distinct from the server-side GOONG_API_KEY (REST).
+ARG GOONG_MAPTILES_KEY=
 WORKDIR /app
 
 # Prime dependency cache.
@@ -13,7 +16,8 @@ RUN flutter pub get
 COPY . .
 RUN flutter pub get \
  && flutter build web --release \
-    --dart-define=API_BASE_URL=${API_BASE_URL}
+    --dart-define=API_BASE_URL=${API_BASE_URL} \
+    --dart-define=GOONG_MAPTILES_KEY=${GOONG_MAPTILES_KEY}
 
 FROM nginx:1.27-alpine
 RUN rm -f /etc/nginx/conf.d/default.conf

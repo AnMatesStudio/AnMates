@@ -4,6 +4,7 @@ import '../widgets/anm_widgets.dart';
 import 'discover/discover_view.dart';
 import 'discover/wishlist_view.dart';
 import 'chat/chat_list_view.dart';
+import 'map/map_view.dart';
 import 'match/swipe_view.dart';
 
 class MainTabView extends StatefulWidget {
@@ -20,6 +21,7 @@ class _MainTabViewState extends State<MainTabView> {
   Widget build(BuildContext context) {
     final tabs = [
       const DiscoverView(),
+      const MapView(),
       const WishlistView(),
       const ChatListView(),
       const SwipeView(),

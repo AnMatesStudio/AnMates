@@ -96,6 +96,16 @@ docker info &>/dev/null || error "Cannot connect to Docker daemon ($DOCKER_RUNTI
 export API_BASE_URL="http://$LAN_IP:$API_PORT"
 log "API_BASE_URL → $API_BASE_URL"
 
+# Client-side Goong Maptiles key for the "Bản đồ" tab — export from .env so the
+# compose build arg picks it up regardless of cwd. Empty = blank map (build OK).
+GOONG_MAPTILES_KEY="$(grep -E '^GOONG_MAPTILES_KEY=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r' | tr -d '"')"
+export GOONG_MAPTILES_KEY
+if [[ -n "$GOONG_MAPTILES_KEY" ]]; then
+  log "GOONG_MAPTILES_KEY → set (Bản đồ tab enabled)"
+else
+  warn "GOONG_MAPTILES_KEY not set in .env → Bản đồ tab will be blank"
+fi
+
 # ── 5b. Select compose files + LLM mode ──────────────────────────────────────
 # Three modes (auto-selected, overridable via env vars):
 #   A. Host Ollama   — port 11434 already in use → no Docker Ollama, sidecar
