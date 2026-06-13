@@ -54,7 +54,8 @@ jobs:
         run: |
           flutter build web --release \
             --base-href / \
-            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://anmates-api-492509819332.asia-southeast1.run.app' }}
+            --dart-define=API_BASE_URL=${{ vars.API_BASE_URL || 'https://anmates-api-492509819332.asia-southeast1.run.app' }} \
+            --dart-define=GOONG_MAPTILES_KEY=${{ secrets.GOONG_MAPTILES_KEY }}
 
       - name: Upload web artifact
         uses: actions/upload-artifact@v4
