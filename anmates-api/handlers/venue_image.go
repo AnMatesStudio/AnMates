@@ -30,13 +30,13 @@ const (
 // Discovery list doesn't trip 429s. Bytes are proxied (rather than returning the
 // remote URL) so the browser only ever talks to our own CORS-friendly origin.
 type VenueImage struct {
-	searcher *services.ImageSearcher
+	resolver *services.VenuePhotoResolver
 	client   *http.Client
 }
 
-func NewVenueImage(searcher *services.ImageSearcher) *VenueImage {
+func NewVenueImage(resolver *services.VenuePhotoResolver) *VenueImage {
 	return &VenueImage{
-		searcher: searcher,
+		resolver: resolver,
 		client:   &http.Client{Timeout: imageProxyTimeout},
 	}
 }
@@ -110,7 +110,8 @@ func (h *VenueImage) resolveRemote(ctx context.Context, c *fiber.Ctx) (remoteURL
 		return raw, 0
 	}
 
-	// Fallback path: resolve the i-th Bing-crawled photo for the venue name.
+	// Resolver path: i-th photo for the venue. lat/lng (when present) unlock the
+	// identity-grounded Foursquare→website source; without them it's Bing-only.
 	q := strings.TrimSpace(c.Query("q"))
 	if utf8.RuneCountInString(q) < 2 {
 		return "", fiber.StatusBadRequest
@@ -119,7 +120,10 @@ func (h *VenueImage) resolveRemote(ctx context.Context, c *fiber.Ctx) (remoteURL
 	if v, err := strconv.Atoi(c.Query("i", "0")); err == nil && v > 0 {
 		idx = v
 	}
-	remote := h.searcher.ResolveURLAt(ctx, q, idx)
+	lat, _ := strconv.ParseFloat(c.Query("lat"), 64)
+	lng, _ := strconv.ParseFloat(c.Query("lng"), 64)
+	// List/map thumbnails: no agentic crawl (too slow for many tiles).
+	remote := h.resolver.ResolveAt(ctx, q, lat, lng, false, idx)
 	if remote == "" {
 		return "", fiber.StatusNotFound
 	}
@@ -152,6 +156,8 @@ func (h *VenueImage) Count(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), imageProxyTimeout)
 	defer cancel()
 
-	urls := h.searcher.ResolveURLs(ctx, q)
+	lat, _ := strconv.ParseFloat(c.Query("lat"), 64)
+	lng, _ := strconv.ParseFloat(c.Query("lng"), 64)
+	urls := h.resolver.Resolve(ctx, q, lat, lng, false)
 	return httputil.OK(c, fiber.Map{"count": len(urls)})
 }

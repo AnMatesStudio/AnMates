@@ -108,6 +108,7 @@ jobs:
             --set-env-vars "MAP_PROVIDER=${{ vars.MAP_PROVIDER }}" \
             --set-env-vars "GOONG_API_KEY=${{ secrets.GOONG_API_KEY }}" \
             --set-env-vars "TOMTOM_API_KEY=${{ secrets.TOMTOM_API_KEY }}" \
+            --set-env-vars "FOURSQUARE_KEY=${{ secrets.FOURSQUARE_KEY }}" \
             --set-env-vars "SMTP_HOST=${{ vars.SMTP_HOST || 'smtp.gmail.com' }}" \
             --set-env-vars "SMTP_USERNAME=${{ vars.SMTP_USERNAME }}" \
             --set-env-vars "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" \

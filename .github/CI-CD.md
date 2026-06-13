@@ -62,6 +62,7 @@ Vào `Settings → Secrets and variables → Actions → New repository secret` 
 | `GOONG_API_KEY` *(optional)* | [account.goong.io](https://account.goong.io) (free key) | Discovery `/venues/nearby` provider (VN-legal Google-Maps alt). Dùng khi `MAP_PROVIDER=goong` hoặc auto. Bỏ trống = client fallback Overpass |
 | `GOONG_MAPTILES_KEY` *(optional)* | [account.goong.io](https://account.goong.io) → **Maptiles Key** (khác `GOONG_API_KEY`) | Render bản đồ tương tác tab "Bản đồ" (Goong Map Tiles). Inject vào Flutter web build qua `--dart-define` ở `ci/cd.flutter-web.yml`. Bỏ trống = bản đồ trống (build vẫn pass) |
 | `TOMTOM_API_KEY` *(optional)* | [developer.tomtom.com](https://developer.tomtom.com) (free key) | Discovery `/venues/nearby` provider thay thế (dùng khi `MAP_PROVIDER=tomtom`). Bỏ trống = không dùng TomTom |
+| `FOURSQUARE_KEY` *(optional)* | [foursquare.com/developers](https://foursquare.com/developers) (free **search** tier) | Nguồn ảnh "chính chủ": match quán theo tên+toạ độ → website chính thức → og:image. Chỉ dùng `/places/search` (free); `/photos` tính phí. Bỏ trống = dùng Bing + ảnh category |
 | `SMTP_PASSWORD` *(optional)* | Gmail App Password (Account → Security → App passwords) | Email OTP gửi mã thật. Bỏ trống = email OTP chỉ bật trong DEV_MODE |
 
 ### Bước 3 (optional): Repo variables

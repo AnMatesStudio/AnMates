@@ -34,6 +34,11 @@ type Config struct {
 	GoongAPIKey  string
 	TomTomAPIKey string
 
+	// FoursquareKey enables the identity-grounded venue-photo source: Foursquare
+	// free Place search matches a venue by name+coords → its official website →
+	// og:image (the venue's own photo). Empty = skip straight to Bing/category.
+	FoursquareKey string
+
 	// Email OTP (passwordless login via emailed code). When SMTPHost+SMTPUsername
 	// are set the email-OTP endpoints deliver real mail; otherwise the codes are
 	// logged (dev only). Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587,
@@ -114,6 +119,7 @@ func Load() (*Config, error) {
 	c.MapProvider = os.Getenv("MAP_PROVIDER")
 	c.GoongAPIKey = os.Getenv("GOONG_API_KEY")
 	c.TomTomAPIKey = os.Getenv("TOMTOM_API_KEY")
+	c.FoursquareKey = os.Getenv("FOURSQUARE_KEY")
 
 	// Email OTP.
 	c.SMTPHost = os.Getenv("SMTP_HOST")

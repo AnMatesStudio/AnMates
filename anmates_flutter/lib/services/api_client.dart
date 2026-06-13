@@ -114,11 +114,16 @@ class ApiClient {
   /// directly with `Image.network` — the endpoint is public (no token needed)
   /// and CORS-friendly. [index] selects which crawled photo (0 = primary), used
   /// by the detail-screen gallery. Returns "" for queries too short to search.
-  static String imageUrl(String query, {int index = 0}) {
+  static String imageUrl(String query, {int index = 0, double? lat, double? lng}) {
     final q = query.trim();
     if (q.length < 2) return '';
-    final base = '$_baseUrl/api/v1/venues/image?q=${Uri.encodeQueryComponent(q)}';
-    return index > 0 ? '$base&i=$index' : base;
+    var url = '$_baseUrl/api/v1/venues/image?q=${Uri.encodeQueryComponent(q)}';
+    if (index > 0) url += '&i=$index';
+    // Coordinates unlock the identity-grounded Foursquare→website photo source.
+    if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+      url += '&lat=$lat&lng=$lng';
+    }
+    return url;
   }
 
   /// Absolute URL of the public image proxy for a specific [remoteUrl] (a photo

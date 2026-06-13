@@ -425,19 +425,57 @@ func significantTokens(name string) []string {
 	return out
 }
 
-// filterRelevantImages keeps only images whose haystack mentions at least one
-// distinctive venue token. When the name has no distinctive token (fully generic),
-// it can't judge — it returns every URL rather than dropping the whole set.
-func filterRelevantImages(imgs []bingImage, tokens []string) []string {
-	if len(tokens) == 0 {
-		urls := make([]string, 0, len(imgs))
-		for _, im := range imgs {
-			urls = append(urls, im.url)
+// nonFoodSourceMarkers mark a result whose source page / title is clearly NOT a
+// food venue: encyclopedias, film & character databases, art / stock galleries,
+// video & shopping. A famous word in a venue name (e.g. "Pinocchio") otherwise
+// drags in the puppet / film image; we drop anything from these so it can never be
+// served as the venue's photo.
+var nonFoodSourceMarkers = []string{
+	"wikipedia", "wikimedia", "wikia", "fandom", "imdb", "themoviedb", "tmdb",
+	"deviantart", "artstation", "pinterest", "pinimg", "shutterstock",
+	"istockphoto", "gettyimages", "alamy", "dreamstime", "123rf", "freepik",
+	"youtube", "ytimg", "vimeo", "soundcloud", "spotify",
+	"ebay", "aliexpress", "wikiquote", "britannica", "goodreads", "discogs",
+}
+
+// foodContextMarkers signal a real F&B page (review sites, menus, the words a food
+// listing uses). Required for venues whose name is fully generic (no distinctive
+// token to match on) so a generic name can't pull in an arbitrary image.
+var foodContextMarkers = []string{
+	"quán", "nhà hàng", "cà phê", "ca phe", "món", "ăn", "âm thực", "ẩm thực",
+	"foody", "diadiemanuong", "review", "restaurant", "cafe", "coffee", "food",
+	"menu", "eatery", "lẩu", "nướng", "buffet", "bbq", "bia", "beer", "bar",
+}
+
+func hasAnyMarker(haystack string, markers []string) bool {
+	for _, m := range markers {
+		if strings.Contains(haystack, m) {
+			return true
 		}
-		return urls
 	}
+	return false
+}
+
+// filterRelevantImages keeps only images that are plausibly a photo of THIS venue:
+//   - never from a non-food source (wiki / imdb / stock / video) — this kills the
+//     famous-word false positive (a "Pinocchio" venue no longer shows the puppet);
+//   - with a distinctive name token → require that token in the haystack;
+//   - with NO distinctive token (fully generic name) → require an F&B context
+//     marker instead of accepting everything (which used to surface a random image
+//     for "Quán nhậu" / "Trà sữa"). Nothing relevant left → caller serves an
+//     honest on-theme category photo, never garbage.
+func filterRelevantImages(imgs []bingImage, tokens []string) []string {
 	out := make([]string, 0, len(imgs))
 	for _, im := range imgs {
+		if hasAnyMarker(im.haystack, nonFoodSourceMarkers) {
+			continue
+		}
+		if len(tokens) == 0 {
+			if hasAnyMarker(im.haystack, foodContextMarkers) {
+				out = append(out, im.url)
+			}
+			continue
+		}
 		for _, t := range tokens {
 			if strings.Contains(im.haystack, t) {
 				out = append(out, im.url)

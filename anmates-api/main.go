@@ -231,9 +231,21 @@ func run(log *slog.Logger) error {
 	// rate-limited api group) so a burst of list thumbnails won't trip 429s.
 	// MUST be registered before api.Use(jwtMW) below; Fiber v2 applies that
 	// catch-all middleware to any /api/v1* route registered after it, even on app.
-	venueImageH := handlers.NewVenueImage(services.NewImageSearcher())
+	// Venue photo resolver: Foursquare (identity by name+coords → official website
+	// → og:image, "chính chủ") → Bing with the non-food-source/relevance filter →
+	// honest on-theme category photo. The agentic crawl (B) is reserved for the
+	// detail hero (/venues/enrich) where per-venue latency is acceptable.
+	photoResolver := services.NewVenuePhotoResolver(
+		services.NewFoursquareClient(cfg.FoursquareKey),
+		services.NewVenueEnricher(cfg.AISearchURL),
+		services.NewImageSearcher(),
+	)
+	venueImageH := handlers.NewVenueImage(photoResolver)
 	app.Get("/api/v1/venues/image", venueImageH.Serve)
 	app.Get("/api/v1/venues/images", venueImageH.Count)
+	if cfg.FoursquareKey != "" {
+		log.Info("Venue photos: Foursquare identity source enabled (website og:image)")
+	}
 
 	// Agentic realtime venue enrichment for the detail screen: a headless Google
 	// crawl + LLM verification returns photos that are genuinely THIS food venue
@@ -302,6 +314,16 @@ func run(log *slog.Logger) error {
 		log.Info("Nearby provider enabled: " + nearbyProvider.Name())
 	} else {
 		log.Info("Nearby provider disabled (set GOONG_API_KEY or TOMTOM_API_KEY) — client uses Overpass")
+	}
+
+	// Map search bar: Goong Place AutoComplete + Detail (server-side key proxy).
+	// Goong-specific (handles VN venues + addresses), so it rides on GOONG_API_KEY
+	// regardless of MAP_PROVIDER. Absent key → routes off → client hides search.
+	if cfg.GoongAPIKey != "" {
+		placesH := handlers.NewPlacesSearch(services.NewGoongClient(cfg.GoongAPIKey))
+		auth.Get("/places/autocomplete", placesH.Autocomplete)
+		auth.Get("/places/detail", placesH.Detail)
+		log.Info("Goong place search enabled (/api/v1/places/autocomplete, /places/detail)")
 	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.

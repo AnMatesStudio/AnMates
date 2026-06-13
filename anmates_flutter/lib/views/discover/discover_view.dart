@@ -1281,6 +1281,8 @@ class _RestaurantRowState extends State<_RestaurantRow> {
             children: [
               VenueThumbnail(
                 query: _imageQuery,
+                lat: widget.place.lat,
+                lng: widget.place.lng,
                 width: 68,
                 height: 68,
                 radius: 14,
@@ -1425,6 +1427,8 @@ class _VenueResultRowState extends State<_VenueResultRow> {
                 query: widget.result.address.isNotEmpty
                     ? '${widget.result.name} ${widget.result.address}'
                     : '${widget.result.name} ${widget.area}'.trim(),
+                lat: widget.result.lat,
+                lng: widget.result.lng,
                 width: 68,
                 height: 68,
                 radius: 14,

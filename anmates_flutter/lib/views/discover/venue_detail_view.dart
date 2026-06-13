@@ -232,7 +232,7 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   }
 
   Future<void> _loadImageCount() async {
-    final n = await VenueImageService().count(_d.imageQuery);
+    final n = await VenueImageService().count(_d.imageQuery, lat: _d.lat, lng: _d.lng);
     if (!mounted || n <= 1) return; // 0/1 → keep the single-image hero
     setState(() => _imageCount = n);
   }
@@ -442,6 +442,8 @@ class _VenueDetailViewState extends State<VenueDetailView> {
                 query: _d.imageQuery,
                 imageUrl: _enrich.hasImages ? _enrich.imageUrls[i] : null,
                 index: i,
+                lat: _d.lat,
+                lng: _d.lng,
                 width: double.infinity,
                 height: 280,
                 radius: 0,

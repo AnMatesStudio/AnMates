@@ -210,14 +210,98 @@ func (g *GoongClient) Nearby(ctx context.Context, lat, lng float64, radiusM, lim
 	return venues, nil
 }
 
+// --- Place search (map search bar) --------------------------------------------
+
+const goongSearchBiasKm = 25 // city-scale bias toward the map center (loose)
+
+// GoongPrediction is a single Place AutoComplete suggestion for the map search
+// bar (a venue name OR an address — Goong handles both).
+type GoongPrediction struct {
+	PlaceID       string `json:"place_id"`
+	Description   string `json:"description"`
+	MainText      string `json:"main_text"`
+	SecondaryText string `json:"secondary_text"`
+}
+
+// GoongPlace is a place resolved via Place Detail, with coordinates so the client
+// can fly the map camera to it.
+type GoongPlace struct {
+	PlaceID string  `json:"place_id"`
+	Name    string  `json:"name"`
+	Address string  `json:"address"`
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+}
+
+// Autocomplete returns Goong predictions for a free-text query, biased toward
+// (lat,lng) when a non-zero anchor is given (the map center). Used by the map
+// search bar to find a quán or address.
+func (g *GoongClient) Autocomplete(ctx context.Context, query string, lat, lng float64) ([]GoongPrediction, error) {
+	if !g.Enabled() {
+		return nil, fmt.Errorf("goong disabled")
+	}
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil, nil
+	}
+	radiusKm := 0.0
+	if lat != 0 || lng != 0 {
+		radiusKm = goongSearchBiasKm
+	}
+	preds, err := g.autocomplete(ctx, query, lat, lng, radiusKm)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]GoongPrediction, 0, len(preds))
+	for _, p := range preds {
+		if p.PlaceID == "" {
+			continue
+		}
+		out = append(out, GoongPrediction{
+			PlaceID:       p.PlaceID,
+			Description:   p.Description,
+			MainText:      p.MainText,
+			SecondaryText: p.SecondaryText,
+		})
+	}
+	return out, nil
+}
+
+// PlaceDetail resolves a prediction's place_id to a place with coordinates.
+func (g *GoongClient) PlaceDetail(ctx context.Context, placeID string) (GoongPlace, error) {
+	if !g.Enabled() {
+		return GoongPlace{}, fmt.Errorf("goong disabled")
+	}
+	if strings.TrimSpace(placeID) == "" {
+		return GoongPlace{}, fmt.Errorf("place_id required")
+	}
+	d, err := g.detail(ctx, placeID)
+	if err != nil {
+		return GoongPlace{}, err
+	}
+	return GoongPlace{
+		PlaceID: d.PlaceID,
+		Name:    d.Name,
+		Address: d.FormattedAddress,
+		Lat:     d.Lat,
+		Lng:     d.Lng,
+	}, nil
+}
+
 // --- HTTP calls ---------------------------------------------------------------
 
 func (g *GoongClient) autocomplete(ctx context.Context, keyword string, lat, lng, radiusKm float64) ([]goongPrediction, error) {
 	q := url.Values{
-		"api_key":  {g.apiKey},
-		"input":    {keyword},
-		"location": {fmt.Sprintf("%f,%f", lat, lng)},
-		"radius":   {strconv.FormatFloat(radiusKm, 'f', 1, 64)},
+		"api_key": {g.apiKey},
+		"input":   {keyword},
+	}
+	// Location bias is optional: omit it when no anchor is known so a free-text
+	// search (map search bar) isn't pinned to Null Island (0,0).
+	if lat != 0 || lng != 0 {
+		q.Set("location", fmt.Sprintf("%f,%f", lat, lng))
+		if radiusKm > 0 {
+			q.Set("radius", strconv.FormatFloat(radiusKm, 'f', 1, 64))
+		}
 	}
 	body, err := g.get(ctx, "/v2/place/autocomplete", q)
 	if err != nil {

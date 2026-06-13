@@ -20,6 +20,13 @@ class VenueThumbnail extends StatelessWidget {
   /// Which crawled photo to show (0 = primary). The detail-screen gallery passes
   /// 0..count-1 to render multiple photos of the same venue.
   final int index;
+
+  /// Venue coordinates. When set, the backend can match the venue on Foursquare
+  /// and pull its real photo from the venue's own website (identity-grounded),
+  /// before falling back to keyless image search.
+  final double? lat;
+  final double? lng;
+
   final double? width;
   final double height;
   final double radius;
@@ -33,6 +40,8 @@ class VenueThumbnail extends StatelessWidget {
     this.query = '',
     this.imageUrl,
     this.index = 0,
+    this.lat,
+    this.lng,
     this.width,
     this.height = 68,
     this.radius = 14,
@@ -68,7 +77,7 @@ class VenueThumbnail extends StatelessWidget {
 
     final url = (imageUrl != null && imageUrl!.isNotEmpty)
         ? imageUrl!
-        : ApiClient.imageUrl(query, index: index);
+        : ApiClient.imageUrl(query, index: index, lat: lat, lng: lng);
     if (url.isEmpty) return placeholder;
 
     return ClipRRect(
