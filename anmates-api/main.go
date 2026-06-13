@@ -227,17 +227,15 @@ func run(log *slog.Logger) error {
 		log.Warn("DEV_MODE on — /api/v1/auth/dev-login is open (requires DEV_BYPASS_SECRET)")
 	}
 
-	// Discovery venue thumbnails — public, no JWT, registered on root app (not the
-	// rate-limited api group) so a burst of list thumbnails won't trip 429s.
-	// MUST be registered before api.Use(jwtMW) below; Fiber v2 applies that
-	// catch-all middleware to any /api/v1* route registered after it, even on app.
-	// Venue photo resolver: Foursquare (identity by name+coords → official website
-	// → og:image, "chính chủ") → Bing with the non-food-source/relevance filter →
-	// honest on-theme category photo. The agentic crawl (B) is reserved for the
-	// detail hero (/venues/enrich) where per-venue latency is acceptable.
+	// Discovery venue thumbnails + detail hero — public, no JWT, registered on
+	// root app (not the rate-limited api group) so a burst of list thumbnails
+	// won't trip 429s. MUST be registered before api.Use(jwtMW) below.
+	//
+	// Photo source: Foursquare free /places/search → GPS+name match → official
+	// website → og:image ("chính chủ"). Bing web search and agentic crawl have
+	// been removed — they could not be controlled for image accuracy.
 	photoResolver := services.NewVenuePhotoResolver(
 		services.NewFoursquareClient(cfg.FoursquareKey),
-		services.NewVenueEnricher(cfg.AISearchURL),
 		services.NewImageSearcher(),
 	)
 	venueImageH := handlers.NewVenueImage(photoResolver)
@@ -247,15 +245,12 @@ func run(log *slog.Logger) error {
 		log.Info("Venue photos: Foursquare identity source enabled (website og:image)")
 	}
 
-	// Agentic realtime venue enrichment for the detail screen: a headless Google
-	// crawl + LLM verification returns photos that are genuinely THIS food venue
-	// (fixing unrelated-photo results) plus extracted facts. Public + uncached;
-	// degrades to the Bing thumbnail above when AI_SEARCH_URL is unset or blocked.
-	venueEnrichH := handlers.NewVenueEnrich(services.NewVenueEnricher(cfg.AISearchURL))
+	// Detail-screen enrichment: same Foursquare resolver (Foursquare → website →
+	// og:image). Returns EnrichResult so the Flutter hero gallery shows the real
+	// venue photo; degrades gracefully to the emoji placeholder when no website
+	// is found. Agentic crawl removed — too slow and hard to control.
+	venueEnrichH := handlers.NewVenueEnrich(photoResolver)
 	app.Get("/api/v1/venues/enrich", venueEnrichH.Serve)
-	if cfg.AISearchURL != "" {
-		log.Info("Venue enrichment enabled (agentic Google crawl)", "search_url", cfg.AISearchURL)
-	}
 
 	// Authenticated.
 	auth := api.Use(jwtMW)

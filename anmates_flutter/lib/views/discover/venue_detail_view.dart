@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../services/map_navigation_service.dart';
 import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
 import '../../services/venue_enrich_service.dart';
@@ -374,12 +375,26 @@ class _VenueDetailViewState extends State<VenueDetailView> {
   }
 
   void _openDirections() {
-    MapsLauncher.open(
-      name: _d.name,
-      address: _d.address ?? '',
-      lat: _d.lat,
-      lng: _d.lng,
-    );
+    // If we have coordinates, navigate to the in-app Bản đồ tab and let the
+    // user tap "Chỉ đường" there (opens Google Maps turn-by-turn from GPS).
+    // Falls back to opening Google Maps directly when coords are unavailable.
+    if (_d.lat != 0 || _d.lng != 0) {
+      final place = OsmPlace(
+        id: 'nav_${_d.name}',
+        name: _d.name,
+        lat: _d.lat,
+        lng: _d.lng,
+        amenity: 'restaurant',
+        address: _d.address ?? '',
+      );
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      MapNavigationService.instance.navigateTo(place);
+    } else {
+      MapsLauncher.open(
+        name: _d.name,
+        address: _d.address ?? '',
+      );
+    }
   }
 
   void _findMate() {

@@ -10,38 +10,31 @@ import (
 	"github.com/anmates/api/internal/httputil"
 	"github.com/anmates/api/services"
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log"
 )
 
-// enrichTimeout bounds the whole agentic crawl (headless Google + page fetches +
-// LLM verdict). Generous, but capped so a hung crawl can't pin a request forever.
-const enrichTimeout = 85 * time.Second
+// enrichTimeout bounds the Foursquare match + website og:image crawl.
+const enrichTimeout = 15 * time.Second
 
-// VenueEnrich exposes the agentic realtime venue crawl to the detail screen.
+// VenueEnrich returns Foursquare-sourced photos for the detail screen.
 //
-// Like the image proxy it lives on the PUBLIC router (registered before the JWT
-// catch-all): it returns only public web data and the Flutter client renders the
-// photos through the image proxy, which can't carry a bearer token. It never
-// errors out to the client — a blocked/empty crawl returns is_food_venue=false so
-// the client falls back to the keyless Bing thumbnail and shows a placeholder.
+// Only the identity-grounded Foursquare path is used: GPS+name match →
+// official website → og:image. Agentic Playwright crawl and Bing web search
+// have been removed — both could not be controlled for image quality.
+// Returns EnrichResult with images when a website was found, or an empty
+// result so the Flutter client shows the emoji placeholder (graceful degrade).
 type VenueEnrich struct {
-	enricher *services.VenueEnricher
+	resolver *services.VenuePhotoResolver
 }
 
-func NewVenueEnrich(enricher *services.VenueEnricher) *VenueEnrich {
-	return &VenueEnrich{enricher: enricher}
+func NewVenueEnrich(resolver *services.VenuePhotoResolver) *VenueEnrich {
+	return &VenueEnrich{resolver: resolver}
 }
 
-// Serve handles GET /api/v1/venues/enrich?q=<name>&address=&city=&lat=&lng=.
+// Serve handles GET /api/v1/venues/enrich?q=<name>&lat=<lat>&lng=<lng>.
 func (h *VenueEnrich) Serve(c *fiber.Ctx) error {
 	name := strings.TrimSpace(c.Query("q"))
 	if utf8.RuneCountInString(name) < 2 {
 		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "query too short")
-	}
-
-	// Disabled / not configured → empty payload (client keeps the Bing path).
-	if h.enricher == nil || !h.enricher.Enabled() {
-		return httputil.OK(c, services.EnrichResult{})
 	}
 
 	lat, _ := strconv.ParseFloat(strings.TrimSpace(c.Query("lat")), 64)
@@ -50,12 +43,13 @@ func (h *VenueEnrich) Serve(c *fiber.Ctx) error {
 	ctx, cancel := context.WithTimeout(c.UserContext(), enrichTimeout)
 	defer cancel()
 
-	res, err := h.enricher.Enrich(ctx, name, strings.TrimSpace(c.Query("address")),
-		strings.TrimSpace(c.Query("city")), lat, lng, 6)
-	if err != nil {
-		// Degrade, never 5xx: the detail screen falls back to the Bing thumbnail.
-		log.Warn("venue enrich failed", "venue", name, "err", err)
-		return httputil.OK(c, services.EnrichResult{})
+	urls := h.resolver.Resolve(ctx, name, lat, lng)
+	images := make([]services.EnrichedImage, 0, len(urls))
+	for _, u := range urls {
+		images = append(images, services.EnrichedImage{URL: u})
 	}
-	return httputil.OK(c, res)
+	return httputil.OK(c, services.EnrichResult{
+		Images:      images,
+		IsFoodVenue: len(images) > 0,
+	})
 }

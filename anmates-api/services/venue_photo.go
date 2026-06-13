@@ -12,24 +12,17 @@ import (
 	"time"
 )
 
-// VenuePhotoResolver picks a venue's photo from the most identity-confident source
-// available, in order:
-//
-//	1. Foursquare (free search) → the venue's OWN official website → og:image.
-//	   The website is the venue's own domain, so its hero image is genuinely a
-//	   photo of THIS venue ("chính chủ"). Highest identity confidence.
-//	2. Agentic enrich (sidecar Playwright crawl + LLM food-verification) — only
-//	   when allowAgentic (the detail hero, where the per-venue latency is OK; never
-//	   on a 60-item list).
-//	3. Keyless Bing image search with the name-relevance + non-food-source filter,
-//	   ending in an honest on-theme category photo (never a random wrong image).
+// VenuePhotoResolver picks a venue's photo from Foursquare's identity-grounded
+// source: free /places/search returns the venue's official website → we crawl
+// og:image from that domain. Because the website is the venue's own, the photo
+// is genuinely of THIS specific venue ("chính chủ"). Bing web search has been
+// removed — it could not be controlled and returned garbage for generic names.
 //
 // Results are cached so repeated thumbnail loads don't re-hit Foursquare/crawl.
 type VenuePhotoResolver struct {
-	fsq      *FoursquareClient
-	enricher *VenueEnricher
-	bing     *ImageSearcher
-	client   *http.Client
+	fsq    *FoursquareClient
+	bing   *ImageSearcher // used only for URL reachability validation, not search
+	client *http.Client
 
 	mu    sync.Mutex
 	cache map[string]photoCacheEntry
@@ -47,30 +40,32 @@ const (
 	siteImagesCap    = 6
 )
 
-func NewVenuePhotoResolver(fsq *FoursquareClient, enricher *VenueEnricher, bing *ImageSearcher) *VenuePhotoResolver {
+func NewVenuePhotoResolver(fsq *FoursquareClient, bing *ImageSearcher) *VenuePhotoResolver {
 	return &VenuePhotoResolver{
-		fsq:      fsq,
-		enricher: enricher,
-		bing:     bing,
-		client:   &http.Client{Timeout: siteFetchTimeout},
-		cache:    make(map[string]photoCacheEntry),
-		ttl:      30 * time.Minute,
+		fsq:    fsq,
+		bing:   bing,
+		client: &http.Client{Timeout: siteFetchTimeout},
+		cache:  make(map[string]photoCacheEntry),
+		ttl:    30 * time.Minute,
 	}
 }
 
-// Resolve returns candidate photo URLs for the venue, best (most identity-trusted)
-// first. `query` is the venue name (optionally with address); lat/lng locate it.
-func (r *VenuePhotoResolver) Resolve(ctx context.Context, query string, lat, lng float64, allowAgentic bool) []string {
+// Resolve returns candidate photo URLs for the venue. Only the Foursquare
+// identity-grounded path is used: GPS+name match → official website → og:image.
+// Returns nil when Foursquare finds no website for the venue; callers fall back
+// to a category placeholder (VenueThumbnail handles the empty case with the
+// venue emoji). Bing web search has been removed — it could not be controlled.
+func (r *VenuePhotoResolver) Resolve(ctx context.Context, query string, lat, lng float64) []string {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil
 	}
-	key := fmt.Sprintf("%s|%.4f,%.4f|%t", strings.ToLower(query), lat, lng, allowAgentic)
+	key := fmt.Sprintf("%s|%.4f,%.4f", strings.ToLower(query), lat, lng)
 	if v, ok := r.cached(key); ok {
 		return v
 	}
 
-	// 1) Foursquare → official website → og:image (chính chủ).
+	// Foursquare → official website → og:image (chính chủ).
 	if r.fsq.Enabled() && (lat != 0 || lng != 0) {
 		if m, err := r.fsq.Match(ctx, query, lat, lng); err == nil && m != nil && m.Website != "" {
 			if urls := r.crawlSiteImages(ctx, m.Website); len(urls) > 0 {
@@ -80,31 +75,12 @@ func (r *VenuePhotoResolver) Resolve(ctx context.Context, query string, lat, lng
 		}
 	}
 
-	// 2) Agentic enrich (verified real photos) — detail hero only.
-	if allowAgentic && r.enricher.Enabled() {
-		if res, err := r.enricher.Enrich(ctx, query, "", "", lat, lng, 8); err == nil && res != nil && res.IsFoodVenue {
-			urls := make([]string, 0, len(res.Images))
-			for _, im := range res.Images {
-				if u := strings.TrimSpace(im.URL); u != "" {
-					urls = append(urls, u)
-				}
-			}
-			if len(urls) > 0 {
-				r.store(key, urls)
-				return urls
-			}
-		}
-	}
-
-	// 3) Improved Bing search + honest category fallback.
-	urls := r.bing.ResolveURLs(ctx, query)
-	r.store(key, urls)
-	return urls
+	return nil
 }
 
 // ResolveAt returns the i-th photo URL for the venue, or "" if out of range.
-func (r *VenuePhotoResolver) ResolveAt(ctx context.Context, query string, lat, lng float64, allowAgentic bool, i int) string {
-	urls := r.Resolve(ctx, query, lat, lng, allowAgentic)
+func (r *VenuePhotoResolver) ResolveAt(ctx context.Context, query string, lat, lng float64, i int) string {
+	urls := r.Resolve(ctx, query, lat, lng)
 	if i < 0 || i >= len(urls) {
 		return ""
 	}

@@ -6,6 +6,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:vector_map_tiles/vector_map_tiles.dart';
 
 import '../../services/location_service.dart';
+import '../../services/map_navigation_service.dart';
+import '../../services/maps_launcher.dart';
 import '../../services/places_search_service.dart';
 import '../../services/places_service.dart';
 import '../../services/profile_service.dart';
@@ -94,6 +96,7 @@ class _MapViewState extends State<MapView> {
   @override
   void initState() {
     super.initState();
+    MapNavigationService.instance.pending.addListener(_onMapNavRequest);
     if (_hasKey) {
       _styleFuture = StyleReader(uri: _goongStyleUri, apiKey: kGoongMaptilesKey)
           .read();
@@ -104,10 +107,24 @@ class _MapViewState extends State<MapView> {
 
   @override
   void dispose() {
+    MapNavigationService.instance.pending.removeListener(_onMapNavRequest);
     _searchDebounce?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _onMapNavRequest() {
+    final req = MapNavigationService.instance.pending.value;
+    if (req == null) return;
+    MapNavigationService.instance.consume();
+    setState(() {
+      _searchedPlace = req.venue;
+      _selected = req.venue;
+    });
+    try {
+      _mapController.move(LatLng(req.venue.lat, req.venue.lng), 16);
+    } catch (_) {}
   }
 
   // --- search ----------------------------------------------------------------
@@ -690,13 +707,37 @@ class _MapViewState extends State<MapView> {
               ),
               const SizedBox(width: 6),
               Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   GestureDetector(
                     onTap: () => setState(() => _selected = null),
                     child: Icon(Icons.close_rounded,
                         size: 20, color: AppColors.ink50),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 8),
+                  // Chỉ đường — opens Google Maps turn-by-turn from user GPS.
+                  GestureDetector(
+                    onTap: () => MapsLauncher.openDirections(
+                      fromLat: _userLat,
+                      fromLng: _userLng,
+                      toLat: p.lat,
+                      toLng: p.lng,
+                    ),
+                    child: Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(
+                        color: AppColors.ocean,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.directions_rounded,
+                            size: 18, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // Xem chi tiết
                   Container(
                     width: 34,
                     height: 34,

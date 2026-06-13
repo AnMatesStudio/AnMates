@@ -110,8 +110,8 @@ func (h *VenueImage) resolveRemote(ctx context.Context, c *fiber.Ctx) (remoteURL
 		return raw, 0
 	}
 
-	// Resolver path: i-th photo for the venue. lat/lng (when present) unlock the
-	// identity-grounded Foursquare→website source; without them it's Bing-only.
+	// Resolver path: i-th photo for the venue. lat/lng are required for the
+	// Foursquare identity-grounded source (GPS+name match → website → og:image).
 	q := strings.TrimSpace(c.Query("q"))
 	if utf8.RuneCountInString(q) < 2 {
 		return "", fiber.StatusBadRequest
@@ -122,8 +122,7 @@ func (h *VenueImage) resolveRemote(ctx context.Context, c *fiber.Ctx) (remoteURL
 	}
 	lat, _ := strconv.ParseFloat(c.Query("lat"), 64)
 	lng, _ := strconv.ParseFloat(c.Query("lng"), 64)
-	// List/map thumbnails: no agentic crawl (too slow for many tiles).
-	remote := h.resolver.ResolveAt(ctx, q, lat, lng, false, idx)
+	remote := h.resolver.ResolveAt(ctx, q, lat, lng, idx)
 	if remote == "" {
 		return "", fiber.StatusNotFound
 	}
@@ -158,6 +157,6 @@ func (h *VenueImage) Count(c *fiber.Ctx) error {
 
 	lat, _ := strconv.ParseFloat(c.Query("lat"), 64)
 	lng, _ := strconv.ParseFloat(c.Query("lng"), 64)
-	urls := h.resolver.Resolve(ctx, q, lat, lng, false)
+	urls := h.resolver.Resolve(ctx, q, lat, lng)
 	return httputil.OK(c, fiber.Map{"count": len(urls)})
 }
