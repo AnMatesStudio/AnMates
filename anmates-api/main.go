@@ -104,11 +104,42 @@ func run(log *slog.Logger) error {
 	}
 	rlHandler := func(c *fiber.Ctx) error { return c.Next() }
 	if !rateLimitOff {
-		rlHandler = rl.Handler()
+		rlBase := rl.Handler()
+		rlHandler = func(c *fiber.Ctx) error {
+			// Image proxy is a public CDN-style endpoint: up to ~6 simultaneous
+			// requests per list render burst, responses already cached 24h — exempt
+			// from the per-IP API rate limit.
+			if strings.HasPrefix(c.Path(), "/api/v1/venues/image") {
+				return c.Next()
+			}
+			return rlBase(c)
+		}
 	}
 
 	fbClient := &http.Client{Timeout: cfg.FirebaseVerifyTimeout}
 	authSvc := services.NewAuthService(pool, cfg.JWTSecret, cfg.JWTAccessExpire, cfg.JWTRefreshExpire, cfg.FirebaseWebAPIKey, fbClient)
+
+	// Email OTP (passwordless login alongside phone OTP). Real SMTP when
+	// configured; a log-only sender in DEV_MODE so local flows work without
+	// credentials; otherwise left disabled (routes not registered).
+	var emailSender services.EmailSender
+	switch {
+	case cfg.SMTPHost != "" && cfg.SMTPUsername != "":
+		emailSender = services.NewSMTPSender(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPUsername, cfg.SMTPPassword, cfg.SMTPFrom, cfg.SMTPFromName)
+		log.Info("Email OTP enabled (SMTP)", "host", cfg.SMTPHost, "from", cfg.SMTPFrom)
+	case cfg.DevMode:
+		emailSender = services.NewLogSender(log)
+		log.Warn("Email OTP enabled with LOG sender (DEV_MODE, no SMTP) — codes are written to logs, not emailed")
+	default:
+		log.Info("Email OTP disabled (set SMTP_HOST + SMTP_USERNAME to enable)")
+	}
+	if emailSender != nil {
+		authSvc.SetEmailOTP(emailSender, services.EmailOTPOptions{
+			Expire:         cfg.EmailOTPExpire,
+			ResendCooldown: cfg.EmailOTPResendCooldown,
+			MaxAttempts:    cfg.EmailOTPMaxAttempts,
+		})
+	}
 	userSvc := services.NewUserService(pool)
 	wlSvc := services.NewWishlistService(pool)
 	matchSvc := services.NewMatchingService(pool)
@@ -184,12 +215,42 @@ func run(log *slog.Logger) error {
 	api.Post("/auth/register", authH.Register)
 	api.Post("/auth/login", authH.Login)
 	api.Post("/auth/phone-verify", authH.PhoneVerify)
+	if authSvc.EmailOTPEnabled() {
+		api.Post("/auth/email/request-otp", authH.RequestEmailOTP)
+		api.Post("/auth/email/verify-otp", authH.VerifyEmailOTP)
+		log.Info("email OTP routes registered: POST /api/v1/auth/email/request-otp + /verify-otp")
+	}
 	api.Post("/auth/refresh", authH.Refresh)
 	api.Post("/auth/logout", authH.Logout)
 	if cfg.DevMode {
 		api.Post("/auth/dev-login", authH.DevLogin)
 		log.Warn("DEV_MODE on — /api/v1/auth/dev-login is open (requires DEV_BYPASS_SECRET)")
 	}
+
+	// Discovery venue thumbnails + detail hero — public, no JWT, registered on
+	// root app (not the rate-limited api group) so a burst of list thumbnails
+	// won't trip 429s. MUST be registered before api.Use(jwtMW) below.
+	//
+	// Photo source: Foursquare free /places/search → GPS+name match → official
+	// website → og:image ("chính chủ"). Bing web search and agentic crawl have
+	// been removed — they could not be controlled for image accuracy.
+	photoResolver := services.NewVenuePhotoResolver(
+		services.NewFoursquareClient(cfg.FoursquareKey),
+		services.NewImageSearcher(),
+	)
+	venueImageH := handlers.NewVenueImage(photoResolver)
+	app.Get("/api/v1/venues/image", venueImageH.Serve)
+	app.Get("/api/v1/venues/images", venueImageH.Count)
+	if cfg.FoursquareKey != "" {
+		log.Info("Venue photos: Foursquare identity source enabled (website og:image)")
+	}
+
+	// Detail-screen enrichment: same Foursquare resolver (Foursquare → website →
+	// og:image). Returns EnrichResult so the Flutter hero gallery shows the real
+	// venue photo; degrades gracefully to the emoji placeholder when no website
+	// is found. Agentic crawl removed — too slow and hard to control.
+	venueEnrichH := handlers.NewVenueEnrich(photoResolver)
+	app.Get("/api/v1/venues/enrich", venueEnrichH.Serve)
 
 	// Authenticated.
 	auth := api.Use(jwtMW)
@@ -230,6 +291,34 @@ func run(log *slog.Logger) error {
 	if webSearchProvider != nil {
 		venueH := handlers.NewVenue(webSearchProvider)
 		auth.Get("/venues/search", venueH.Search)
+	}
+
+	// Discovery venue reviews — keyless Bing web scrape (rating + count + a few
+	// snippets) for the detail card. Always on (no key); cached 24h server-side.
+	venueReviewsH := handlers.NewVenueReviews(services.NewReviewSearcher())
+	auth.Get("/venues/reviews", venueReviewsH.Reviews)
+
+	// Discovery nearby venues via a pluggable provider (Goong | TomTom, chosen by
+	// MAP_PROVIDER). Proxied server-side so the key never reaches the client; only
+	// enabled when the selected provider has a key. The Flutter client falls back to
+	// Overpass when this route is absent/errors.
+	nearbyProvider := services.NewNearbyProvider(cfg.MapProvider, cfg.GoongAPIKey, cfg.TomTomAPIKey)
+	if nearbyProvider.Enabled() {
+		nearbyH := handlers.NewVenueNearby(nearbyProvider, userSvc)
+		auth.Get("/venues/nearby", nearbyH.Serve)
+		log.Info("Nearby provider enabled: " + nearbyProvider.Name())
+	} else {
+		log.Info("Nearby provider disabled (set GOONG_API_KEY or TOMTOM_API_KEY) — client uses Overpass")
+	}
+
+	// Map search bar: Goong Place AutoComplete + Detail (server-side key proxy).
+	// Goong-specific (handles VN venues + addresses), so it rides on GOONG_API_KEY
+	// regardless of MAP_PROVIDER. Absent key → routes off → client hides search.
+	if cfg.GoongAPIKey != "" {
+		placesH := handlers.NewPlacesSearch(services.NewGoongClient(cfg.GoongAPIKey))
+		auth.Get("/places/autocomplete", placesH.Autocomplete)
+		auth.Get("/places/detail", placesH.Detail)
+		log.Info("Goong place search enabled (/api/v1/places/autocomplete, /places/detail)")
 	}
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.

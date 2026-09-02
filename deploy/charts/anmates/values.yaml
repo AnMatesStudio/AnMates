@@ -1,0 +1,62 @@
+# Default values — meant to be overridden by values-prod.yaml.
+# `helm lint` / `helm template` must pass with just this file (no cluster needed).
+
+image:
+  registry: ghcr.io
+  owner: CHANGE_ME_github_owner # ví dụ: anmates-studio (chủ repo GitHub)
+  pullPolicy: IfNotPresent
+  api:
+    repository: anmates-api
+    tag: latest
+  web:
+    repository: anmates-web
+    tag: latest
+
+# Secret tạo thủ công (xem plan H3):
+#   kubectl -n anmates create secret docker-registry ghcr-pull ...
+imagePullSecrets:
+  - name: ghcr-pull
+
+api:
+  replicaCount: 1 # 1 replica ở MVP — hub WebSocket in-memory, chưa cần Redis
+  serviceName: anmates-api # PHẢI khớp với nginx.conf location /api/ + /ws/ proxy_pass
+  service:
+    port: 8080
+  # Bí danh secret tạo thủ công chứa DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
+  # GOONG_API_KEY, FOURSQUARE_KEY, SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
+  secretName: anmates-api
+  env:
+    # GOMAXPROCS/GOMEMLIMIT đè giá trị hardcode cho Cloud Run 1 vCPU trong Dockerfile.
+    # GOMAXPROCS=1 khớp cpu limit "1" bên dưới; GOMEMLIMIT để dưới memory limit ~60Mi
+    # làm khoảng đệm cho phần ngoài heap (goroutine stack, cgo, v.v.).
+    goMaxProcs: "1"
+    goMemLimit: "450MiB"
+    devMode: "true" # bật /auth/dev-login (tester quick-login) — tắt khi có user thật
+  probe:
+    path: /health # đã tự ping DB — dùng chung cho liveness lẫn readiness
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+web:
+  replicaCount: 2
+  serviceName: anmates-web
+  service:
+    port: 80
+  probe:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

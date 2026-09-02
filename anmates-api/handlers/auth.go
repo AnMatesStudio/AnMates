@@ -48,6 +48,15 @@ type devLoginReq struct {
 	Name   string `json:"name"`
 }
 
+type emailOTPRequestReq struct {
+	Email string `json:"email"`
+}
+
+type emailOTPVerifyReq struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 type tokenResp struct {
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token,omitempty"`
@@ -206,6 +215,63 @@ func (a *Auth) PhoneVerify(c *fiber.Ctx) error {
 	u, err := a.svc.UpsertPhoneUser(ctx, uid, phone, r.Name)
 	if err != nil {
 		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "upsert user failed: "+err.Error())
+	}
+	tokens, err := a.svc.IssueTokens(ctx, u.ID)
+	if err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "token issue failed")
+	}
+	return httputil.OK(c, tokensJSON(u, tokens))
+}
+
+// RequestEmailOTP mints + emails a login code. It always returns 200 on a valid
+// email (even if the address has no account yet) so the endpoint can't be used to
+// probe which emails are registered; only a malformed email or a too-soon retry
+// surfaces an error.
+func (a *Auth) RequestEmailOTP(c *fiber.Ctx) error {
+	var r emailOTPRequestReq
+	if err := c.BodyParser(&r); err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid body")
+	}
+	email := strings.ToLower(strings.TrimSpace(r.Email))
+	if !validEmail(email) {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "valid email required")
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
+	defer cancel()
+
+	err := a.svc.RequestEmailOTP(ctx, email)
+	if errors.Is(err, services.ErrRateLimited) {
+		return httputil.Err(c, fiber.StatusTooManyRequests, httputil.ErrValidation,
+			"vui lòng đợi một lát trước khi yêu cầu mã mới")
+	}
+	if err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "gửi mã thất bại")
+	}
+	return httputil.OK(c, fiber.Map{"sent": true})
+}
+
+// VerifyEmailOTP checks the code and, on success, issues the app JWT pair.
+func (a *Auth) VerifyEmailOTP(c *fiber.Ctx) error {
+	var r emailOTPVerifyReq
+	if err := c.BodyParser(&r); err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid body")
+	}
+	email := strings.ToLower(strings.TrimSpace(r.Email))
+	code := strings.TrimSpace(r.Code)
+	if !validEmail(email) || code == "" {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "email + code required")
+	}
+
+	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
+	defer cancel()
+
+	u, err := a.svc.VerifyEmailOTP(ctx, email, code)
+	if errors.Is(err, services.ErrUnauthorized) {
+		return httputil.Err(c, fiber.StatusUnauthorized, httputil.ErrUnauthorized, "mã không đúng hoặc đã hết hạn")
+	}
+	if err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "xác thực thất bại")
 	}
 	tokens, err := a.svc.IssueTokens(ctx, u.ID)
 	if err != nil {

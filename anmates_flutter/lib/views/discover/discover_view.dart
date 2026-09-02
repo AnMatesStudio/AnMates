@@ -6,19 +6,51 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 
 import '../../services/location_service.dart';
-import '../../services/maps_launcher.dart';
 import '../../services/places_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/venue_search_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/opening_hours.dart';
 import '../../widgets/anm_logo.dart';
 import '../../widgets/anm_widgets.dart';
+import '../../widgets/open_now_badge.dart';
+import '../../widgets/venue_thumbnail.dart';
 import '../profile/profile_view.dart';
+import 'venue_detail_view.dart';
 
 // Fallback coords: Quận 1 center — always yields real OSM data on web when
 // location permission is denied.
 const double _kFallbackLat = 10.7769;
 const double _kFallbackLng = 106.7009;
+
+/// Builds the venue photo search query as "name + short address". A nearby
+/// provider (Goong/TomTom) can return a verbose address (street, ward, city, city
+/// again, postal) — passing it whole over-specifies the Bing query and finds
+/// nothing, so we keep only the first two distinct, non-postal segments (street +
+/// ward). Falls back to area.
+String venueImageQuery(OsmPlace p, String area) {
+  final addr = shortVenueAddress(p.address);
+  if (addr.isNotEmpty) return '${p.name} $addr';
+  return area.trim().isNotEmpty ? '${p.name} ${area.trim()}' : p.name;
+}
+
+/// Trims a verbose address to its first two distinct, non-postal-code segments.
+String shortVenueAddress(String? address) {
+  if (address == null || address.trim().isEmpty) return '';
+  final seen = <String>{};
+  final kept = <String>[];
+  for (var part in address.split(',')) {
+    part = part.trim();
+    if (part.isEmpty) continue;
+    if (RegExp(r'^\d{4,}$').hasMatch(part)) continue; // postal code
+    final key = part.toLowerCase();
+    if (seen.contains(key)) continue; // drop repeated city ("HCM, HCM")
+    seen.add(key);
+    kept.add(part);
+    if (kept.length >= 2) break; // street + ward is specific enough for Bing
+  }
+  return kept.join(', ');
+}
 
 class DiscoverView extends StatefulWidget {
   const DiscoverView({super.key});
@@ -43,6 +75,15 @@ class _DiscoverViewState extends State<DiscoverView> {
   bool _loadingPlaces = true;
   String? _placesError;
 
+  // --- infinite scroll (OSM browse path) ---
+  // Venues are fetched once within a 5km radius, then revealed in pages of 6 as
+  // the user scrolls; loading stops when every venue inside 5km is shown.
+  static const int _kNearbyRadiusM = 5000;
+  static const int _kPageSize = 6;
+  final ScrollController _scrollCtrl = ScrollController();
+  int _visibleCount = _kPageSize;
+  bool _showBackToTop = false;
+
   // --- filters ---
   String? _activeGenre; // null = no filter
   final TextEditingController _searchCtrl = TextEditingController();
@@ -54,15 +95,18 @@ class _DiscoverViewState extends State<DiscoverView> {
   bool _searchLoading = false;
   String? _searchError;
 
-  // --- vibe chips (visual-only; OSM has no reliable mapping) ---
-  final Set<String> _activeVibes = {'❄️ Máy lạnh'};
+  // --- vibe chips (multi-select; union filter over OSM tags + heuristics) ---
+  // Empty by default so the initial list is the full nearby browse; tapping a
+  // chip narrows to venues matching that vibe (see _matchesVibe).
+  final Set<String> _activeVibes = {};
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _loadNearby();
+    _initLocationAndLoad();
     _searchCtrl.addListener(_onSearchChanged);
+    _scrollCtrl.addListener(_onScroll);
   }
 
   @override
@@ -70,7 +114,35 @@ class _DiscoverViewState extends State<DiscoverView> {
     _debounce?.cancel();
     _searchCtrl.removeListener(_onSearchChanged);
     _searchCtrl.dispose();
+    _scrollCtrl.removeListener(_onScroll);
+    _scrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    final pos = _scrollCtrl.position;
+
+    // Toggle the back-to-top button past one screen of scroll.
+    final show = pos.pixels > 400;
+    if (show != _showBackToTop) setState(() => _showBackToTop = show);
+
+    // Infinite reveal — only on the OSM browse path (not web-search results).
+    if (_searchResults == null && pos.pixels >= pos.maxScrollExtent - 240) {
+      final total = _filteredPlaces.length;
+      if (_visibleCount < total) {
+        setState(() {
+          _visibleCount = (_visibleCount + _kPageSize).clamp(0, total);
+        });
+      }
+    }
+  }
+
+  void _scrollToTop() {
+    _scrollCtrl.animateTo(
+      0,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _onSearchChanged() {
@@ -80,6 +152,7 @@ class _DiscoverViewState extends State<DiscoverView> {
       final q = _searchCtrl.text.trim();
       setState(() {
         _searchQuery = q.toLowerCase();
+        _visibleCount = _kPageSize; // re-page from the top on a new filter
         // Clearing the box → return to OSM nearby browse.
         if (q.isEmpty) {
           _searchResults = null;
@@ -135,7 +208,25 @@ class _DiscoverViewState extends State<DiscoverView> {
     }
   }
 
-  Future<void> _loadNearby() async {
+  /// First paint loads venues fast (at the real position if permission is already
+  /// granted, else the fallback city). On web the geolocation prompt often
+  /// resolves AFTER this first load, so we then poll briefly: the moment a real
+  /// position becomes available (user tapped "Allow"), reload venues at it.
+  Future<void> _initLocationAndLoad() async {
+    await _loadNearby();
+    for (var i = 0; i < 12; i++) {
+      if (!mounted || !_usingFallbackLocation) return; // got real coords already
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return;
+      final coords = await LocationService().currentLatLng();
+      if (coords != null && mounted) {
+        await _loadNearby(coordsOverride: coords); // permission granted → reload
+        return;
+      }
+    }
+  }
+
+  Future<void> _loadNearby({({double lat, double lng})? coordsOverride}) async {
     if (!mounted) return;
     setState(() {
       _loadingPlaces = true;
@@ -143,14 +234,18 @@ class _DiscoverViewState extends State<DiscoverView> {
     });
 
     try {
-      final coords = await LocationService().currentLatLng();
+      final coords = coordsOverride ?? await LocationService().currentLatLng();
       if (!mounted) return;
 
       final lat = coords?.lat ?? _kFallbackLat;
       final lng = coords?.lng ?? _kFallbackLng;
       final usingFallback = coords == null;
 
-      final places = await PlacesService().getNearby(lat, lng);
+      final places = await PlacesService().getNearby(
+        lat,
+        lng,
+        radiusM: _kNearbyRadiusM,
+      );
       if (!mounted) return;
 
       places.sort(
@@ -163,6 +258,7 @@ class _DiscoverViewState extends State<DiscoverView> {
         _userLng = lng;
         _usingFallbackLocation = usingFallback;
         _places = places;
+        _visibleCount = _kPageSize;
         _loadingPlaces = false;
       });
 
@@ -217,6 +313,13 @@ class _DiscoverViewState extends State<DiscoverView> {
       list = list.where((p) => _matchesGenre(p, _activeGenre!)).toList();
     }
 
+    // Vibe filter (multi-select, union): keep venues matching ANY active vibe.
+    if (_activeVibes.isNotEmpty) {
+      list = list
+          .where((p) => _activeVibes.any((v) => _matchesVibe(p, v)))
+          .toList();
+    }
+
     // Search filter (client-side, no refetch)
     if (_searchQuery.isNotEmpty) {
       list = list.where((p) {
@@ -259,11 +362,133 @@ class _DiscoverViewState extends State<DiscoverView> {
     }
   }
 
+  /// Maps a vibe chip to venue data. OSM rarely tags ambiance, so each vibe
+  /// combines whatever real tags exist (air_conditioning, outdoor_seating,
+  /// stars, opening_hours) with name/cuisine/amenity heuristics. Heuristic by
+  /// design — the aim is to reshape the list meaningfully, not be exhaustive.
+  bool _matchesVibe(OsmPlace p, String vibe) {
+    final name = p.name.toLowerCase();
+    final cuisine = (p.cuisine ?? '').toLowerCase();
+    final amenity = p.amenity.toLowerCase();
+    final addr = (p.address ?? '').toLowerCase();
+
+    switch (vibe) {
+      case '❄️ Máy lạnh': // indoor / air-conditioned
+        // Indoor chains (Lotteria/KFC/…) are OSM fast_food but are A/C, not street.
+        if (p.airConditioning == 'yes' || _isIndoorChain(name)) return true;
+        if (p.airConditioning == 'no' || p.outdoorSeating == 'only') {
+          return false;
+        }
+        return amenity == 'restaurant' ||
+            amenity == 'cafe' ||
+            name.contains('buffet') ||
+            name.contains('coffee') ||
+            cuisine.contains('buffet') ||
+            cuisine.contains('japanese') ||
+            cuisine.contains('korean');
+      case '🌿 Vỉa hè': // open-air / sidewalk eats
+        // OSM tags both street stalls AND A/C chains as fast_food → exclude the
+        // chains (and anything explicitly A/C) so Lotteria & co. don't show here.
+        if (_isIndoorChain(name) || p.airConditioning == 'yes') return false;
+        if (p.outdoorSeating == 'yes' || p.outdoorSeating == 'only') {
+          return true;
+        }
+        return amenity == 'fast_food' ||
+            cuisine.contains('street_food') ||
+            name.contains('vỉa hè') ||
+            name.contains('lề đường') ||
+            name.contains('ốc') ||
+            name.contains('nướng') ||
+            name.contains('bún') ||
+            name.contains('phở') ||
+            name.contains('bánh');
+      case '🔇 Khuất hẻm': // tucked away in an alley
+        return name.contains('hẻm') ||
+            addr.contains('hẻm') ||
+            name.contains('ngõ') ||
+            addr.contains('ngõ') ||
+            name.contains('ngách') ||
+            name.contains('kiệt') ||
+            RegExp(r'\d+/\d+').hasMatch(addr); // "12/3 …" alley-style address
+      case '✨ Sang chảnh': // upscale / fancy
+        if (p.stars != null && p.stars!.trim().isNotEmpty) return true;
+        return cuisine.contains('french') ||
+            cuisine.contains('japanese') ||
+            cuisine.contains('sushi') ||
+            cuisine.contains('steak') ||
+            cuisine.contains('italian') ||
+            cuisine.contains('fine_dining') ||
+            name.contains('fine') ||
+            name.contains('luxury') ||
+            name.contains('sang') ||
+            name.contains('rooftop') ||
+            name.contains('sky') ||
+            name.contains('lounge') ||
+            name.contains('signature') ||
+            name.contains('premium');
+      case '🌙 Ngồi khuya': // open late
+        if (_opensLate(p.openingHours)) return true;
+        return amenity == 'bar' ||
+            name.contains('khuya') ||
+            name.contains('đêm') ||
+            name.contains('night') ||
+            name.contains('24h') ||
+            name.contains('24/24') ||
+            name.contains('bar') ||
+            name.contains('pub') ||
+            name.contains('beer');
+      default:
+        return true;
+    }
+  }
+
+  /// True if the venue is still open at ~23:00 per its OSM opening_hours (24/7
+  /// or a window running into the late evening). Unknown hours → false (honest:
+  /// we don't claim a late vibe we can't see in the data).
+  bool _opensLate(String? hours) {
+    if (hours == null || hours.trim().isEmpty) return false;
+    final now = DateTime.now();
+    final lateProbe = DateTime(now.year, now.month, now.day, 23, 0);
+    return parseOpeningHours(hours, now: lateProbe).isOpen;
+  }
+
+  // International quick-service chains: OSM tags them amenity=fast_food, but they
+  // are air-conditioned sit-in spots — the opposite of "vỉa hè" street food. Used
+  // to route them to Máy lạnh and keep them out of Vỉa hè.
+  static const List<String> _indoorChains = [
+    'lotteria', 'kfc', 'mcdonald', 'burger king', 'jollibee', 'popeyes',
+    'texas chicken', 'pizza hut', 'domino', 'the pizza company', 'subway',
+    'carl', 'wendy', 'dairy queen', 'baskin', 'starbucks',
+  ];
+
+  bool _isIndoorChain(String lowerName) =>
+      _indoorChains.any(lowerName.contains);
+
+  // Area hint appended to venue image queries. The reverse-geocode placeholder
+  // "Gần bạn" isn't a place name, so fall back to the city for better matches.
+  String get _imageArea =>
+      _locationLabel == 'Gần bạn' ? 'TP.HCM' : _locationLabel;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.mint,
+      floatingActionButton: _showBackToTop
+          ? Padding(
+              // Lift above the bottom nav bar.
+              padding: const EdgeInsets.only(bottom: 84),
+              child: FloatingActionButton.small(
+                onPressed: _scrollToTop,
+                backgroundColor: AppColors.berry,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                tooltip: 'Lên đầu trang',
+                child: const Icon(Icons.keyboard_arrow_up_rounded, size: 26),
+              ),
+            )
+          : null,
       body: SingleChildScrollView(
+        controller: _scrollCtrl,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -444,6 +669,7 @@ class _DiscoverViewState extends State<DiscoverView> {
           onGenreTap: (label) {
             setState(() {
               _activeGenre = (_activeGenre == label) ? null : label;
+              _visibleCount = _kPageSize; // re-page from the top on filter change
             });
           },
           items: [
@@ -510,8 +736,8 @@ class _DiscoverViewState extends State<DiscoverView> {
         const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          // Vibe chips are visual-only toggles. OSM has no reliable tag mapping
-          // for ambiance (máy lạnh, vỉa hè, etc.) — wire to data in a future sprint.
+          // Vibe chips are multi-select filters (union) over OSM ambiance tags +
+          // name/cuisine heuristics — see _matchesVibe / _filteredPlaces.
           child: Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -528,6 +754,7 @@ class _DiscoverViewState extends State<DiscoverView> {
                     } else {
                       _activeVibes.add(v);
                     }
+                    _visibleCount = _kPageSize; // re-page from the top on filter change
                   });
                 },
               );
@@ -647,33 +874,69 @@ class _DiscoverViewState extends State<DiscoverView> {
       );
     }
 
-    final visible = _filteredPlaces.take(6).toList();
+    final all = _filteredPlaces;
 
-    if (visible.isEmpty) {
+    if (all.isEmpty) {
+      final filtering = _activeVibes.isNotEmpty || _activeGenre != null;
       return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 24),
           child: Text(
-            'Chưa tìm thấy quán quanh đây',
+            filtering
+                ? 'Không có quán hợp vibe này quanh đây — thử bỏ bớt filter'
+                : 'Chưa tìm thấy quán quanh đây',
+            textAlign: TextAlign.center,
             style: AppTextStyles.body(size: 14, color: AppColors.ink50),
           ),
         ),
       );
     }
 
+    final visible = all.take(_visibleCount).toList();
+    final hasMore = _visibleCount < all.length;
+
     return Column(
-      children: visible.indexed.map((entry) {
-        final (i, place) = entry;
-        return Padding(
-          padding: EdgeInsets.only(bottom: i < visible.length - 1 ? 10 : 0),
-          child: _RestaurantRow(
-            place: place,
-            userLat: _userLat,
-            userLng: _userLng,
-            isNearest: i == 0 && _activeGenre == null && _searchQuery.isEmpty,
+      children: [
+        ...visible.indexed.map((entry) {
+          final (i, place) = entry;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _RestaurantRow(
+              place: place,
+              userLat: _userLat,
+              userLng: _userLng,
+              area: _imageArea,
+              greetingName: _greetingName,
+              isNearest: i == 0 &&
+                  _activeGenre == null &&
+                  _searchQuery.isEmpty &&
+                  _activeVibes.isEmpty,
+            ),
+          );
+        }),
+        // Footer: spinner while more photo-confirmed venues load / are probed;
+        // else an honest end-marker with the count actually shown.
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Center(
+            child: hasMore
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    'Đã hiển thị ${all.length} quán gần bạn',
+                    style: AppTextStyles.mono(
+                      size: 10,
+                      weight: FontWeight.w600,
+                      color: AppColors.ink50,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
           ),
-        );
-      }).toList(),
+        ),
+      ],
     );
   }
 
@@ -689,6 +952,10 @@ class _DiscoverViewState extends State<DiscoverView> {
         ),
       );
     }
+
+    final sorted = List<VenueResult>.from(results)
+      ..sort((a, b) => a.distanceM.compareTo(b.distanceM));
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -704,12 +971,14 @@ class _DiscoverViewState extends State<DiscoverView> {
             ),
           ),
         ),
-        ...results.indexed.map((entry) {
+        ...sorted.indexed.map((entry) {
           final (i, result) = entry;
           return Padding(
-            padding: EdgeInsets.only(bottom: i < results.length - 1 ? 10 : 0),
+            padding: EdgeInsets.only(bottom: i < sorted.length - 1 ? 10 : 0),
             child: _VenueResultRow(
               result: result,
+              area: _imageArea,
+              greetingName: _greetingName,
               showDistance: result.lat != 0 && result.lng != 0,
             ),
           );
@@ -939,12 +1208,16 @@ class _RestaurantRow extends StatefulWidget {
   final OsmPlace place;
   final double userLat;
   final double userLng;
+  final String area;
+  final String greetingName;
   final bool isNearest;
 
   const _RestaurantRow({
     required this.place,
     required this.userLat,
     required this.userLng,
+    required this.area,
+    required this.greetingName,
     required this.isNearest,
   });
 
@@ -955,16 +1228,14 @@ class _RestaurantRow extends StatefulWidget {
 class _RestaurantRowState extends State<_RestaurantRow> {
   bool _hovered = false;
 
+  // Venue photo search = "name + address" (most specific), else "name + area".
+  // Same cleaned query the list's photo gate probed → cache hit, consistent photo.
+  String get _imageQuery => venueImageQuery(widget.place, widget.area);
+
   String get _tagLine {
     final tags = widget.place.tags.take(2).join(' · ');
     final dist = widget.place.distanceLabel(widget.userLat, widget.userLng);
     return '${widget.place.emoji} $tags · $dist';
-  }
-
-  String? get _hoursLabel {
-    final h = widget.place.openingHours;
-    if (h == null || h.isEmpty) return null;
-    return '🕒 $h';
   }
 
   @override
@@ -974,11 +1245,19 @@ class _RestaurantRowState extends State<_RestaurantRow> {
       onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => MapsLauncher.open(
-          name: widget.place.name,
-          address: widget.place.address ?? '',
-          lat: widget.place.lat,
-          lng: widget.place.lng,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VenueDetailView(
+              data: VenueDetailData.fromOsm(
+                widget.place,
+                userLat: widget.userLat,
+                userLng: widget.userLng,
+                area: widget.area,
+              ),
+              greetingName: widget.greetingName,
+            ),
+          ),
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -1000,7 +1279,15 @@ class _RestaurantRowState extends State<_RestaurantRow> {
           ),
           child: Row(
             children: [
-              PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+              VenueThumbnail(
+                query: _imageQuery,
+                lat: widget.place.lat,
+                lng: widget.place.lng,
+                width: 68,
+                height: 68,
+                radius: 14,
+                placeholderLabel: widget.place.emoji,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -1035,29 +1322,10 @@ class _RestaurantRowState extends State<_RestaurantRow> {
                         color: AppColors.ink50,
                       ),
                     ),
-                    if (_hoursLabel != null) ...[
+                    if (widget.place.openingHours != null &&
+                        widget.place.openingHours!.trim().isNotEmpty) ...[
                       const SizedBox(height: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.ocean.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          _hoursLabel!,
-                          style: AppTextStyles.mono(
-                            size: 9,
-                            weight: FontWeight.w600,
-                            color: AppColors.ocean,
-                            letterSpacing: 0.3,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                      OpenNowBadge(openingHours: widget.place.openingHours),
                     ],
                   ],
                 ),
@@ -1089,9 +1357,16 @@ class _RestaurantRowState extends State<_RestaurantRow> {
 /// Row for a VenueResult from the Discovery web-search path.
 class _VenueResultRow extends StatefulWidget {
   final VenueResult result;
+  final String area;
+  final String greetingName;
   final bool showDistance;
 
-  const _VenueResultRow({required this.result, required this.showDistance});
+  const _VenueResultRow({
+    required this.result,
+    required this.area,
+    required this.greetingName,
+    required this.showDistance,
+  });
 
   @override
   State<_VenueResultRow> createState() => _VenueResultRowState();
@@ -1118,11 +1393,17 @@ class _VenueResultRowState extends State<_VenueResultRow> {
       onExit: (_) => setState(() => _hovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
-        onTap: () => MapsLauncher.open(
-          name: widget.result.name,
-          address: widget.result.address,
-          lat: widget.result.lat,
-          lng: widget.result.lng,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VenueDetailView(
+              data: VenueDetailData.fromResult(
+                widget.result,
+                area: widget.area,
+              ),
+              greetingName: widget.greetingName,
+            ),
+          ),
         ),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
@@ -1142,7 +1423,16 @@ class _VenueResultRowState extends State<_VenueResultRow> {
           ),
           child: Row(
             children: [
-              PhotoSlot(width: 68, height: 68, radius: 14, label: '📸'),
+              VenueThumbnail(
+                query: widget.result.address.isNotEmpty
+                    ? '${widget.result.name} ${widget.result.address}'
+                    : '${widget.result.name} ${widget.area}'.trim(),
+                lat: widget.result.lat,
+                lng: widget.result.lng,
+                width: 68,
+                height: 68,
+                radius: 14,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

@@ -23,6 +23,36 @@ type Config struct {
 	CORSOrigins           string
 	RedisURL              string // optional; when set the WebSocket hub uses Redis pub/sub
 
+	// Discovery "nearby" list provider — pluggable behind services.NearbyProvider.
+	// MapProvider ("goong" | "tomtom" | "" = auto) selects the source; the matching
+	// key must be set for /venues/nearby to serve. Auto prefers Goong when its key
+	// is present, else TomTom. When neither is configured the route is left off and
+	// the Flutter client falls back to Overpass.
+	//   GOONG_API_KEY  — Goong (goong.io), VN-legal Google-Maps alternative.
+	//   TOMTOM_API_KEY — TomTom Search.
+	MapProvider  string
+	GoongAPIKey  string
+	TomTomAPIKey string
+
+	// FoursquareKey enables the identity-grounded venue-photo source: Foursquare
+	// free Place search matches a venue by name+coords → its official website →
+	// og:image (the venue's own photo). Empty = skip straight to Bing/category.
+	FoursquareKey string
+
+	// Email OTP (passwordless login via emailed code). When SMTPHost+SMTPUsername
+	// are set the email-OTP endpoints deliver real mail; otherwise the codes are
+	// logged (dev only). Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587,
+	// SMTP_USERNAME=<you>@gmail.com, SMTP_PASSWORD=<16-char App Password>.
+	SMTPHost              string
+	SMTPPort              int
+	SMTPUsername          string
+	SMTPPassword          string
+	SMTPFrom              string // From address; defaults to SMTPUsername
+	SMTPFromName          string // optional display name (e.g. "ĂnMates")
+	EmailOTPExpire        time.Duration
+	EmailOTPResendCooldown time.Duration
+	EmailOTPMaxAttempts   int
+
 	// AI Concierge. Two interchangeable data sources select venues:
 	//   AISearchURL set ⇒ web-search path (ai-venue-search Python service does
 	//     MCP web-search + structuring; no DB/map ingest). Preferred.
@@ -86,6 +116,29 @@ func Load() (*Config, error) {
 	c.PGMaxConns = int32(parseInt32(getOr("PG_MAX_CONNS", "4")))
 	c.PGMinConns = int32(parseInt32(getOr("PG_MIN_CONNS", "1")))
 	c.RedisURL = os.Getenv("REDIS_URL")
+	c.MapProvider = os.Getenv("MAP_PROVIDER")
+	c.GoongAPIKey = os.Getenv("GOONG_API_KEY")
+	c.TomTomAPIKey = os.Getenv("TOMTOM_API_KEY")
+	c.FoursquareKey = os.Getenv("FOURSQUARE_KEY")
+
+	// Email OTP.
+	c.SMTPHost = os.Getenv("SMTP_HOST")
+	c.SMTPPort = parseIntOr("SMTP_PORT", 587)
+	c.SMTPUsername = os.Getenv("SMTP_USERNAME")
+	c.SMTPPassword = os.Getenv("SMTP_PASSWORD")
+	c.SMTPFrom = getOr("SMTP_FROM", c.SMTPUsername)
+	c.SMTPFromName = getOr("SMTP_FROM_NAME", "ĂnMates")
+	emailExp, err := time.ParseDuration(getOr("EMAIL_OTP_EXPIRE", "10m"))
+	if err != nil {
+		return nil, fmt.Errorf("EMAIL_OTP_EXPIRE: %w", err)
+	}
+	c.EmailOTPExpire = emailExp
+	emailCooldown, err := time.ParseDuration(getOr("EMAIL_OTP_RESEND_COOLDOWN", "60s"))
+	if err != nil {
+		return nil, fmt.Errorf("EMAIL_OTP_RESEND_COOLDOWN: %w", err)
+	}
+	c.EmailOTPResendCooldown = emailCooldown
+	c.EmailOTPMaxAttempts = parseIntOr("EMAIL_OTP_MAX_ATTEMPTS", 5)
 
 	// AI Concierge. AISearchURL preferred; AIBaseURL is the legacy DB+LLM fallback.
 	c.AISearchURL = os.Getenv("AI_SEARCH_URL")

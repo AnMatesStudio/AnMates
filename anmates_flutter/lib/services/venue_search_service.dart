@@ -44,11 +44,21 @@ class VenueSearchService {
   /// Search for venues by free text.
   /// [lat] and [lng] may be null or 0 when the user has no location (ISSUE-9
   /// guard — distance is shown only when both are non-zero).
-  Future<List<VenueResult>> search(String q, {double? lat, double? lng}) async {
+  /// [sortByDistance] defaults to true (nearest first).
+  /// [maxDistanceM] defaults to 10,000m; set to filter distant results.
+  Future<List<VenueResult>> search(
+    String q, {
+    double? lat,
+    double? lng,
+    bool sortByDistance = true,
+    int maxDistanceM = 10000,
+  }) async {
     final params = StringBuffer('/api/v1/venues/search?q=${Uri.encodeQueryComponent(q)}');
     if (lat != null && lng != null) {
       params.write('&lat=$lat&lng=$lng');
     }
+    params.write('&sort_by_distance=${sortByDistance ? "true" : "false"}');
+    params.write('&max_distance_m=$maxDistanceM');
     final data = await ApiClient().get(params.toString());
     if (data == null) return [];
     return (data as List).map((e) => VenueResult.fromJson(e as Map<String, dynamic>)).toList();

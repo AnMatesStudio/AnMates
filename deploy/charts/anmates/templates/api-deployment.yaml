@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.api.serviceName }}
+  labels:
+    app: {{ .Values.api.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  replicas: {{ .Values.api.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.api.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.api.serviceName }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.registry }}/{{ .Values.image.owner }}/{{ .Values.image.api.repository }}:{{ .Values.image.api.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: GOMAXPROCS
+              value: {{ .Values.api.env.goMaxProcs | quote }}
+            - name: GOMEMLIMIT
+              value: {{ .Values.api.env.goMemLimit | quote }}
+            - name: DEV_MODE
+              value: {{ .Values.api.env.devMode | quote }}
+          # DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY, GOONG_API_KEY,
+          # FOURSQUARE_KEY, SMTP_PASSWORD, DEV_BYPASS_SECRET, ... — tạo thủ công
+          # (xem plan H3), KHÔNG nhúng giá trị vào chart.
+          envFrom:
+            - secretRef:
+                name: {{ .Values.api.secretName }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.api.probe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.api.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api.probe.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.api.probe.path }}
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}

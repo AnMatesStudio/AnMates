@@ -54,4 +54,25 @@ class MapsLauncher {
     // app isn't installed) instead of an in-app webview.
     return launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+
+  /// Opens Google Maps turn-by-turn directions from [fromLat]/[fromLng] to
+  /// [toLat]/[toLng]. On mobile opens the Maps app; on web opens a new tab.
+  static Future<bool> openDirections({
+    required double fromLat,
+    required double fromLng,
+    required double toLat,
+    required double toLng,
+    String travelMode = 'driving',
+  }) {
+    final uri = Uri.https('www.google.com', '/maps/dir/', {
+      'api': '1',
+      'origin': '$fromLat,$fromLng',
+      'destination': '$toLat,$toLng',
+      'travelmode': travelMode,
+    });
+    if (kIsWeb) {
+      return launchUrl(uri, webOnlyWindowName: '_blank');
+    }
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
 }

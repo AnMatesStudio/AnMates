@@ -1,0 +1,7 @@
+apiVersion: v2
+name: cloudflared
+description: Cloudflare Tunnel (cloudflared) — remotely-managed token mode, theo
+  deployment guide chính thức https://developers.cloudflare.com/tunnel/deployment-guides/kubernetes/
+type: application
+version: 0.1.0
+appVersion: "2026.8.3"

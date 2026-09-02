@@ -1,0 +1,15 @@
+# Overrides cho môi trường production duy nhất (MVP 1 ngày — chưa có ns dev).
+# Dùng: helm upgrade --install anmates ./deploy/charts/anmates \
+#         -n anmates -f values-prod.yaml --set image.tag=<sha> --atomic --wait --timeout 10m
+#
+# LƯU Ý: image.tag KHÔNG đặt cố định ở đây — CI truyền qua --set image.api.tag=<sha>
+# --set image.web.tag=<sha> (workflow ci-build-push.yml đã in sẵn lệnh này ở bước cuối).
+
+image:
+  owner: CHANGE_ME_github_owner # sửa thành owner GitHub thật trước khi deploy
+
+api:
+  replicaCount: 1
+
+web:
+  replicaCount: 2

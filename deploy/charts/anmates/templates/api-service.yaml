@@ -1,0 +1,18 @@
+# ClusterIP thuần — KHÔNG có Ingress/cloudflared route riêng. API chỉ truy cập được
+# qua nginx reverse-proxy trong pod web (xem plan §1) — đúng kiến trúc "chỉ 1
+# hostname public, API internal-only qua CoreDNS" đã chốt.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.api.serviceName }}
+  labels:
+    app: {{ .Values.api.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.api.serviceName }}
+  ports:
+    - name: http
+      port: {{ .Values.api.service.port }}
+      targetPort: http

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  labels:
+    app: cloudflared
+    app.kubernetes.io/part-of: anmates
+spec:
+  # KHÔNG HPA cho cloudflared — downscale làm đứt connections của user đang gắn
+  # vào replica đó (cảnh báo trong official deployment guide).
+  replicas: {{ .Values.image.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      containers:
+        - name: cloudflared
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - tunnel
+            # Không tự update giữa chừng — version pin + upgrade qua helm.
+            - --no-autoupdate
+            - --loglevel
+            - {{ .Values.tunnel.logLevel | quote }}
+            - --metrics
+            - "0.0.0.0:{{ .Values.tunnel.metricsPort }}"
+            - run
+          env:
+            # cloudflared tự consume tunnel token từ env TUNNEL_TOKEN (remotely-managed).
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tokenSecret.name }}
+                  key: {{ .Values.tokenSecret.key }}
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.tunnel.metricsPort }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probe.path }}
+              port: metrics
+            initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probe.path }}
+              port: metrics
+            initialDelaySeconds: {{ .Values.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true

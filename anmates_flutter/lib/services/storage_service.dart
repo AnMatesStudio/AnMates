@@ -16,13 +16,29 @@ class StorageService {
   final _storage = FirebaseStorage.instance;
 
   /// Uploads [bytes] as a JPEG, returns the public download URL.
-  /// Throws a clear exception if the Firebase Auth session has expired.
+  ///
+  /// Storage write rules require a Firebase Auth session (`request.auth.uid`).
+  /// Phone-OTP login establishes one, but the Email-OTP path (and dev-login)
+  /// only mint a backend JWT — no Firebase session — so `currentUser` is null.
+  /// In that case we sign in anonymously so the upload still succeeds; the photo
+  /// lands under the anonymous uid and its public download URL is saved to the
+  /// backend profile, which is all the app needs. Requires the Anonymous
+  /// provider enabled in Firebase Console → Authentication → Sign-in method.
   Future<String> uploadPhoto(Uint8List bytes, {required String slot}) async {
-    final user = FirebaseAuth.instance.currentUser;
+    var user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      throw Exception(
-        'Phiên đăng nhập Firebase đã hết hạn. Vui lòng đăng nhập lại.',
-      );
+      try {
+        final cred = await FirebaseAuth.instance.signInAnonymously();
+        user = cred.user;
+      } catch (e) {
+        throw Exception(
+          'Không khởi tạo được phiên tải ảnh (Firebase Anonymous chưa bật?). '
+          'Chi tiết: ${e.toString().replaceFirst('Exception: ', '')}',
+        );
+      }
+    }
+    if (user == null) {
+      throw Exception('Không tạo được phiên tải ảnh. Thử lại nhé.');
     }
 
     final uid = user.uid; // Firebase Auth UID — matches storage rules

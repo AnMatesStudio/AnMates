@@ -1,0 +1,41 @@
+# Default values — meant to be overridden by values-prod.yaml hoặc --set.
+# `helm lint` / `helm template` phải pass với chỉ file này (không cần cluster).
+#
+# Chế độ: REMOTELY-MANAGED tunnel (tunnel + Public Hostname cấu hình trên
+# Cloudflare Zero Trust dashboard — khớp plan docs/plans/2026-09-01-mvp-1day-onprem-k8s.md H5).
+# Secret tạo thủ công TRƯỚC khi install (giống quy ước chart anmates):
+#   kubectl -n cloudflare create secret generic cloudflared-token \
+#     --from-literal=token=<TUNNEL_TOKEN>
+# (TUNNEL_TOKEN lấy từ dashboard: Zero Trust > Networks > Tunnels > <tunnel> > Install connector)
+
+image:
+  repository: cloudflare/cloudflared
+  # Theo guide chính thức: cloudflared KHÔNG autoscale (downscale làm đứt user
+  # connections); replicas chỉ để HA, Cloudflare edge tự load-balance giữa các connector.
+  # 2 replicas chạy CÙNG 1 tunnel token — không cần tunnel riêng cho mỗi pod.
+  replicaCount: 2
+  tag: "2026.8.3" # pin version rõ ràng; Cloudflare chỉ support các bản trong 1 năm
+  pullPolicy: IfNotPresent
+
+# Secret chứa tunnel token — tạo thủ công (xem ghi chú đầu file), KHÔNG nhúng giá trị vào chart.
+tokenSecret:
+  name: tunnel-token
+  key: token
+
+tunnel:
+  # Tham số command khớp official deployment guide. metrics:2000 để probe /ready.
+  logLevel: info
+  metricsPort: 2000
+
+probe:
+  path: /ready
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

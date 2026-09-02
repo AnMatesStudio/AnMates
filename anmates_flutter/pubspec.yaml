@@ -46,6 +46,10 @@ dependencies:
   firebase_auth_platform_interface: ^9.0.1
   firebase_storage: ^13.0.0
   image_picker: ^1.1.2
+  # Goong Maptiles is vector-only → render its MapLibre style in flutter_map.
+  # 9.x = CPU/canvas renderer (web-compatible). 10.x switches to flutter_gpu +
+  # Flutter main channel (unusable on our stable, web-first build) — keep <10.
+  vector_map_tiles: ">=9.0.0-beta.9 <10.0.0"
 
 dev_dependencies:
   flutter_test:

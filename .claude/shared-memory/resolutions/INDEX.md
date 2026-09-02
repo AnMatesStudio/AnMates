@@ -24,6 +24,8 @@ If a query matches, **read the full resolution file** before proposing a new fix
 | R-004 | Screen 11 "Hoàn tất" crash + validation mismatch + culture_tags missing — full onboarding submit fix | `flutter`, `firebase`, `web-dev`, `onboarding`, `storage`, `culture-tags`, `validation`, `loading-overlay` | web | blocker | 2026-06-01 | user | [R-004-screen11-onboarding-submit-full-fix.md](R-004-screen11-onboarding-submit-full-fix.md) |
 | R-005 | CI deploy lên GitHub Environment `dev` — PR testing trực tiếp tại dev-anmates-studio.web.app | `flutter`, `go-backend`, `deploy`, `hosting`, `cloud-run`, `firebase`, `gcp`, `github-actions`, `ci-cd`, `web-dev` | web, backend | major | 2026-06-01 | user | [R-005-ci-dev-environment-deploy.md](R-005-ci-dev-environment-deploy.md) |
 | R-006 | AI Concierge card: fake/out-of-area coords + wrong area name in intro + api container stuck "unhealthy" | `ai-concierge`, `web-search`, `geocode`, `grounding`, `healthcheck`, `docker`, `ipv6`, `go-backend`, `ai-venue-search`, `concurrency` | backend | major | 2026-06-08 | user | [R-006-ai-concierge-grounding-healthcheck.md](R-006-ai-concierge-grounding-healthcheck.md) |
+| R-007 | Venue photo proxy — Bing source + 401/429/404/502 fixes + relevance filter + category stock fallback + swipe gallery | `venue-image`, `bing-images`, `go-backend`, `fiber-routing`, `rate-limit`, `image-proxy`, `relevance`, `category-fallback`, `flutter`, `gallery`, `web-search`, `docker` | backend, web, android, ios | major | 2026-06-11 | user | [R-007-venue-image-bing-relevance-fallback.md](R-007-venue-image-bing-relevance-fallback.md) |
+| R-008 | Google Maps Platform APIs unusable for AnMates — VN-gated billing (Cloud Storage works in same project) | `gcp`, `google-maps`, `places-api`, `billing`, `vietnam`, `geo-policy`, `api-key`, `web-search`, `venue-image` | backend | major | 2026-06-14 | user | [R-008-google-maps-api-unusable-vn-billing-blocked.md](R-008-google-maps-api-unusable-vn-billing-blocked.md) |
 
 ---
 
@@ -66,6 +68,21 @@ When user reports an error matching a keyword below, jump straight to the linked
 | AI venue card `distance_m` wrong / venue far but shown near midpoint | R-006 |
 | concierge intro wrong area name / `khu vực Xuân Hòa` | R-006 |
 | `ai-venue-search http 502` + prewarm + fire concurrent | R-006 (B1) |
+| `GET /api/v1/venues/image` + 401 Unauthorized | R-007 |
+| `venues/image` + 429 / `RATE_LIMITED` on thumbnails | R-007 |
+| `venues/image` + 404 Not Found every venue | R-007 |
+| `venues/image?...&i=N` + 502 Bad Gateway (some gallery pages) | R-007 |
+| venue shows wrong / irrelevant / NSFW photo | R-007 |
+| `Unfortunately, bots use DuckDuckGo too` (server-side scrape CAPTCHA) | R-007 |
+| Bing `murl` parsing / venue photo blank hero | R-007 |
+| `api.Use(jwtMW)` catch-all hits public `app.Get` route | R-007 |
+| `${DB_PASS}` not set / db unhealthy when `docker compose` run from `anmates-api/` subdir | R-007 (gotcha) |
+| `The caller does not have permission` + `places.googleapis.com` (all config correct) | R-008 |
+| `You must enable Billing on the Google Cloud Project` (billing IS active) | R-008 |
+| `API_KEY_SERVICE_BLOCKED` / `API_KEY_HTTP_REFERRER_BLOCKED` + Maps API | R-008 |
+| Google Maps / Places / Geocoding API blocked in Vietnam / VN | R-008 |
+| Cloud Storage works but Maps Platform "enable billing" in same project | R-008 |
+| "can we use Google Maps / Places API" for AnMates | R-008 (no — VN-gated) |
 
 ---
 
@@ -112,6 +129,20 @@ When user reports an error matching a keyword below, jump straight to the linked
 | `docker` | docker-compose / Dockerfile / container runtime |
 | `ipv6` | IPv6 vs IPv4 bind/resolve mismatch (localhost ::1) |
 | `concurrency` | Concurrent calls / single-flight / race conditions |
+| `venue-image` | Discovery venue photo proxy/gallery (`/api/v1/venues/image`) |
+| `bing-images` | Bing Images keyless scrape (`murl` JSON in results HTML) |
+| `fiber-routing` | Fiber v2 route/middleware registration order (`group.Use` catch-all) |
+| `rate-limit` | Per-IP API rate limiter + path exemptions |
+| `image-proxy` | Server proxies remote image bytes (anti-hotlink Referer/UA) |
+| `relevance` | Filtering search results by token overlap with the venue name |
+| `category-fallback` | On-theme category stock photo when no real venue photo exists |
+| `gallery` | Swipeable hero photo gallery (PageView + touch/mouse drag) |
+| `google-maps` | Google Maps Platform APIs (Places/Geocoding/Static/Time Zone/etc.) |
+| `places-api` | Place search/details/photos provider APIs (Google Places, Foursquare Places) |
+| `billing` | Cloud provider billing accounts / payment methods / linkage |
+| `vietnam` | VN-specific constraints (mapping regulation, country-gated services) |
+| `geo-policy` | Country/legal restrictions on geographic/mapping data or services |
+| `api-key` | API key auth, restrictions (application/API), key↔project association |
 
 When adding a new resolution, **re-use existing tags** where possible — only add a new tag if no existing one fits.
 

@@ -13,6 +13,9 @@ type AuthServicer interface {
 	LoginUser(ctx context.Context, email, password string) (*models.User, error)
 	VerifyFirebaseToken(ctx context.Context, idToken string) (uid, phone string, err error)
 	UpsertPhoneUser(ctx context.Context, uid, phone, name string) (*models.User, error)
+	RequestEmailOTP(ctx context.Context, email string) error
+	VerifyEmailOTP(ctx context.Context, email, code string) (*models.User, error)
+	EmailOTPEnabled() bool
 	IssueTokens(ctx context.Context, userID uuid.UUID) (*Tokens, error)
 	RotateRefreshToken(ctx context.Context, rawToken string) (*models.User, *Tokens, error)
 	InvalidateRefreshToken(ctx context.Context, rawToken string) error

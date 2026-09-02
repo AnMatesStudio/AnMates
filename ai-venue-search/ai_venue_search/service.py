@@ -71,8 +71,29 @@ class VenueSearchService:
         # area still steers the web search (build_query); the structurer derives any
         # location wording from the real venue addresses in the search results.
 
-        intro, venues, cost = await self._structurer.structure(req, raw)
+        try:
+            intro, venues, cost = await self._structurer.structure(req, raw)
+        except Exception as e:  # noqa: BLE001
+            # Free-text Discovery search (req.query) must still surface the typed
+            # quán even when the structurer LLM is down / rate-limited — the query
+            # seed below is its safety net. The concierge path (empty query) keeps
+            # its strict failure so a bad suggestion is never silently empty.
+            if not req.query:
+                raise
+            log.warning("structurer failed on free-text search (%s) — query seed only", e)
+            intro, venues, cost = "", [], 0
         venues = await self._enrich_coords(venues[: req.limit], area, req.lat, req.lng, req.radius_m)
+
+        # Discovery free-text path: guarantee the exact venue the user typed shows up.
+        # The web-search→LLM→geocode pipeline is probabilistic and frequently drops or
+        # renames a specific quán (and OSM often can't place it), so we seed a
+        # deterministic card for the typed name when the picks don't already include it.
+        if req.query:
+            name = req.query.strip()
+            seed = None
+            if _looks_like_venue_name(name) and not any(_name_matches(name, v.name) for v in venues):
+                seed = await self._seed_query_venue(name, area, req.lat, req.lng, req.radius_m)
+            venues = self._ensure_query_venue(req, seed, venues)
 
         log.info("suggest: query=%r picks=%d cost=%d geocoded=%d", query, len(venues), cost,
                  sum(1 for v in venues if v.lat or v.lng))
@@ -82,6 +103,41 @@ class VenueSearchService:
             cost_tokens=cost,
             provider=f"{self._search.name}+{self._structurer.name}",
         )
+
+    @staticmethod
+    def _ensure_query_venue(req: SuggestRequest, seed: "Venue | None", venues: List[Venue]) -> List[Venue]:
+        """Put a card for the typed venue name first, unless a structured pick already
+        matches it (that pick has a real address/reason, so prefer it). Bare dish/genre
+        words ("phở", "lẩu") get no seed — the structurer drives those."""
+        name = req.query.strip()
+        if seed is None or not _looks_like_venue_name(name):
+            return venues
+        if any(_name_matches(name, v.name) for v in venues):
+            return venues
+        return [seed, *venues][: max(req.limit, 1)]
+
+    async def _seed_query_venue(self, name: str, area: str, blat: float, blng: float,
+                                radius_m: int) -> "Venue | None":
+        """Build a deterministic pick from the typed venue name. Best-effort geocoded —
+        but only trusted when we know the user's location AND the hit lands in the
+        meet-in-the-middle radius; otherwise lat/lng stay 0 (the card still shows, just
+        without a map pin) rather than risk pinning a wrong, far-away same-named place."""
+        if not _looks_like_venue_name(name):
+            return None
+        lat = lng = 0.0
+        address = ""
+        if self._settings.geocode_enabled and (blat or blng):
+            accept_km = _accept_radius_km(radius_m)
+            candidates = [c for c in (f"{name}, {area}" if area else None, name) if c]
+            for i, q in enumerate(dict.fromkeys(candidates)):
+                if i:
+                    await asyncio.sleep(_GEOCODE_GAP_S)
+                geo = await forward_geocode(q, blat, blng)
+                if geo and _haversine_km(blat, blng, geo[0], geo[1]) <= accept_km:
+                    lat, lng, address = geo
+                    break
+        return Venue(name=_titlecase(name)[:80], address=address, lat=lat, lng=lng,
+                     reason="Quán bạn vừa tìm")
 
     async def _reverse_area(self, lat: float, lng: float) -> str:
         if not self._settings.geocode_enabled:
@@ -142,6 +198,36 @@ class VenueSearchService:
             if geo and _haversine_km(blat, blng, geo[0], geo[1]) <= accept_km:
                 return geo
         return None
+
+
+def _looks_like_venue_name(q: str) -> bool:
+    """A specific quán name is usually multi-word or fairly long; a bare dish/genre
+    token ("phở", "lẩu", "cafe") is better handled by the structurer, so it gets no
+    deterministic seed."""
+    q = (q or "").strip()
+    return len(q.split()) >= 2 or len(q) >= 8
+
+
+def _titlecase(s: str) -> str:
+    """Capitalize each word's first letter without lowercasing the rest, so a typed
+    "lẩu bò giáo toàn" displays as "Lẩu Bò Giáo Toàn" while "BBQ Garden" is kept."""
+    return " ".join(w[:1].upper() + w[1:] if w else w for w in s.split())
+
+
+def _norm_name(s: str) -> str:
+    return re.sub(r"\s+", " ", (s or "").lower()).strip()
+
+
+def _name_matches(query: str, name: str) -> bool:
+    """True if the typed query and a venue name refer to the same place: one contains
+    the other, or they share almost all query tokens."""
+    a, b = _norm_name(query), _norm_name(name)
+    if not a or not b:
+        return False
+    if a in b or b in a:
+        return True
+    qt, nt = set(a.split()), set(b.split())
+    return len(qt & nt) >= max(2, len(qt) - 1)
 
 
 # Floor / basement / unit lead-ins that derail an address geocode.

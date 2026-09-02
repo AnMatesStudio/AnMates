@@ -775,6 +775,11 @@ class AnmTabBar extends StatelessWidget {
         label: 'Khám phá',
       ),
       (
+        icon: Icons.map_outlined,
+        activeIcon: Icons.map,
+        label: 'Bản đồ',
+      ),
+      (
         icon: Icons.favorite_border,
         activeIcon: Icons.favorite,
         label: 'Wishlist',

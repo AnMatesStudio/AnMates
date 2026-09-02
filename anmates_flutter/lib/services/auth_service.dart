@@ -68,6 +68,40 @@ class AuthService {
     return data;
   }
 
+  /// Requests an email OTP code via `POST /auth/email/request-otp`.
+  /// Returns silently on success; throws with a friendly message otherwise
+  /// (e.g. 429 cooldown). No captcha, no Firebase — pure backend flow.
+  Future<void> requestEmailOtp(String email) async {
+    final res = await _client.post(
+      Uri.parse('$_baseUrl/api/v1/auth/email/request-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email}),
+    );
+    if (res.statusCode != 200) {
+      final msg =
+          jsonDecode(res.body)['error']?['message'] ?? 'gửi mã thất bại';
+      throw Exception(msg);
+    }
+  }
+
+  /// Verifies an email OTP code via `POST /auth/email/verify-otp`, persisting the
+  /// returned JWT pair on success. Mirrors [phoneVerify]'s token handling.
+  Future<Map<String, dynamic>> verifyEmailOtp(String email, String code) async {
+    final res = await _client.post(
+      Uri.parse('$_baseUrl/api/v1/auth/email/verify-otp'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'email': email, 'code': code}),
+    );
+    if (res.statusCode != 200) {
+      final msg =
+          jsonDecode(res.body)['error']?['message'] ?? 'mã không đúng';
+      throw Exception(msg);
+    }
+    final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
+    await _saveTokens(data);
+    return data;
+  }
+
   /// Dev-only: skip Firebase OTP via `/api/v1/auth/dev-login`.
   /// Backend gates the route with `DEV_MODE=true` + matching `DEV_BYPASS_SECRET`.
   Future<Map<String, dynamic>> devLogin({
