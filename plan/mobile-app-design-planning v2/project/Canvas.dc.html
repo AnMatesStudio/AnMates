@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EAF1FA;font-family:'Be Vietnam Pro',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1A56DB;text-decoration:none}a:hover{color:#123f9e}
+*{text-wrap:pretty}
+</style>
+</helmet>
+
+<div style="padding:44px 48px 90px;display:flex;flex-direction:column;gap:44px">
+
+<div style="display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start">
+<div style="flex:1;min-width:340px;display:flex;flex-direction:column;gap:9px">
+<div style="display:flex;align-items:center;gap:12px">
+<div style="width:40px;height:40px;border-radius:14px;background:#1A56DB;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">AM</div>
+<span style="font:800 27px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.03em">Ăn Mates · Canvas</span>
+</div>
+<span style="font:600 11px 'Be Vietnam Pro',sans-serif;color:#8B5CF6;letter-spacing:.14em">19 SCREEN · 5 FLOW · MỘT NGUỒN DUY NHẤT</span>
+<span style="font:400 13px/1.65 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.55);max-width:600px">Đã chốt Home C làm Explore duy nhất; các biến thể home khác đã xoá. Mỗi khung dưới đây là chính component AnMates được gắn (pin) vào một màn hình. Sửa design ở bất kỳ khung nào — hoặc trong prototype 1a — thì cả hai nơi đổi theo, vì cùng một nguồn. Bấm vào khung vẫn tương tác được như app thật.</span>
+</div>
+<div style="width:290px;background:#fff;border-radius:22px;padding:18px;box-shadow:0 6px 18px rgba(16,54,110,.1);display:flex;flex-direction:column;gap:10px">
+<span style="font:700 12.5px 'Be Vietnam Pro',sans-serif;color:#121212">Thêm / bớt screen</span>
+<span style="font:400 11.5px/1.6 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.55)">Nói tên flow và màn hình bạn muốn thêm, hoặc màn nào cần bỏ. Tôi thêm state mới vào AnMates rồi gắn khung tương ứng vào Canvas — prototype 1a tự có màn đó.</span>
+<a href="AnMates.dc.html" style="font:700 12px 'Be Vietnam Pro',sans-serif;color:#1A56DB">Mở prototype 1a →</a>
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:34px;height:34px;border-radius:12px;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">A</span>
+<span style="font:800 19px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.02em">Onboarding</span>
+<span style="font:600 11.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.42)">5 screen · lần đầu mở app</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:30px">
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">A0</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Welcome · vòm cung gradient</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="onb" pin-step="0" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">màn đầu tiên</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">slogan</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">A1</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Hero · Đi ăn một mình</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="onb" pin-step="1" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">3D asset lẩu</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">CTA chính</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">A2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Social proof · tối nay ở Sài Gòn</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="onb" pin-step="2" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">9 avatar bubble</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">gradient grain</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">A3</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Chọn hệ chi tiêu</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="onb" pin-step="3" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">4 mức giá</span>
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">Wisteria select</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">A4</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Gu món · chọn ≥ 3</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="onb" pin-step="4" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">10 chip món</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">đếm live</span>
+</div>
+</div>
+
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:34px;height:34px;border-radius:12px;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">B</span>
+<span style="font:800 19px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.02em">Explore · Chi tiết quán</span>
+<span style="font:600 11.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.42)">3 screen · đã chốt Home C</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:30px">
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:#8B5CF6;color:#fff">B1</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Explore · hero 3D collage</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="home" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">home duy nhất</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">nền như A0</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">2 hàng card quán</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">B1.2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Thông báo · sheet Liquid Glass</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="home" pin-notifs="1" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">chồng lên B1</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">5 tab lọc</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">đọc / chưa đọc</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">B1.3</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Tìm kiếm · blur + bàn phím</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="home" pin-search="1" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">gõ phím thật để search</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">iOS keyboard</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">B2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Chi tiết quán · AI 5 dòng</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="detail" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">AI summary</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">điểm trừ đỏ</span>
+</div>
+</div>
+
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:34px;height:34px;border-radius:12px;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">C</span>
+<span style="font:800 19px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.02em">Lọc · Match · Quẹt · Local Mates</span>
+<span style="font:600 11.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.42)">3 screen</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:30px">
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">C1</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Lọc bể match</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="filters" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">khu vực</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">khoảng giá</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">Trust ≥ 90</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">C2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Quẹt gửi lời mời</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="swipe" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">quẹt theo ý định</span>
+<span style="padding:5px 10px;border-radius:999px;background:#FFF1F0;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#FF3B30">tag 1H</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">C3</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Local Mates · travel mode</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="local" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">Đà Nẵng</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">3 local</span>
+</div>
+</div>
+
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:34px;height:34px;border-radius:12px;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">D</span>
+<span style="font:800 19px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.02em">Chat · Vibe Check · Split bill · Chốt bữa ăn</span>
+<span style="font:600 11.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.42)">4 screen · D1→D2 là khoảnh khắc mở khóa</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:30px">
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">D1</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Vibe Check · còn khóa 22%</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="chat" pin-vibe="22" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">thanh sôi</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">mini-game</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:#8B5CF6;color:#fff">D2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Vibe Match · đã mở 79%</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="chat" pin-vibe="79" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">sticker trái tim</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">nút hẹn mở</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">D3</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Smart Split · OCR → VietQR</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="bill" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">theo món / chia đều</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">không ký quỹ</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">D4</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Chốt bữa ăn · rate riêng tư</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="rate" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">rate 2 chiều</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">tag bằng chứng</span>
+</div>
+</div>
+
+</div>
+</div>
+
+<div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;align-items:center;gap:12px">
+<span style="width:34px;height:34px;border-radius:12px;background:#121212;color:#fff;display:flex;align-items:center;justify-content:center;font:800 15px 'Be Vietnam Pro',sans-serif">E</span>
+<span style="font:800 19px 'Be Vietnam Pro',sans-serif;color:#121212;letter-spacing:-.02em">Me · Trust Score · Gói</span>
+<span style="font:600 11.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.42)">3 screen · E1 → E2 khi bấm chip Trust</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:30px">
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">E1</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Profile · quán đã đi + review</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="me" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">sticker hero</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">5 quán đã đi</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">3 review</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">E2</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Trust Score · lịch sử uy tín</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="trust" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">vòng Wisteria</span>
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">thử gating</span>
+</div>
+</div>
+
+<div style="width:402px;display:flex;flex-direction:column;gap:11px">
+<div style="display:flex;align-items:center;gap:9px">
+<span style="font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;border-radius:5px;background:rgba(16,54,110,.1);color:#121212">E3</span>
+<span style="font:600 13px 'Be Vietnam Pro',sans-serif;color:#121212">Gói · Free → Ultimate</span>
+</div>
+<dc-import name="AnMates" frame-only="1" pin-screen="pay" hint-size="402px,874px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:6px">
+<span style="padding:5px 10px;border-radius:999px;background:#fff;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:rgba(18,18,18,.6);box-shadow:0 2px 7px rgba(16,54,110,.08)">4 bậc</span>
+<span style="padding:5px 10px;border-radius:999px;background:#F1EBFE;font:600 10.5px 'Be Vietnam Pro',sans-serif;color:#8B5CF6">Gold nổi bật</span>
+</div>
+</div>
+
+</div>
+</div>
+
+</div>
+
+</x-dc>
+</body>
+</html>

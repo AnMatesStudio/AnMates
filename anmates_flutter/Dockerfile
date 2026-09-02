@@ -1,7 +1,14 @@
 # syntax=docker/dockerfile:1.7
-# Multi-stage build: compile Flutter web → serve with nginx.
+# Self-contained build: compile Flutter web inside the image → serve with nginx.
+# Used by docker-compose/start.sh so local dev needs no Flutter SDK installed.
+#
+# CI does NOT use this file — it already has the SDK set up for analyze/test, so
+# it builds the bundle on the runner and packages it with `Dockerfile.prebuilt`
+# (seconds instead of minutes). Keep the nginx stage below in sync with that file.
 
 FROM ghcr.io/cirruslabs/flutter:stable AS builder
+# Absolute API URL for local compose, where web (:54180) and API (:8080) are
+# different origins. Left empty in same-origin deploys — see auth_service.dart.
 ARG API_BASE_URL=http://localhost:8080
 # Goong Maptiles key (client-side map tiles). Empty = blank "Bản đồ" tab (build
 # still succeeds). Distinct from the server-side GOONG_API_KEY (REST).

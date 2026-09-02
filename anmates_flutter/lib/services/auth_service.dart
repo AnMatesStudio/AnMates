@@ -1,17 +1,33 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-// Backend base URL. Override at build/run time:
+// Backend base URL, baked at build time. Only needed when the API does NOT sit
+// behind the same origin as the app — i.e. local docker-compose (web on :54180,
+// API on :8080) and native mobile builds:
 //   flutter run --dart-define=API_BASE_URL=http://192.168.1.216:8080
-const _baseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'https://anmates-api-492509819332.asia-southeast1.run.app',
-);
+// The k8s deploy leaves it unset on purpose: nginx in the anmates-web image
+// reverse-proxies /api/ + /ws/ to the anmates-api Service, so the app is
+// same-origin and resolves its own base at runtime (below). That keeps the
+// image domain-agnostic — no rebuild when the public hostname changes.
+const _configuredBaseUrl = String.fromEnvironment('API_BASE_URL');
 
-/// Public copy for tests + dev-only flows (e.g. dev-login button).
-const apiBaseUrl = _baseUrl;
+/// Effective API base URL for this run.
+///
+/// Always an absolute `http(s)://` value, never a bare relative path:
+/// [ApiClient.wsUrl] derives the chat WebSocket URL from it via a scheme
+/// `replaceFirst`, and browsers reject a `WebSocket()` whose resolved scheme
+/// isn't exactly ws/wss.
+String get apiBaseUrl {
+  if (_configuredBaseUrl.isNotEmpty) return _configuredBaseUrl;
+  // Web with no baked URL → the page's own origin (same-origin nginx proxy).
+  if (kIsWeb) return Uri.base.origin;
+  // Native with no baked URL → local dev backend.
+  return 'http://localhost:8080';
+}
+
+String get _baseUrl => apiBaseUrl;
 
 class AuthService {
   static final AuthService _instance = AuthService._();
@@ -46,63 +62,7 @@ class AuthService {
     await prefs.setBool('onboarding_done', done);
   }
 
-  /// Xác thực Firebase ID token với backend, trả về JWT.
-  /// [firebaseToken] — ID token từ Firebase Auth sau khi verify OTP.
-  /// [name] — Tên hiển thị, dùng khi tạo tài khoản mới.
-  Future<Map<String, dynamic>> phoneVerify(
-    String firebaseToken, {
-    String name = '',
-  }) async {
-    final res = await http.post(
-      Uri.parse('$_baseUrl/api/v1/auth/phone-verify'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'firebase_token': firebaseToken, 'name': name}),
-    );
-    if (res.statusCode != 200) {
-      final msg =
-          jsonDecode(res.body)['error']?['message'] ?? 'xác thực thất bại';
-      throw Exception(msg);
-    }
-    final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
-    await _saveTokens(data);
-    return data;
-  }
-
-  /// Requests an email OTP code via `POST /auth/email/request-otp`.
-  /// Returns silently on success; throws with a friendly message otherwise
-  /// (e.g. 429 cooldown). No captcha, no Firebase — pure backend flow.
-  Future<void> requestEmailOtp(String email) async {
-    final res = await _client.post(
-      Uri.parse('$_baseUrl/api/v1/auth/email/request-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email}),
-    );
-    if (res.statusCode != 200) {
-      final msg =
-          jsonDecode(res.body)['error']?['message'] ?? 'gửi mã thất bại';
-      throw Exception(msg);
-    }
-  }
-
-  /// Verifies an email OTP code via `POST /auth/email/verify-otp`, persisting the
-  /// returned JWT pair on success. Mirrors [phoneVerify]'s token handling.
-  Future<Map<String, dynamic>> verifyEmailOtp(String email, String code) async {
-    final res = await _client.post(
-      Uri.parse('$_baseUrl/api/v1/auth/email/verify-otp'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'code': code}),
-    );
-    if (res.statusCode != 200) {
-      final msg =
-          jsonDecode(res.body)['error']?['message'] ?? 'mã không đúng';
-      throw Exception(msg);
-    }
-    final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
-    await _saveTokens(data);
-    return data;
-  }
-
-  /// Dev-only: skip Firebase OTP via `/api/v1/auth/dev-login`.
+  /// Dev-only: skip real auth via `/api/v1/auth/dev-login`.
   /// Backend gates the route with `DEV_MODE=true` + matching `DEV_BYPASS_SECRET`.
   Future<Map<String, dynamic>> devLogin({
     required String secret,

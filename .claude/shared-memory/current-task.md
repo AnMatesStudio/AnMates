@@ -1,5 +1,76 @@
 # Current Task
 
+**Status (2026-09-02) — R-009 CLOSED: UI v2 duyệt, xoá sạch UI v1:**
+User đã xem UI v2 (build web + `flutter run -t lib/main_v2.dart`), báo 2 bug (lưới gu món
+hàng 2/4 bị cắt mép; màn Quẹt không kéo được + nút bị nav che) — cả hai đã fix và verify.
+User confirm bằng cách yêu cầu bước tiếp theo: **"xóa toàn bộ UI cũ sạch sẽ nhất chỉ giữ lại
+phần nào có thể sử dụng tiếp vào new UI v2"**.
+Đã xoá: `lib/views/*` (trừ `v2/`), `lib/widgets/*` (trừ `v2/`), `lib/theme/app_theme.dart`,
+`assets/{food,avatars,icons}/`, `lib/main_v2.dart`, `integration_test/app_test.dart`.
+Đã giữ: `lib/services/*` (18 file, verify 0 import ngược từ views/widgets), `lib/models/*`,
+`lib/utils/*`, `lib/firebase_options.dart`, `lib/theme/app_theme_v2.dart`, `lib/views/v2/*`,
+`lib/widgets/v2/*`. `lib/main.dart` viết lại làm entry point duy nhất → `V2App`.
+**Verified:** flutter analyze 0 lỗi, flutter test -j1 22/22 pass (⚠️ `flutter test` không có
+`-j1` silently drop 2 file test khi chạy song song trong sandbox này — không do session gây ra,
+luôn dùng `-j1` để verify chính xác), `flutter build web --release` (entry mặc định) OK, đã
+serve local + user duyệt trên browser.
+**Chưa làm** (out of scope, cố ý): rename `_v2` suffix (AppColorsV2/V2App/...) giờ là UI duy
+nhất nhưng risk cao nếu đổi không được yêu cầu; audit/prune pubspec dependencies không còn cần.
+Xem R-009 (đầy đủ bug list + gotchas) + sessions/2026-09-02-explore-v2-design-import.md.
+
+---
+
+
+**Status (2026-09-02, phần 2) — CI/CD gộp 3 workflow → 1 `ci.yml` + bỏ hẳn `ANMATES_DOMAIN` (code done, PENDING lần chạy CI thật):**
+User đã tự config DNS + Cloudflare Tunnel → yêu cầu xoá biến `ANMATES_DOMAIN` và tối
+ưu pipeline. Đã bỏ luôn `API_BASE_URL` khỏi build web: `auth_service.dart` default
+đổi từ URL Cloud Run cũ → rỗng, runtime fallback `Uri.base.origin` (web) /
+`http://localhost:8080` (native) → **image web domain-agnostic**, đổi DNS không cần
+build lại, không còn GH variable nào. Gộp `ci-build-push.yml` + `ci.go-api.yml` +
+`ci.flutter-web.yml` → **1 file `.github/workflows/ci.yml`** (2 lane song song
+`api`/`web`, PR build không push, main push GHCR, job cuối in lệnh helm).
+**Win build-time lớn nhất:** web image không compile Flutter trong Docker nữa (bỏ pull
+image SDK ~4GB) — CI build bundle trên runner rồi đóng gói bằng
+`anmates_flutter/Dockerfile.prebuilt` (nginx + COPY). `Dockerfile` cũ giữ nguyên cho
+`docker compose`/`start.sh` local.
+**Verified:** flutter analyze 0 lỗi · test 23/23 · `flutter build web` không cần
+API_BASE_URL OK (bundle không còn URL Cloud Run) · go vet+test pass · ci.yml parse OK.
+Docker build CHƯA chạy thật (máy không có docker daemon) → lần CI đầu là bằng chứng.
+⚠️ **User cần làm:** nếu branch protection đang require status check theo tên cũ
+(`Lint + Test`, `Docker build (no push)`, `Analyze + Test + Build web`) → đổi sang
+`Go API` / `Flutter Web`, nếu không PR sẽ treo chờ check không bao giờ chạy.
+See sessions/2026-09-02-admin-password-login-remove-phone-otp.md (Addendum 2).
+
+---
+
+**Status (2026-09-02) — Login flow đổi sang admin/admin password login, bỏ Firebase phone OTP (code done, static-verified, PENDING user live-confirm + helm upgrade):**
+User báo lỗi `ClientException: Failed to fetch, uri=https:///api/v1/auth/email/request-otp`
+trên pod k8s. Root cause: `ANMATES_DOMAIN` (GH repo var, PI-17) chưa set → CI bake
+`API_BASE_URL=https://` (thiếu host) vào build web → mọi request "Failed to fetch".
+Fix: 2 workflow (`ci-build-push.yml`, `ci.flutter-web.yml`) fallback về `API_BASE_URL`
+rỗng (relative same-origin, nginx đã proxy `/api/` sẵn) khi domain chưa set.
+User đồng thời yêu cầu **đổi flow login = username: admin / password: admin**, bỏ
+Firebase phone OTP hoàn toàn. Đã làm: wire `AuthView` (email+password, có sẵn nhưng
+mồ côi) làm entry thay `PhoneInputView`; migration `013_seed_admin.sql` seed user
+`admin`/`admin` (bcrypt, `onboarding_done=true`); xoá `phone_input_view.dart` +
+`otp_view.dart` + `auth_error_messages.dart` (Firebase phone OTP) + `email_input_view.dart`
++ `email_otp_view.dart` (mồ côi sau khi bỏ entry point); bỏ package
+`firebase_auth_platform_interface`; xoá `#recaptcha-container` khỏi `web/index.html`;
+sửa `integration_test/app_test.dart` sang flow mới. **Verified:** flutter analyze 0
+lỗi, flutter test 23/23, go build/vet/test (trừ `smoke` cần server sống — pre-existing).
+⚠️ **LƯU Ý MÂU THUẪN với quyết định trước đó**: session 2026-09-01 (dòng dưới) ghi
+"user yêu cầu bỏ Firebase Auth hoàn toàn, **chỉ Email OTP + tester quick-login**"
+(không phải password admin/admin) — quyết định hôm nay của user rõ ràng/cụ thể hơn
+(literal "username: admin, pass: admin") nên được ưu tiên, nhưng CẦN user xác nhận
+đây đúng là hướng mới (không phải nhớ nhầm) trước khi coi R-xxx đã chốt.
+Backend `PhoneVerify`/`RequestEmailOTP`/`VerifyEmailOTP` handlers vẫn còn (không xoá,
+không dùng nữa) — hỏi user có muốn dọn luôn không.
+**NEXT:** user chạy `helm upgrade` (rerun migration + rebuild web image) → test đăng
+nhập admin/admin trên pod thật → confirm → viết R-xxx.
+See sessions/2026-09-02-admin-password-login-remove-phone-otp.md.
+
+---
+
 **Status (2026-09-01) — Jira MCP đã authorize (Cline), bắt đầu thực thi project PI — chờ kết quả khám phá PI-1 từ PC host:**
 Cline (VS Code) đã connect 2 Jira MCP server (OAuth 2.1, scopes `read:jira-work` + `write:jira-work`) và
 verify đầy đủ project **PI** trên `anmatesstudio.atlassian.net` (cloudId `9b284e38-8718-4dc9-b91a-0d55873bd1d8`):

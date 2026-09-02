@@ -1,0 +1,32 @@
+# Context rules for Dockerfile.prebuilt (BuildKit picks <dockerfile>.dockerignore
+# over .dockerignore). That image only needs `build/web` + `nginx.conf`, so the
+# plain .dockerignore can't be reused — it excludes `build/`.
+.git
+.gitignore
+.dart_tool/
+.idea/
+.vscode/
+ios/
+android/
+macos/
+windows/
+linux/
+lib/
+test/
+integration_test/
+assets/
+web/
+build/ios/
+build/macos/
+build/linux/
+build/windows/
+build/app/
+*.md
+Dockerfile*
+.dockerignore
+*.dockerignore
+.env
+.env.*
+pubspec.yaml
+pubspec.lock
+analysis_options.yaml

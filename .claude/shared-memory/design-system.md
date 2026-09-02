@@ -7,6 +7,13 @@ metadata:
 
 # ĂN MATES — Design System (Phase 1, FINAL)
 
+> ⚠️ **Hệ v1 dưới đây KHÔNG còn là hệ duy nhất (2026-09-02).** Design mới trên Claude Design
+> (`fa249917-433c-4553-b1ae-8909eed150ed`) dùng một palette + typography **khác hẳn**, đã port
+> sang code thành **hệ v2 chạy song song** — xem mục [Hệ v2](#hệ-v2--explore-direction-2026-09-02)
+> ở cuối file. **Chưa hệ nào bị bỏ.** Toàn bộ app hiện tại vẫn chạy v1; chỉ màn Explore v2
+> (`lib/views/explore_v2/`) dùng v2. Trước khi code màn mới, hỏi user: v1 hay v2?
+
+
 > **Source of truth:** `plan/lastest/design/Brand system.html` + `plan/lastest/design/Logo studies.html` — read before coding any component.
 
 ---
@@ -1757,3 +1764,72 @@ GÓI ĂN MATES
 ---
 
 This design system is locked. Deviations require Brand system update + architect approval. All screens trace back to `plan/lastest/design/<file>.html` references.
+
+
+---
+
+## Hệ v2 — Explore direction (2026-09-02)
+
+> **Source of truth:** project Claude Design `fa249917-433c-4553-b1ae-8909eed150ed`
+> ("Mobile app design planning") → file **`AnMates.dc.html`**, screen `home`
+> (Canvas frame B1 "Explore · hero 3D collage"). Bản copy local: `plan/design/AnMates.dc.html`.
+> **`Canvas.dc.html` chỉ là bảng index** — pin frame qua `<dc-import pin-screen="…">`, không chứa UI.
+
+Code: `anmates_flutter/lib/theme/app_theme_v2.dart` (`AppColorsV2` / `AppGradientsV2` /
+`AppShadowsV2` / `AppTextV2`). **Không import lẫn với `app_theme.dart` v1.**
+
+### Color Tokens v2
+
+| Name | Hex | Usage |
+|---|---|---|
+| **Wisteria** | `#8B5CF6` | Token nhấn chính — CTA phụ, active state, số liệu |
+| Wisteria Tint | `#F1EBFE` | Nền chip Trust, nền icon thông báo |
+| Violet Glow | `#A855F7` | Lobe trên của nền aurora |
+| **Blue** | `#3B82F0` | Nửa còn lại của gradient CTA |
+| Blue Deep | `#1F5BE0` | Lobe dưới của nền aurora |
+| Cyan | `#28D3F5` | Lobe trái-trên của nền aurora |
+| Caviar Ink | `#121212` | Chữ chính, card đen Local Mates *(giữ nguyên từ v1)* |
+| Canvas | `#F6F4FF` | Nền màn |
+| **Alert Red** | `#FF3B30` | **Chỉ dùng cho khẩn cấp** — chấm chưa đọc, tag "1H" |
+
+Bed pastel xoay vòng sau art: tile `#F2EEFF` `#EAF4FF` `#FFF3E8` `#EFF8F1`;
+card thêm `#FDF0F4`.
+
+**Khác v1 thế nào:** v1 nhấn bằng Berry `#B8336A` + Ocean `#534BA8` trên nền Mint `#F1FFF8`.
+v2 bỏ hẳn Berry/Ocean/Mint, chuyển sang Wisteria + gradient xanh trên nền aurora 4 lobe.
+Wisteria ở v1 là `#C490D1` (nhạt, chỉ để fill vibe meter) — **v2 đổi giá trị thành `#8B5CF6`**
+và nâng lên làm token nhấn chính. Đây là điểm dễ nhầm nhất giữa hai hệ.
+
+### Typography v2
+
+Một font duy nhất: **Be Vietnam Pro** (400/500/600/700/800), phân vai bằng weight + size.
+Không còn tách Plus Jakarta Sans cho display như v1.
+
+| Role | Size | Weight | Letter-spacing |
+|---|---|---|---|
+| Section header | 19 | 800 | −0.025em |
+| Hero number | 62 | 800 | −0.05em, gradient blue→wisteria qua `ShaderMask` |
+| CTA | 16 | 700 | — |
+| Card title | 13 | 800 | −0.015em |
+| Tile title | 12.5 | 700 | — |
+| Meta / caption | 10.5 | 500 | — |
+| Nav label | 9 | 700 | — |
+
+### Nền aurora
+
+4 radial lobe ellipse + grain tile 120×120 (`assets/food/v2_grain.png`).
+Flow B–D chạy nhạt hơn 30% (`washOpacity 0.56` / `grainOpacity 0.18`) để card + glass đọc được.
+Xem `lib/widgets/v2/aurora_background.dart`.
+
+### Gotcha khi code v2
+
+- **Drop shadow cho art cutout phải theo alpha, không dùng `BoxShadow`.** `BoxShadow` đổ bóng
+  theo hình chữ nhật của widget → hiện slab xám sau mỗi PNG trong suốt. Dùng `_DropShadowImage`
+  trong `food_art.dart` (bản sao ảnh tô màu qua `ColorFilter.mode(..., srcATop)` + `ImageFiltered`).
+- **`DesignSync.get_file` cắt binary ở 256 KiB.** `hotpot.png` + `bbq.png` của design vượt ngưỡng
+  → hỏng. 4 render còn lại (burger/ramen/coffee/beer) + grain lấy được nguyên vẹn, đã lưu
+  `assets/food/v2_*.png`. Hai món thiếu tạm dùng `lau.png`/`nuong.png` (có nền vẽ, không phải
+  cutout) → `FoodArtRef(cutout: false)` để clip bo góc thay vì thả bóng.
+- Flutter **không có SVG path parser** built-in → 4 glyph nav vẽ tay bằng Canvas
+  (`glass_nav_bar.dart`), không port thẳng `NAV_PATHS`.
+
