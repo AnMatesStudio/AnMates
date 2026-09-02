@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.web.serviceName }}
+  labels:
+    app: {{ .Values.web.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  replicas: {{ .Values.web.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.web.serviceName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.web.serviceName }}
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: web
+          image: "{{ .Values.image.registry }}/{{ .Values.image.owner }}/{{ .Values.image.web.repository }}:{{ .Values.image.web.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.web.probe.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.web.probe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.web.probe.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.web.probe.path }}
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}

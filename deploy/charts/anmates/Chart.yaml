@@ -1,0 +1,6 @@
+apiVersion: v2
+name: anmates
+description: AnMates UI (Flutter web) + API (Go Fiber) — Day-1 MVP chart for on-prem k8s
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

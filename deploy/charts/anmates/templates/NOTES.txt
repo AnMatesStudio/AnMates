@@ -1,0 +1,14 @@
+AnMates đã deploy vào namespace {{ .Release.Namespace }}.
+
+Kiểm tra:
+  kubectl -n {{ .Release.Namespace }} get pods
+  kubectl -n {{ .Release.Namespace }} logs -l app={{ .Values.api.serviceName }} --tail=50
+  kubectl -n {{ .Release.Namespace }} logs -l app={{ .Values.web.serviceName }} --tail=50
+
+Health check nội bộ:
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ .Values.web.serviceName }} -- \
+    wget -qO- http://{{ .Values.api.serviceName }}:{{ .Values.api.service.port }}/health
+
+Truy cập public: cấu hình Public Hostname trên Cloudflare Zero Trust trỏ tới
+  {{ .Values.web.serviceName }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.web.service.port }}
+(xem plan docs/plans/2026-09-01-mvp-1day-onprem-k8s.md, mục H1 + H5).

@@ -1,0 +1,17 @@
+# cloudflared trỏ thẳng vào Service này qua CoreDNS (web.anmates.svc.cluster.local:80)
+# — không cần Ingress resource, cloudflared cấu hình trên Cloudflare dashboard.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.web.serviceName }}
+  labels:
+    app: {{ .Values.web.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.web.serviceName }}
+  ports:
+    - name: http
+      port: {{ .Values.web.service.port }}
+      targetPort: http

@@ -1,5 +1,44 @@
 # Current Task
 
+**Status (2026-09-01) — Jira MCP đã authorize (Cline), bắt đầu thực thi project PI — chờ kết quả khám phá PI-1 từ PC host:**
+Cline (VS Code) đã connect 2 Jira MCP server (OAuth 2.1, scopes `read:jira-work` + `write:jira-work`) và
+verify đầy đủ project **PI** trên `anmatesstudio.atlassian.net` (cloudId `9b284e38-8718-4dc9-b91a-0d55873bd1d8`):
+**14 epic PI-1→PI-14** khớp backlog đã tạo — PI-1 `[P0] Network Assessment & DNS/PKI Bootstrap` đang
+**In Progress**, PI-2→PI-14 To Do. Gotcha ghi nhận: JQL phải bounded (unbounded bị chặn); Confluence API
+404 (thiếu scope/chưa bật); 54 issue cũ project **Tech** vẫn chờ user bulk-delete tay.
+**NEXT (không đổi):** user chạy lệnh khám phá PI-1 trên PC host thật (`lsblk`, `df -h`, `virsh vol-list`,
+chẩn đoán CGNAT) rồi paste kết quả — Cline/Claude Code tổng hợp, update Jira PI-1/PI-2 + shared-memory. **UPDATE 2026-09-01: PI-16 Done — chốt Cloudflare Tunnel (chỉ expose web pod qua tunnel, API backend internal trong cluster, không cần port-forward/CGNAT). Ticket đang làm: PI-17 (domain — cần cho Cloudflare DNS + tunnel hostname); PI-20 (kiểm toán đĩa) là ứng viên song song.**
+Cả Cline lẫn Claude Code đọc session `sessions/2026-09-01-jira-mcp-authorize-replatform-kickoff.md`
+trước khi làm tiếp để đồng bộ trạng thái.
+---
+**Status (2026-08-31) — DESIGN DUYỆT, chờ viết implementation plan: re-platform AnMates lên k8s on-prem.**
+Sau 7 vòng brainstorm, spec đầy đủ đã ghi tại `docs/superpowers/specs/2026-08-31-onprem-k8s-replatform-design.md`
+(810 dòng). **Chưa hiện thực gì — design only, chưa chạm code sản phẩm.**
+Kiến trúc: Cloudflare (proxy, origin port 8443 né ISP chặn 443) → HAProxy ×2 L7 (Pi 4 MASTER +
+VM bridge BACKUP) + VIP keepalived → MetalLB `10.10.10.200` → ingress-nginx → pod.
+Cluster **MVP: 1 control-plane (4GB/2vCPU) + 2 worker (8GB/4vCPU)** trên KVM, giữ mạng
+`10.10.10.0/24`. Worker #3 thêm khi bật observability đầy đủ (P8), KHÔNG phải khi tăng user —
+host còn dôi 6 GB nên chỉ là tạo thêm VM, không reshape cụm.
+Harbor · Vault trên host + ESO · GHA zero-secret qua GitHub OIDC · self-hosted runner chỉ
+`docker build COPY` + `helm upgrade --atomic` · Longhorn replica 1 + MinIO + CNPG + PgBouncer +
+Redis · 2 ns `anmates`/`anmates-dev` · Grafana LGTM · Ollama native trên host với GPU.
+Mục tiêu 50 RPS (beta MVP). Ràng buộc: RAM headroom 5.89 Gi, **đĩa < 200 GB**.
+**NEXT**: thực thi theo **project PI** ("Platform & Infrastructure") — **14 epic + 74 task (PI-1→PI-89)**
+chia theo category+phase. Bắt đầu **PI-1** (khám phá mạng/tên miền) + **PI-2** (host) — cả hai
+không phụ thuộc cụm. ⚠️ 54 issue cũ trong TECH cần user tự bulk-delete (MCP không có tool delete).
+Cũ: Jira backlog project TECH — 11 epic + 43 task. **Bắt đầu ở [P0] TECH-61**
+(TECH-53 chẩn đoán CGNAT · TECH-54 domain · TECH-62 Cloudflare credential) vì P1/P3 phụ thuộc ngược
+vào nó. Cũ: 10 epic (TECH-10→19) + 41 task
+(TECH-20→60), label `onprem-k8s`. Bắt đầu: TECH-20 (xác minh cụm) + TECH-21 (đo đĩa thật)
+song song với TECH-45 (Flutter runtime config, 13 SP — đường tới hạn) và TECH-46 (bật redis_hub).
+**Câu hỏi mở** (§16 của spec): dung lượng NVMe trống thực tế (chặn P0) · CGNAT hay public IP
+thật (chặn P5) · số row `users` có phone nhưng không email (chặn P4) · IP tĩnh hay động · tên miền.
+Xem sessions/2026-08-31-onprem-k8s-replatform-design.md
+
+---
+
+## Task trước đó (vẫn treo chờ user confirm in-app → R-008)
+
 **Status (2026-06-14) — Venue-photo source decision: Google Maps API RULED OUT (VN-gated) → R-008; chosen path = headless Maps scrape → Firebase → DB (decided, NOT built, user starts tomorrow):** Goal = real "chính chủ" venue photos on Discovery list/detail keyed off the Goong venue, without Google Maps API and without generic web-search stock. Spent a long session trying **Google Places API (New)** as the source. **Fixed EVERY config gate** (billing Active+linked+Visa ••5073 Primary on "My Maps Billing Account"; key `…a6ycwA` Application restrictions=None + Places API (New) enabled & in allowlist; project `anmates`=number `748505933219` matched on Welcome page + Gemini `consumer`) — **yet ALL Google Maps Platform APIs still return 403 "caller does not have permission" / legacy "You must enable Billing"**, while **Cloud Storage (non-Maps GCP) SUCCEEDS in the SAME project+billing** (isolation test = smoking gun). Conclusion (user-agreed): **Maps Platform is country-gated for Vietnam** (mapping regulation) → NOT config/IAM/billing error → corroborates LOCKED "Google Maps PROHIBITED in VN → Goong". Durable evidence written to **R-008** (grep-able error strings) + session `2026-06-14-google-maps-api-blocked-vn-and-photo-scrape-decision.md`. **DO NOT re-attempt Google Maps/Places/Geocoding for this project.** Also evaluated: Foursquare Photos (key valid but Photos=Premium $18.75 CPM, no free tier → only viable with permanent per-venue cache; user found pricey) — kept as paid fallback, not chosen. **CHOSEN DIRECTION (user, start tomorrow):** Goong=venue data (working); photos = **headless-browser (Playwright) scrape of the Google Maps place panel, run from a RESIDENTIAL IP** → download bytes → **Firebase Storage** → store `{goong_id, firebase_urls, source, fetched_at}` in **Postgres** (new `venue_photos` migration), cache **permanently** (scrape ONCE/venue). **Feasibility live-probed 2026-06-14 (residential IP):** no CAPTCHA/consent/sorry; place photos served from **`lh{3,4,5,6}.ggpht.com`** (+ streetviewpixels); raw HTML lacks full photo URLs → **must headless-render JS** (`APP_INITIALIZATION_STATE` blob present). **HARD CAVEAT:** datacenter IPs (Cloud Run) → CAPTCHA (repo already proved 2026-06-11) → scrape runs residential only; permanent cache means production just reads DB; uncached new venues fall back to Bing/agentic (R-007)→placeholder. ToS/copyright re-host = user-accepted business risk. Build plan (TODO): (1) sidecar `GoogleMapsCrawler` reusing Playwright + new `/maps-photos`; (2) Go `POST /api/v1/venues/photos/ingest` → sidecar → download (SSRF-guard reuse) → Firebase upload → persist; (3) migration `venue_photos`; (4) serve DB-first → lazy-ingest → Bing fallback → placeholder; (5) Flutter thumbnails/hero read Firebase URLs. See R-008 + the session for full evidence + plan.
 
 ---

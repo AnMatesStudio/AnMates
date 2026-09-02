@@ -1,0 +1,15 @@
+Cloudflare Tunnel đã deploy vào namespace {{ .Release.Namespace }}.
+
+Kiểm tra:
+  kubectl -n {{ .Release.Namespace }} get pods -l app=cloudflared
+  kubectl -n {{ .Release.Namespace }} logs -l app=cloudflared --tail=50
+
+Tunnel status: Zero Trust dashboard > Networks > Tunnels — connector phải hiện
+"Connected" (2 connector tương ứng 2 replicas).
+
+Public routing: cấu hình Public Hostname trên Cloudflare dashboard trỏ tới
+  http://anmates-web.anmates.svc.cluster.local:80
+(xem plan docs/plans/2026-09-01-mvp-1day-onprem-k8s.md, mục H1 + H5).
+
+Lưu ý: KHÔNG autoscale cloudflared (downscale làm đứt user connections) —
+replicas chỉ để HA, Cloudflare edge tự điều phối giữa các connector.
