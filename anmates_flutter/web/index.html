@@ -19,6 +19,10 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="A new Flutter project.">
+  <!-- Required for mobile layout: without it browsers fall back to a 980px
+       layout viewport and scale the page down, so the Flutter view never
+       fills the screen. Part of the stock Flutter template. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
@@ -47,12 +51,6 @@
   </script>
 </head>
 <body>
-  <!--
-    reCAPTCHA container for Firebase Phone Auth on Web. The Firebase JS SDK
-    attaches the v2 widget here; without it, grecaptcha hits a null DOM
-    node and throws "Cannot read properties of null (reading 'style')".
-  -->
-  <div id="recaptcha-container" style="position:fixed;bottom:16px;right:16px;z-index:9999;"></div>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

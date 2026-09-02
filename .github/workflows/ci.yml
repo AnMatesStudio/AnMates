@@ -1,0 +1,163 @@
+name: CI
+
+# One workflow, two independent lanes (api / web) running in parallel.
+#   pull_request → lint + test + build images (no push)
+#   push to main → lint-free fast path: test + build + push images to GHCR
+# Deploy stays MANUAL on the host — the last job prints the exact helm command.
+# See docs/plans/2026-09-01-mvp-1day-onprem-k8s.md.
+#
+# Only secret needed: GOONG_MAPTILES_KEY. GHCR login uses the built-in
+# GITHUB_TOKEN. No repo variables — the web image is domain-agnostic (nginx
+# proxies /api/ + /ws/ same-origin, see anmates_flutter/nginx.conf).
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      # GitHub Actions doesn't support YAML anchors — keep both lists in sync.
+      - 'anmates-api/**'
+      - 'anmates_flutter/**'
+      - '.github/workflows/ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'anmates-api/**'
+      - 'anmates_flutter/**'
+      - '.github/workflows/ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  # Cancel superseded PR runs; never cancel a main run that is pushing images.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  api:
+    name: Go API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: anmates-api/go.mod
+          cache-dependency-path: anmates-api/go.sum
+
+      - name: Vet + test
+        working-directory: anmates-api
+        run: |
+          go vet ./...
+          # smoke/ hits a live server on :8080 — not runnable in CI.
+          go test -race -count=1 $(go list ./... | grep -v '/smoke$')
+
+      # Lint only gates PRs: on main it would just re-check what the PR proved.
+      - name: golangci-lint
+        if: github.event_name == 'pull_request'
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
+          working-directory: anmates-api
+          args: --timeout=3m
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image owner (GHCR requires lowercase)
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # On PRs this still builds (Dockerfile gate) but pushes nothing.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./anmates-api
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/anmates-api:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/anmates-api:latest
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+  web:
+    name: Flutter Web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Pub get
+        working-directory: anmates_flutter
+        run: flutter pub get
+
+      - name: Analyze + test
+        working-directory: anmates_flutter
+        run: |
+          flutter analyze --no-fatal-infos
+          flutter test --reporter=compact
+
+      # No --dart-define=API_BASE_URL on purpose: the bundle resolves its own
+      # origin at runtime (auth_service.dart), so one image works behind any
+      # hostname — no rebuild when DNS/tunnel changes.
+      - name: Build web bundle
+        working-directory: anmates_flutter
+        env:
+          # Via env (not inline interpolation) so a key with shell metacharacters
+          # can't break or inject into the command.
+          GOONG_MAPTILES_KEY: ${{ secrets.GOONG_MAPTILES_KEY }}
+        run: |
+          flutter build web --release \
+            --dart-define=GOONG_MAPTILES_KEY="$GOONG_MAPTILES_KEY"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Image owner (GHCR requires lowercase)
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # nginx + COPY of the bundle built above — seconds, no Flutter SDK image.
+      # No layer cache: every build changes the COPY layer, so caching would
+      # only add upload time.
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./anmates_flutter
+          file: ./anmates_flutter/Dockerfile.prebuilt
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/anmates-web:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/anmates-web:latest
+
+  deploy-command:
+    name: Print deploy command
+    if: github.event_name != 'pull_request'
+    needs: [api, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Image owner (GHCR requires lowercase)
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+      - run: |
+          echo "::notice::Images pushed to GHCR. Run this ON THE HOST to deploy:"
+          echo "::notice::helm upgrade --install anmates ./deploy/charts/anmates -n anmates -f deploy/charts/anmates/values-prod.yaml --set image.owner=${{ env.IMAGE_OWNER }} --set image.api.tag=${{ github.sha }} --set image.web.tag=${{ github.sha }} --atomic --wait --timeout 10m"

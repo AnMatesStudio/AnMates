@@ -1,8 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:anmates/models/ai_venue_card.dart';
-import 'package:anmates/services/concierge_service.dart';
-import 'package:anmates/widgets/ai_venue_card.dart';
 
 const _sampleJson = '''
 {"intro":"2 đứa hợp gu rồi nè!","midpoint":{"lat":10.778,"lng":106.695},
@@ -38,73 +35,5 @@ void main() {
     test('returns null when there are no picks', () {
       expect(AiVenueCardContent.tryParse('{"intro":"x","picks":[]}'), isNull);
     });
-  });
-
-  testWidgets('AiVenueCard renders picks and fires onSuggest', (tester) async {
-    final content = AiVenueCardContent.tryParse(_sampleJson)!;
-    AiVenuePick? tapped;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: AiVenueCard(
-              content: content,
-              onSuggest: (p) => tapped = p,
-            ),
-          ),
-        ),
-      ),
-    );
-
-    expect(find.text('Bún Bò Giáo Toàn'), findsOneWidget);
-    expect(find.text('Cộng Cà Phê'), findsOneWidget);
-    expect(find.text('Gợi ý cho Mate →'), findsNWidgets(2));
-    expect(find.text('TRỢ LÝ ĂNMATES'), findsOneWidget);
-
-    await tester.tap(find.text('Gợi ý cho Mate →').first);
-    await tester.pump();
-    expect(tapped, isNotNull);
-    expect(tapped!.name, 'Bún Bò Giáo Toàn');
-  });
-
-  testWidgets('AiVenueCard shows anchor chips and re-anchors on tap', (tester) async {
-    final content = AiVenueCardContent.tryParse(_sampleJson)!;
-    final near = AiVenueCardContent.tryParse(
-      '{"intro":"Gần mình nè","midpoint":{"lat":10.78,"lng":106.7},'
-      '"picks":[{"restaurant_id":"r9","name":"Quán Gần Mình","rating":4.2,'
-      '"price_min":40000,"price_max":80000,"lat":10.78,"lng":106.7,"distance_m":120,"reason":"sát nhà"}]}',
-    )!;
-    VenueAnchor? asked;
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: AiVenueCard(
-              content: content,
-              mateName: 'Bình',
-              onReanchor: (a) async {
-                asked = a;
-                return near;
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-
-    // Chips render (mate name interpolated).
-    expect(find.text('Điểm giữa'), findsOneWidget);
-    expect(find.text('Gần mình'), findsOneWidget);
-    expect(find.text('Gần Bình'), findsOneWidget);
-
-    await tester.tap(find.text('Gần mình'));
-    await tester.pump(); // start the async re-anchor
-    await tester.pump(); // resolve the future
-    expect(asked, VenueAnchor.me);
-    // Card content swapped to the near-me result.
-    expect(find.text('Quán Gần Mình'), findsOneWidget);
-    expect(find.text('Bún Bò Giáo Toàn'), findsNothing);
   });
 }

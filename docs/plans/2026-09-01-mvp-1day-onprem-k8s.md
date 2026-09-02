@@ -152,6 +152,23 @@ nguyên.
 - `kubectl get nodes` → 3 Ready · `lsblk` → xác nhận đủ chỗ (≥40 GB root/worker)
 - Tạo `DEV_BYPASS_SECRET` ngẫu nhiên, lưu tạm
 
+**Thu thập trước tất cả giá trị cho secret `anmates-api` (dùng ở H3, KHÔNG được thiếu cái
+nào — thiếu 1 key `helm upgrade` vẫn qua nhưng pod `api` sẽ `CrashLoopBackOff` lúc boot vì
+đọc env rỗng, hoặc nếu thiếu cả secret thì lỗi `secret "anmates-api" not found`):**
+
+| Key | Lấy ở đâu |
+|---|---|
+| `DATABASE_URL` | Ghép từ `POSTGRES_PASSWORD` sẽ tạo ở H2: `postgres://anmates:<password>@anmates-db.anmates.svc.cluster.local:5432/anmates?sslmode=disable` |
+| `JWT_SECRET` | Tự sinh ngẫu nhiên, vd `openssl rand -hex 32` |
+| `FIREBASE_WEB_API_KEY` | Firebase Console → dự án `anmates-studio` → Project settings → Web API Key |
+| `GOONG_API_KEY` | Goong dashboard (đã có sẵn từ trước, dùng lại key hiện tại) |
+| `FOURSQUARE_KEY` | Foursquare developer dashboard (đã có sẵn từ trước, dùng lại key hiện tại) |
+| `SMTP_PASSWORD` | Provider gửi email OTP (SMTP account hiện dùng cho `RequestEmailOTP`) |
+| `DEV_BYPASS_SECRET` | Đã tạo ở dòng trên (random 32 chars) |
+
+Lưu tạm 7 giá trị này (vd file local KHÔNG commit git) — dùng thẳng ở lệnh `kubectl create
+secret generic anmates-api` trong H3.
+
 ### H1 · 0:30–1:30 — Storage + Network + chứng minh đường đi
 ```bash
 # repo infra-storage
@@ -245,6 +262,11 @@ location /ws/ {
 }
 ```
 
+> ⚠️ **BẮT BUỘC trước H5.** `api-deployment.yaml` dùng `envFrom.secretRef.name: anmates-api`
+> (xem `values.yaml:api.secretName`) — thiếu secret này thì `helm upgrade` ở H5 vẫn "thành
+> công" về mặt YAML nhưng pod `api` treo `CreateContainerConfigError` với lỗi
+> `secret "anmates-api" not found`. Dùng 7 giá trị đã gom ở H0.
+
 ```bash
 # ns anmates đã tạo ở H2 — lệnh dưới idempotent, bỏ qua nếu đã có
 kubectl create ns anmates --dry-run=client -o yaml | kubectl apply -f -
@@ -255,42 +277,39 @@ kubectl -n anmates create secret generic anmates-api \
   --from-literal=FIREBASE_WEB_API_KEY=... --from-literal=GOONG_API_KEY=... \
   --from-literal=FOURSQUARE_KEY=... --from-literal=SMTP_PASSWORD=... \
   --from-literal=DEV_BYPASS_SECRET=...
+
+# xác nhận đủ cả 7 key trước khi qua H5
+kubectl -n anmates get secret anmates-api -o jsonpath='{.data}' | tr ',' '\n'
 ```
 
 ### H4 · 3:45–4:30 — CI workflow → GHCR
-`.github/workflows/ci-build-push.yml`:
-```yaml
-on: { push: { branches: [main] } }
-permissions: { contents: read, packages: write }
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: cd anmates-api && go vet ./... && go test $(go list ./... | grep -v /smoke$)
-      - uses: subosito/flutter-action@v2
-      - run: cd anmates_flutter && flutter pub get && flutter analyze --no-fatal-infos && flutter test
-      - uses: docker/login-action@v3
-        with: { registry: ghcr.io, username: ${{ github.actor }}, password: ${{ secrets.GITHUB_TOKEN }} }
-      - uses: docker/build-push-action@v6      # api
-        with:
-          context: ./anmates-api
-          push: true
-          tags: ghcr.io/${{ github.repository_owner }}/anmates-api:${{ github.sha }}
-      - uses: docker/build-push-action@v6      # web
-        with:
-          context: ./anmates_flutter
-          push: true
-          build-args: |
-            API_BASE_URL=https://<domain>
-            GOONG_MAPTILES_KEY=${{ secrets.GOONG_MAPTILES_KEY }}
-          tags: ghcr.io/${{ github.repository_owner }}/anmates-web:${{ github.sha }}
-      - run: echo "::notice::helm upgrade --install anmates ./deploy/charts/anmates -n anmates -f values-prod.yaml --set image.tag=${{ github.sha }}"
-```
+**Đã hiện thực**: `.github/workflows/ci-build-push.yml` + `ci.go-api.yml` +
+`ci.flutter-web.yml` đã được gộp thành **1 file duy nhất `.github/workflows/ci.yml`**
+(2026-09-02). Cấu trúc: 2 lane chạy song song (`api`, `web`), mỗi lane
+test → build image; PR thì build không push, push `main` thì push GHCR; job cuối
+in lệnh `helm upgrade` để chạy tay trên host.
+
+Hai điểm khác so với bản phác thảo ban đầu:
+- **Không còn `API_BASE_URL` / biến `ANMATES_DOMAIN`.** Bundle web tự resolve
+  origin lúc runtime (`auth_service.dart`), nên 1 image chạy được sau bất kỳ
+  hostname nào — đổi DNS/tunnel không cần build lại. Nếu bake domain vào lúc build
+  mà biến rỗng thì sinh ra `https://` cụt host → app gọi `https:///api/v1/...` và
+  chết toàn bộ (đúng lỗi đã gặp 2026-09-02).
+- **Web image không build Flutter trong Docker nữa.** CI đã có sẵn SDK để
+  analyze/test nên build bundle luôn trên runner rồi đóng gói bằng
+  `anmates_flutter/Dockerfile.prebuilt` (nginx + COPY) — nhanh hơn nhiều so với
+  kéo image SDK ~4 GB. `anmates_flutter/Dockerfile` (bản build-trong-image) vẫn giữ
+  cho `docker compose`/`start.sh` ở local.
+
 Chỉ 1 GH secret: `GOONG_MAPTILES_KEY`. Registry auth dùng `GITHUB_TOKEN` sẵn có.
+Không cần GH **variable** nào.
 
 ### H5 · 4:30–5:15 — Deploy + health check
 ```bash
+# pre-flight: cả 2 secret phải tồn tại trong ns anmates trước khi deploy,
+# nếu không api pod sẽ lỗi "secret ... not found" — quay lại H3 nếu thiếu
+kubectl -n anmates get secret ghcr-pull anmates-api anmates-db-credentials
+
 helm upgrade --install anmates ./deploy/charts/anmates \
   -n anmates -f values-prod.yaml --set image.tag=<SHA> --atomic --wait --timeout 10m
 
@@ -307,8 +326,11 @@ Cloudflare → thêm **1** Public Hostname: `<domain>` → Service `web`. **Khô
 🎯 **Cổng kiểm soát cuối** — từ mạng 4G:
 - `https://<domain>` load Flutter web
 - `https://<domain>/api/v1/health` → 200 (qua nginx proxy, không có hostname `api.<domain>` riêng)
-- Bấm "Vào thử ngay" → `DevLogin` tạo tài khoản, vào thẳng app
-- Đăng ký qua Email OTP thật (email nhận được code)
+- Đăng nhập **admin / admin** (seed bởi migration `013_seed_admin.sql`) → vào thẳng
+  app, bỏ qua onboarding (`onboarding_done=true`). ⚠️ 2026-09-02: luồng login đã đổi
+  sang username+password, **đã bỏ** Firebase phone OTP lẫn Email OTP — nút
+  "Vào thử ngay"/`DevLogin` không còn trên UI (route backend `/auth/dev-login` vẫn
+  còn cho e2e script)
 - WebSocket chat gửi/nhận qua 2 replica web (không ảnh hưởng vì chat qua api 1 replica)
 - Upload ảnh onboarding → Firebase Storage vẫn nhận
 
