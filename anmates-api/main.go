@@ -102,18 +102,9 @@ func run(log *slog.Logger) error {
 	if rateLimitOff {
 		log.Warn("DISABLE_RATE_LIMIT set — rate limiter is OFF")
 	}
-	rlHandler := func(c *fiber.Ctx) error { return c.Next() }
-	if !rateLimitOff {
-		rlBase := rl.Handler()
-		rlHandler = func(c *fiber.Ctx) error {
-			// Image proxy is a public CDN-style endpoint: up to ~6 simultaneous
-			// requests per list render burst, responses already cached 24h — exempt
-			// from the per-IP API rate limit.
-			if strings.HasPrefix(c.Path(), "/api/v1/venues/image") {
-				return c.Next()
-			}
-			return rlBase(c)
-		}
+	rlHandler := rl.Handler()
+	if rateLimitOff {
+		rlHandler = func(c *fiber.Ctx) error { return c.Next() }
 	}
 
 	fbClient := &http.Client{Timeout: cfg.FirebaseVerifyTimeout}
@@ -148,29 +139,23 @@ func run(log *slog.Logger) error {
 	locSvc := services.NewLocationService(pool)
 	bookingSvc := services.NewBookingService(pool)
 
-	// AI Concierge — venue source is pluggable (see services.VenueProvider):
-	//   AI_SEARCH_URL set ⇒ web-search path (ai-venue-search service, no map/DB ingest).
-	//   else AI_BASE_URL set ⇒ legacy DB+LLM path (restaurants table + model ranking).
-	//   neither ⇒ disabled ⇒ nil seam ⇒ chat behaves exactly as before.
+	// One engine over the `restaurants` table, shared by the venue catalogue,
+	// the free-text /venues/search route and (optionally) the concierge.
+	venueEngine := services.NewVenueEngine(pool)
+
+	// AI Concierge — venue source: local `restaurants` table (services.VenueEngine)
+	// ranked by an OpenAI-compatible model. AI_BASE_URL set ⇒ enabled;
+	// empty ⇒ disabled ⇒ nil seam ⇒ chat behaves exactly as before.
 	var concierge handlers.ConciergeFirer
 	var conciergeSvc *services.ConciergeService
-	var webSearchProvider *services.WebSearchProvider
-	if cfg.AISearchURL != "" || cfg.AIBaseURL != "" {
+	if cfg.AIBaseURL != "" {
 		aiUserID, perr := uuid.Parse(cfg.AIUserID)
 		if perr != nil {
 			return fmt.Errorf("AI_USER_ID invalid uuid: %w", perr)
 		}
 
-		var provider services.VenueProvider
-		mode := "db+llm"
-		if cfg.AISearchURL != "" {
-			webSearchProvider = services.NewWebSearchProvider(cfg.AISearchURL)
-			provider = webSearchProvider
-			mode = "web-search"
-		} else {
-			llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
-			provider = services.NewDBLLMVenueProvider(services.NewVenueEngine(pool), llm)
-		}
+		llm := services.NewOpenAICompatLLM(cfg.AIBaseURL, cfg.AIAPIKey, cfg.AIModel)
+		provider := services.NewDBLLMVenueProvider(venueEngine, llm)
 
 		conciergeSvc = services.NewConciergeService(pool, provider, hub,
 			services.ConciergeConfig{
@@ -185,9 +170,9 @@ func run(log *slog.Logger) error {
 				Model:          cfg.AIModel,
 			}, log)
 		concierge = conciergeSvc
-		log.Info("AI Concierge enabled", "mode", mode, "search_url", cfg.AISearchURL, "trigger_points", cfg.AITriggerPoints, "warm_points", cfg.AIWarmPoints)
+		log.Info("AI Concierge enabled", "mode", "db+llm", "base_url", cfg.AIBaseURL, "trigger_points", cfg.AITriggerPoints, "warm_points", cfg.AIWarmPoints)
 	} else {
-		log.Info("AI Concierge disabled (set AI_SEARCH_URL or AI_BASE_URL)")
+		log.Info("AI Concierge disabled (set AI_BASE_URL)")
 	}
 
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
@@ -227,30 +212,28 @@ func run(log *slog.Logger) error {
 		log.Warn("DEV_MODE on — /api/v1/auth/dev-login is open (requires DEV_BYPASS_SECRET)")
 	}
 
-	// Discovery venue thumbnails + detail hero — public, no JWT, registered on
-	// root app (not the rate-limited api group) so a burst of list thumbnails
-	// won't trip 429s. MUST be registered before api.Use(jwtMW) below.
+	// The app's own venue catalogue straight from the restaurants table:
+	// GET /api/v1/venues?lat=&lng=&radius_m=&cuisine=&limit=
+	// Always on (no external key) — it is the discovery feed's primary and ONLY
+	// source. All venue data — including photos (venue_photos blobs served by
+	// /venues/:id/photos/:position) — lives in the DB; nothing is fetched from
+	// the internet.
 	//
-	// Photo source: Foursquare free /places/search → GPS+name match → official
-	// website → og:image ("chính chủ"). Bing web search and agentic crawl have
-	// been removed — they could not be controlled for image accuracy.
-	photoResolver := services.NewVenuePhotoResolver(
-		services.NewFoursquareClient(cfg.FoursquareKey),
-		services.NewImageSearcher(),
-	)
-	venueImageH := handlers.NewVenueImage(photoResolver)
-	app.Get("/api/v1/venues/image", venueImageH.Serve)
-	app.Get("/api/v1/venues/images", venueImageH.Count)
-	if cfg.FoursquareKey != "" {
-		log.Info("Venue photos: Foursquare identity source enabled (website og:image)")
-	}
+	// PUBLIC: browsing the catalogue
+	// is what a visitor does before signing in, and the v2 Explore feed is the
+	// first screen after onboarding — behind jwtMW it just renders empty. Nothing
+	// here is user-scoped; want_count is an aggregate across all users. Registered
+	// on the `api` group BEFORE api.Use(jwtMW) below, so it keeps the rate limiter
+	// but not the auth requirement.
+	venueCatalogH := handlers.NewVenueCatalog(venueEngine)
+	api.Get("/venues", venueCatalogH.List)
 
-	// Detail-screen enrichment: same Foursquare resolver (Foursquare → website →
-	// og:image). Returns EnrichResult so the Flutter hero gallery shows the real
-	// venue photo; degrades gracefully to the emoji placeholder when no website
-	// is found. Agentic crawl removed — too slow and hard to control.
-	venueEnrichH := handlers.NewVenueEnrich(photoResolver)
-	app.Get("/api/v1/venues/enrich", venueEnrichH.Serve)
+	// Venue photo bytes, stored in Postgres (see db/migrations/014_venue_photo_
+	// blobs.sql) instead of a URL — the data pipeline previously published bare
+	// links to its own ngrok tunnel, and every one 404'd once the tunnel closed.
+	// Public for the same <img src> reason as the catalogue above.
+	venuePhotoH := handlers.NewVenuePhoto(services.NewVenuePhotoStore(pool))
+	api.Get("/venues/:id/photos/:position", venuePhotoH.Serve)
 
 	// Authenticated.
 	auth := api.Use(jwtMW)
@@ -286,40 +269,11 @@ func run(log *slog.Logger) error {
 		auth.Post("/matches/:id/concierge/suggest", conciergeH.Suggest)
 	}
 
-	// Discovery free-text web-search: GET /api/v1/venues/search?q=...&lat=...&lng=...
-	// Only enabled when the web-search sidecar is configured.
-	if webSearchProvider != nil {
-		venueH := handlers.NewVenue(webSearchProvider)
-		auth.Get("/venues/search", venueH.Search)
-	}
-
-	// Discovery venue reviews — keyless Bing web scrape (rating + count + a few
-	// snippets) for the detail card. Always on (no key); cached 24h server-side.
-	venueReviewsH := handlers.NewVenueReviews(services.NewReviewSearcher())
-	auth.Get("/venues/reviews", venueReviewsH.Reviews)
-
-	// Discovery nearby venues via a pluggable provider (Goong | TomTom, chosen by
-	// MAP_PROVIDER). Proxied server-side so the key never reaches the client; only
-	// enabled when the selected provider has a key. The Flutter client falls back to
-	// Overpass when this route is absent/errors.
-	nearbyProvider := services.NewNearbyProvider(cfg.MapProvider, cfg.GoongAPIKey, cfg.TomTomAPIKey)
-	if nearbyProvider.Enabled() {
-		nearbyH := handlers.NewVenueNearby(nearbyProvider, userSvc)
-		auth.Get("/venues/nearby", nearbyH.Serve)
-		log.Info("Nearby provider enabled: " + nearbyProvider.Name())
-	} else {
-		log.Info("Nearby provider disabled (set GOONG_API_KEY or TOMTOM_API_KEY) — client uses Overpass")
-	}
-
-	// Map search bar: Goong Place AutoComplete + Detail (server-side key proxy).
-	// Goong-specific (handles VN venues + addresses), so it rides on GOONG_API_KEY
-	// regardless of MAP_PROVIDER. Absent key → routes off → client hides search.
-	if cfg.GoongAPIKey != "" {
-		placesH := handlers.NewPlacesSearch(services.NewGoongClient(cfg.GoongAPIKey))
-		auth.Get("/places/autocomplete", placesH.Autocomplete)
-		auth.Get("/places/detail", placesH.Detail)
-		log.Info("Goong place search enabled (/api/v1/places/autocomplete, /places/detail)")
-	}
+	// Discovery free-text venue search: GET /api/v1/venues/search?q=...&lat=...&lng=...
+	// Queries the local restaurants table directly (foldVN matching, geo filter,
+	// CardPick response) — no external search service. Always on.
+	venueH := handlers.NewVenue(venueEngine)
+	auth.Get("/venues/search", venueH.Search)
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())

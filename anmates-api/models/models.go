@@ -92,9 +92,14 @@ type MatchCandidate struct {
 	UserID       uuid.UUID `json:"user_id"`
 	Name         string    `json:"name"`
 	AvatarURL    *string   `json:"avatar_url,omitempty"`
-	OverlapCount int       `json:"overlap_count"`
-	OverlapFoods []string  `json:"overlap_foods"`
-	Score        float64   `json:"score"`
+	// Age in whole years, computed from birth_date — nil when the candidate
+	// never set one. Never guessed client-side.
+	Age          *int     `json:"age,omitempty"`
+	FoodTags     []string `json:"food_tags"`
+	VibeTags     []string `json:"vibe_tags"`
+	OverlapCount int      `json:"overlap_count"`
+	OverlapFoods []string `json:"overlap_foods"`
+	Score        float64  `json:"score"`
 }
 
 // Conversation is what GET /api/conversations returns — accepted matches with partner info.

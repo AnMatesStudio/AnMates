@@ -66,6 +66,37 @@ class FoodArt extends StatelessWidget {
   }
 }
 
+/// A real venue photo when one is on file; the [fallback] 3D render otherwise.
+///
+/// A photo is an opaque rectangular JPEG, not the transparent cutout [FoodArt]
+/// is built for, so it gets a plain `Image.network` rather than the
+/// drop-shadow treatment — that filter traces alpha, and a JPEG has none.
+/// [fallback] also covers a transient fetch failure (`errorBuilder`), so a
+/// venue never shows a broken-image icon.
+class VenuePhotoOrFallback extends StatelessWidget {
+  const VenuePhotoOrFallback({
+    super.key,
+    required this.photoUrl,
+    required this.fallback,
+    this.fit = BoxFit.cover,
+  });
+
+  final String? photoUrl;
+  final Widget fallback;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = photoUrl;
+    if (url == null || url.isEmpty) return fallback;
+    return Image.network(
+      url,
+      fit: fit,
+      errorBuilder: (context, error, stackTrace) => fallback,
+    );
+  }
+}
+
 /// `@keyframes amFloat` — a 9px bob with a ±1° tilt, offset per object so a
 /// collage of dishes never moves in lockstep.
 class FloatingArt extends StatefulWidget {

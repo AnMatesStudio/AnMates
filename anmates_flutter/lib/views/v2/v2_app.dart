@@ -18,7 +18,6 @@ import 'screens/pay_screen.dart';
 import 'screens/rate_screen.dart';
 import 'screens/swipe_screen.dart';
 import 'screens/trust_screen.dart';
-import 'v2_data.dart';
 import 'v2_state.dart';
 
 /// The phone shell every v2 screen sits inside: the aurora wash, the language
@@ -33,7 +32,12 @@ class V2App extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => V2State(),
+      // Kick the catalogue fetch as the shell mounts, so the feed has real
+      // venues by the time onboarding hands over to Explore.
+      create: (_) => V2State()
+        ..loadVenues()
+        ..loadCandidates()
+        ..loadProfile(),
       child: const V2AppBody(),
     );
   }
@@ -95,8 +99,8 @@ class V2AppBody extends StatelessWidget {
               child: SearchOverlay(
                 en: s.en,
                 onClose: () => s.setSearchOpen(false),
-                onOpenVenue: (v) =>
-                    s.openPlace(kPlaces.indexWhere((p) => p.name == v.name)),
+                venues: s.venues,
+                onOpenVenue: (v) => s.openVenueNamed(v.name),
               ),
             ),
 

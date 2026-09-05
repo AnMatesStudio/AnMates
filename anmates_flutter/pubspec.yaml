@@ -36,19 +36,12 @@ dependencies:
   http: ^1.2.2
   web_socket_channel: ^3.0.1
   shared_preferences: ^2.3.3
-  flutter_map: ^8.3.0
-  latlong2: ^0.9.1
   geolocator: ^14.0.2
-  url_launcher: ^6.3.1
   google_fonts: ^8.1.0
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
   firebase_storage: ^13.0.0
   image_picker: ^1.1.2
-  # Goong Maptiles is vector-only → render its MapLibre style in flutter_map.
-  # 9.x = CPU/canvas renderer (web-compatible). 10.x switches to flutter_gpu +
-  # Flutter main channel (unusable on our stable, web-first build) — keep <10.
-  vector_map_tiles: ">=9.0.0-beta.9 <10.0.0"
 
 dev_dependencies:
   flutter_test:

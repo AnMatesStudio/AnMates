@@ -2,11 +2,11 @@ package services
 
 import "context"
 
-// DBLLMVenueProvider is the legacy concierge data source: it searches the local
+// DBLLMVenueProvider is the concierge data source: it searches the local
 // `restaurants` table for candidates near the midpoint, asks the LLM to rank them,
 // and enforces the anti-hallucination rule (only ids that exist in the DB survive,
-// venue facts copied from the DB row). Kept as a fallback for deployments that have
-// a seeded restaurants table and no ai-venue-search service.
+// venue facts copied from the DB row). Requires AI_BASE_URL — an OpenAI-compatible
+// model endpoint.
 type DBLLMVenueProvider struct {
 	venues *VenueEngine
 	llm    LLMClient

@@ -1,7 +1,7 @@
 /// Pragmatic parser for the OSM `opening_hours` string so the UI can show a
 /// live "Đang mở cửa" / "Đã đóng" badge instead of dumping the raw spec at the
 /// user. (Feature A — ported from the google-maps-scraper "hours" concept, but
-/// fed by the OSM/TomTom data we already fetch — no Google Maps source.)
+/// fed by the venue data in our DB — no external source.)
 ///
 /// The full OSM grammar is huge; this handles the cases that actually appear on
 /// Vietnamese food venues:

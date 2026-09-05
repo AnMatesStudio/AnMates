@@ -34,10 +34,9 @@ type ConciergeConfig struct {
 
 // VenueProvider supplies ready-to-render venue picks around a midpoint. It is the
 // pluggable seam between "where do venues come from" and the concierge flow:
-//   - WebSearchProvider  → calls the ai-venue-search Python service (MCP web-search)
-//   - DBLLMVenueProvider → legacy restaurants table + LLM ranking (fallback)
-// The provider owns the anti-hallucination policy (the DB path validates by id;
-// the web-search path trusts the search results).
+// DBLLMVenueProvider searches the local restaurants table and asks the LLM to
+// rank candidates. The provider owns the anti-hallucination policy: only ids
+// present in the DB candidates survive, venue facts come from the DB row.
 type VenueProvider interface {
 	// Suggest returns an intro line + up to `limit` picks for `mid`. costTokens is
 	// best-effort (0 when unknown). An error means "no card this time".

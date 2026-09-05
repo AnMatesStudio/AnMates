@@ -107,33 +107,13 @@ class ApiClient {
     return prefs.getString('access_token');
   }
 
-  /// Absolute URL of the public venue-photo proxy for [query]. Render it
-  /// directly with `Image.network` — the endpoint is public (no token needed)
-  /// and CORS-friendly. [index] selects which crawled photo (0 = primary), used
-  /// by the detail-screen gallery. Returns "" for queries too short to search.
-  static String imageUrl(String query, {int index = 0, double? lat, double? lng}) {
-    final q = query.trim();
-    if (q.length < 2) return '';
-    var url = '$_baseUrl/api/v1/venues/image?q=${Uri.encodeQueryComponent(q)}';
-    if (index > 0) url += '&i=$index';
-    // Coordinates unlock the identity-grounded Foursquare→website photo source.
-    if (lat != null && lng != null && (lat != 0 || lng != 0)) {
-      url += '&lat=$lat&lng=$lng';
-    }
-    return url;
-  }
-
-  /// Absolute URL of the public image proxy for a specific [remoteUrl] (a photo
-  /// the agentic enrich crawl already resolved). The remote URL is base64url-
-  /// encoded into the `u=` param; the backend re-fetches its bytes through our
-  /// own CORS-friendly, SSRF-guarded origin. Returns "" for an empty/invalid URL.
-  static String imageProxyUrl(String remoteUrl) {
-    final u = remoteUrl.trim();
-    if (u.isEmpty || !u.startsWith('http')) return '';
-    // Unpadded base64url — matches Go's base64.RawURLEncoding on the server.
-    final enc = base64Url.encode(utf8.encode(u)).replaceAll('=', '');
-    return '$_baseUrl/api/v1/venues/image?u=$enc';
-  }
+  /// Absolute URL of one of AnMates' own stored venue photos — bytes held in
+  /// Postgres (see `venue_photos` / db/migrations/014_venue_photo_blobs.sql),
+  /// not a link to an external host. [venueId] is the catalogue row's id,
+  /// [position] its gallery slot (0 = hero). Content-addressed server-side, so
+  /// this URL is safe to cache forever once loaded.
+  static String venuePhotoUrl(String venueId, int position) =>
+      '$_baseUrl/api/v1/venues/$venueId/photos/$position';
 
   // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {

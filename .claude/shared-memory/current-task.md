@@ -1,5 +1,92 @@
 # Current Task
 
+**Status (2026-09-03, tiep tuc) — Fix goc bug API_BASE_URL bake-in (3 lop) + search that tu DB:**
+Sau khi deploy public qua Cloudflare Tunnel bi loi (feed rong tren dien thoai that), user
+xac nhan fix + yeu cau them search that. Da sua CA 3 lop tung bake absolute host vao web
+bundle: .env (API_BASE_URL=http://localhost:8080 leftover), docker-compose.yml build-arg
+default, va Dockerfile ARG default — gio ca 3 deu rong, dung dung kien truc domain-agnostic
+(Uri.base.origin runtime fallback) da co tu 2026-09-02.
+
+Them GET /api/v1/venues?q= — search server-side that, khong dau tieng Viet (foldVN, dung
+golang.org/x/text co san, khong can extension Postgres), khop ten lan dia chi. Flutter
+search_overlay.dart doi tu loc client-side (cap 60 dong) sang goi API that co debounce
+300ms, hien anh that trong ket qua.
+
+Verified: unit test foldVN/matchesQuery PASS, golangci-lint 0 issues, flutter test 50/50,
+search qua API va qua UI that (Playwright go chu that) deu dung, xac nhan hoat dong qua
+ca localhost lan tunnel Cloudflare that.
+Xem sessions/2026-09-03-v2-feed-real-db-data.md (phan 4: deploy + fix bake-in + search that).
+
+---
+
+
+**Status (2026-09-03, tiep tuc) — Anh quan that (DB blob, khong URL) + xoa SACH toan bo mock
+data trong app (CHUA user-confirm):**
+Sau khi fix bug 401, user yeu cau 2 viec tiep: (1) review cach luu anh, doi tu URL sang
+base64 luu thang DB; (2) "Xoa het data mockup, data gia di, lay data that thoi" — ap dung
+cho CA app, khong chi venue.
+
+**Anh quan (Phan 2):** root cause anh chet la Data_Pipeline publish.py rewrite path local
+thanh URL qua ngrok tunnel cua may chay pipeline — tunnel dong la chet het. Fix: doc bytes
+NGAY LUC publish (con file that de doc), base64-encode, luu ca hai ben (Data_Pipeline
+serving DB + AnMates qua migration 014 bang `venue_photos`). Endpoint moi
+`GET /venues/:id/photos/:position` public, ETag=sha256. Da chay that: 119 anh dong bo,
+xac nhan JPEG that (bun bo Hue tu TikTok, 144KB).
+
+**Xoa mock data (Phan 3):** phat hien 3 service Flutter (`match_service.dart`,
+`booking_service.dart`, `chat_socket.dart`) da viet xong production-ready nhung CHUA TUNG
+duoc goi tu UI v2 — bi bo roi khi migrate v1->v2 (R-009). Hoi user ve 3 co che gia hoan
+toan (Vibe-Check %, Trust Score gating, AI bill-split — 0 cot nao trong schema) qua
+AskUserQuestion -> chon **xoa het, khong gate gi, khong xay backend moi cho 3 thu nay**.
+Da noi that: Swipe/Mates (GET /matches - thuat toan wishlist-overlap co san), Chat (GET
+/matches/:id/messages + gui that qua ChatSocket/WebSocket), Bill doi thanh man Booking that
+(GET /matches/:id/booking). Xoa "Yuna" hardcode (dung lam TEN NGUOI DUNG HIEN TAI o 2 man
+hinh) -> `profileName` that. Cac tinh nang KHONG co backend (Notifications, Local Mates, My
+Reviews, Visited, Trust Score history) -> honest-empty state, KHONG xay tinh nang moi.
+
+**Bug tu phat hien qua Playwright that:** header chat hien "—" sau khi match vi thu tu xoa
+candidate truoc khi luu ten - da fix bang `_activeMate`/`chatPartner`. Verified full loop
+that: swipe -> POST /swipes matched:true -> match that trong DB -> chat that -> go tin nhan
+that qua WebSocket -> xac nhan da luu qua GET messages lai. golangci-lint 0 issues, flutter
+test 50/50.
+
+**Chua lam (co y, ngoai pham vi "xoa data gia"):** xay backend that cho Notifications/Local
+Mates/Reviews/Trust Score/Bill-split (do la tinh nang moi, khong phai don dep data); noi
+filter khu vuc/gia/vibe vao query.
+Xem sessions/2026-09-03-v2-feed-real-db-data.md (phan 2 + phan 3).
+
+---
+
+
+**Status (2026-09-03) — UI v2 load quán THẬT từ DB (code done, CHƯA user-confirm):**
+User: *"app đang dùng mockup data, hãy thay đổi và load data từ real DB. Hãy check DB có
+data chưa trước khi load"*. Check trước: bảng `restaurants` có **34 dòng** (16 `seed` +
+18 `pipeline`) — có data thật.
+**Phát hiện chính:** không route nào expose bảng `restaurants` (`/venues/search` = web-search
+sidecar, `/venues/nearby` = TomTom/Goong, `/venues/image` = Foursquare). `VenueEngine.
+SearchCandidates` có đọc DB nhưng chỉ concierge gọi → feed v2 buộc phải giữ mock của design.
+**Đã làm:** thêm `GET /api/v1/venues` (DB-backed, luôn bật) + `VenueCatalogService` +
+`v2_venue_mapper.dart`; **xoá `kPlaces` + `kVenues`** khỏi `v2_data.dart`; feed / search
+overlay / chip lọc khu vực / màn chi tiết đọc `V2State.venues`. Có loading + lỗi + rỗng
+(nút Thử lại), **không fallback về sample row**. Thiếu rating/giá/địa chỉ → `—` hoặc bỏ dòng,
+không bịa.
+**Verified:** golangci-lint v2.12.2 → 0 issues · flutter analyze 8 info (= baseline) ·
+flutter test **38/38** · browser thật: `200 /api/v1/venues?limit=60 → 34 venues`, feed hiện
+Bánh Mì Huỳnh Hoa ★4.5 45–75k / Bánh Xèo 46A ★4.5 70–130k / Bún Bò Giáo Toàn ★4.6 50–90k —
+khớp row DB. Screenshot: scratchpad `shots4/{feed_2,detail}.png`.
+**⚠️ Đã tự gây bug rồi sửa trong cùng session:** route ban đầu đặt sau `api.Use(jwtMW)` →
+browser thật (không token, vì UI v2 chưa có login) nhận 401 → feed rỗng, user báo *"sao không
+thấy data gì hết vậy?"*. Miss vì script Playwright tự seed token. Đã chuyển `/venues` sang
+public (`api.Get` trước `api.Use(jwtMW)`), verify lại **không token → 200 + 34 quán**, các
+route user-scoped vẫn 401. **Luôn probe API bằng session KHÔNG token trước khi báo done.**
+**Chưa làm (cố ý):** ảnh quán thật (`photos` của 18 dòng pipeline trỏ ngrok đã chết; cần
+`FOURSQUARE_KEY`); các bảng mock còn lại (`kMates`, `kNotifs`, `kTiers`, `kBill`, `kTrustLog`,
+`kLocals`, `kVisited`, `kMyReviews`) — DB chưa có dữ liệu tương ứng; filter chưa nối vào query.
+Xem sessions/2026-09-03-v2-feed-real-db-data.md.
+
+---
+
+
 **Status (2026-09-02) — R-009 CLOSED: UI v2 duyệt, xoá sạch UI v1:**
 User đã xem UI v2 (build web + `flutter run -t lib/main_v2.dart`), báo 2 bug (lưới gu món
 hàng 2/4 bị cắt mép; màn Quẹt không kéo được + nút bị nav che) — cả hai đã fix và verify.

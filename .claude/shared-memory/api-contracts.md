@@ -30,7 +30,7 @@ Base URL: `http://localhost:8080/api/v1` (dev) · `https://api.anmates.io/api/v1
 | GET | `/matches/:id/booking` | access | — | `Booking` (latest) | Member-only. 404 if none yet |
 | POST | `/matches/:id/booking/confirm` | access | — | `Booking` (status `confirmed`) | Member-only. Only the NON-proposer may confirm → 409 if proposer confirms own · 404 no active proposal |
 | POST | `/matches/:id/booking/cancel` | access | — | `Booking` (status `cancelled`) | Member-only. Either member. 404 no active booking |
-| GET | `/venues/search` | access | `?q=<text>&lat=&lng=&radius_m=&limit=` | `CardPick[]` | Free-text Discovery web-search. `q` min 2 runes else 400. `lat`/`lng` optional (default 0). `limit` max 10. 10-min TTL cache. 60s timeout. Only when `AI_SEARCH_URL` configured. |
+| GET | `/venues/search` | access | `?q=<text>&lat=&lng=&radius_m=&limit=&sort_by_distance=&max_distance_m=` | `CardPick[]` | Free-text venue search over the local `restaurants` table (foldVN diacritic-insensitive match on name/address; radius filter when lat/lng set; nearest-first). `q` min 2 runes else 400. `limit` max 10. 10-min TTL cache. Always on (no external search service). |
 
 > ✅ Implemented + build-verified 2026-05-30 (`GO111MODULE=on go build ./...` rc=0; `go vet` rc=0; `flutter analyze` 0 errors). Functional QA still pending.
 >
@@ -49,4 +49,4 @@ When **coder** ships or modifies an endpoint:
 _(Empty — add JSON examples when needed.)_
 
 ---
-**Last updated:** 2026-06-08 (added GET /venues/search — Discovery web-search)
+**Last updated:** 2026-09-04 (GET /venues/search decoupled from ai-venue-search → local `restaurants` table via VenueEngine)

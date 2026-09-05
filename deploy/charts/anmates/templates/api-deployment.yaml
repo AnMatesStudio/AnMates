@@ -33,9 +33,9 @@ spec:
               value: {{ .Values.api.env.goMemLimit | quote }}
             - name: DEV_MODE
               value: {{ .Values.api.env.devMode | quote }}
-          # DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY, GOONG_API_KEY,
-          # FOURSQUARE_KEY, SMTP_PASSWORD, DEV_BYPASS_SECRET, ... — tạo thủ công
-          # (xem plan H3), KHÔNG nhúng giá trị vào chart.
+          # DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY, SMTP_PASSWORD,
+          # DEV_BYPASS_SECRET, ... — tạo thủ công (xem plan H3), KHÔNG nhúng
+          # giá trị vào chart.
           envFrom:
             - secretRef:
                 name: {{ .Values.api.secretName }}

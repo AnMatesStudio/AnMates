@@ -4,6 +4,14 @@ class MatchCandidate {
   final String userId;
   final String name;
   final String? avatarUrl;
+
+  /// Whole years, computed server-side from birth_date — null when the
+  /// candidate never set one. Never guessed or defaulted client-side.
+  final int? age;
+
+  /// The candidate's own onboarding tags (food_tags + vibe_tags) — real
+  /// preference data, not an invented personality blurb.
+  final List<String> tags;
   final int overlapCount;
   final List<String> overlapFoods;
   final double score;
@@ -12,6 +20,8 @@ class MatchCandidate {
     required this.userId,
     required this.name,
     this.avatarUrl,
+    this.age,
+    required this.tags,
     required this.overlapCount,
     required this.overlapFoods,
     required this.score,
@@ -21,13 +31,20 @@ class MatchCandidate {
     userId: j['user_id'] as String,
     name: j['name'] as String,
     avatarUrl: j['avatar_url'] as String?,
+    age: (j['age'] as num?)?.toInt(),
+    tags: [
+      ...?(j['food_tags'] as List?)?.whereType<String>(),
+      ...?(j['vibe_tags'] as List?)?.whereType<String>(),
+    ],
     overlapCount: j['overlap_count'] as int,
     overlapFoods:
         (j['overlap_foods'] as List?)?.map((e) => e as String).toList() ?? [],
     score: (j['score'] as num).toDouble(),
   );
 
-  int get vibeScore => (score * 100).round();
+  /// Real taste-overlap percentage — how much of the union of both users'
+  /// interests is shared. Used as the swipe card's "% hợp gu" figure.
+  int get matchPct => (score * 100).round();
 }
 
 class ApiMatch {

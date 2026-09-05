@@ -6,7 +6,12 @@ import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **C2 · Quẹt gửi lời mời** — the card swipes on dining intent, not looks.
+/// **C2 · Quẹt gửi lời mời** — real candidates from a wishlist-overlap ranking
+/// (`GET /api/v1/matches`). The design's card also carried a Trust Score pill,
+/// an "urgency" badge ("Cần ăn trong 1H"), and a free-text "dining intent"
+/// sentence — none of it backed by the schema, so none of it survived. What's
+/// shown instead is exactly what the API knows: the candidate's real tags and
+/// the foods you both share.
 class SwipeScreen extends StatelessWidget {
   const SwipeScreen({super.key});
 
@@ -14,8 +19,6 @@ class SwipeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
 
-    // The action row is pinned outside the scroll view so it always clears the
-    // glass nav; only the card scrolls, and it centres when there is room.
     return Padding(
       padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
       child: Column(
@@ -42,59 +45,122 @@ class SwipeScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (s.pendingNotice case final notice?) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColorsV2.wisteriaTint,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(notice,
+                  style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12)),
+            ),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, c) => SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: c.maxHeight - 24),
-                  child: Center(child: _MateCard(s: s)),
+                  child: Center(child: _Body(s: s)),
                 ),
               ),
             ),
           ),
-          Row(children: [
-            GestureDetector(
-              onTap: s.skipMate,
-              child: Container(
-                width: 60, height: 60, alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF10366E).withValues(alpha: 0.2),
-                      blurRadius: 24,
-                      offset: const Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: Text('✕',
-                    style: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 21)),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: GestureDetector(
-                onTap: s.inviteMate,
+          if (s.hasCandidates) ...[
+            Row(children: [
+              GestureDetector(
+                onTap: s.skipMate,
                 child: Container(
-                  height: 60, alignment: Alignment.center,
+                  width: 60, height: 60, alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    gradient: AppGradientsV2.cta,
-                    borderRadius: BorderRadius.circular(24),
-                    boxShadow: AppShadowsV2.ctaGlow(opacity: 0.4),
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10366E).withValues(alpha: 0.2),
+                        blurRadius: 24,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    s.t('Gửi lời mời đi ăn', 'Send dining invite'),
-                    style: AppTextV2.cta().copyWith(fontSize: 15),
+                  child: Text('✕',
+                      style: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 21)),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: GestureDetector(
+                  onTap: s.inviteLoading ? null : s.inviteMate,
+                  child: Container(
+                    height: 60, alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: AppGradientsV2.cta,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: AppShadowsV2.ctaGlow(opacity: 0.4),
+                    ),
+                    child: s.inviteLoading
+                        ? const SizedBox(
+                            width: 20, height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                          )
+                        : Text(
+                            s.t('Gửi lời mời đi ăn', 'Send dining invite'),
+                            style: AppTextV2.cta().copyWith(fontSize: 15),
+                          ),
                   ),
                 ),
               ),
-            ),
-          ]),
+            ]),
+          ],
         ],
       ),
     );
+  }
+}
+
+class _Body extends StatelessWidget {
+  const _Body({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    if (s.candidatesLoading) {
+      return const CircularProgressIndicator(strokeWidth: 2.2, color: AppColorsV2.wisteria);
+    }
+    if (!s.hasCandidates) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              s.candidatesError != null
+                  ? s.t('Không tải được danh sách mates', "Couldn't load candidates")
+                  : s.t('Chưa có ai hợp gu để gợi ý lúc này',
+                      'No matching candidates right now'),
+              textAlign: TextAlign.center,
+              style: AppTextV2.name(size: 14),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              s.t('Thêm món vào wishlist để tìm được người hợp gu hơn.',
+                  'Add more foods to your wishlist to find better matches.'),
+              textAlign: TextAlign.center,
+              style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () => s.loadCandidates(force: true),
+              child: Text(s.t('Thử lại', 'Retry'),
+                  style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12)),
+            ),
+          ],
+        ),
+      );
+    }
+    return _MateCard(s: s);
   }
 }
 
@@ -106,7 +172,7 @@ class _MateCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final mate = s.mate;
     return Container(
-      key: ValueKey(mate.name),
+      key: ValueKey(mate.userId),
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -129,33 +195,33 @@ class _MateCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('${mate.name}, ${mate.age}',
-                    style: AppTextV2.section()
-                        .copyWith(fontSize: 21, letterSpacing: -0.525)),
-                const SizedBox(height: 3),
-                Text(s.tr(mate.meta),
-                    style: AppTextV2.body(
-                        color: AppColorsV2.inkA(0.48), size: 12)),
-                const SizedBox(height: 12),
-                _Intent(s: s),
-                const SizedBox(height: 12),
-                Wrap(spacing: 7, runSpacing: 7, children: [
-                  for (final tag in mate.tags)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEAF2FE),
-                        borderRadius: BorderRadius.circular(999),
+                Text(
+                  mate.age == null ? mate.name : '${mate.name}, ${mate.age}',
+                  style: AppTextV2.section()
+                      .copyWith(fontSize: 21, letterSpacing: -0.525),
+                ),
+                if (mate.tags.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 7, runSpacing: 7, children: [
+                    for (final tag in mate.tags.take(5))
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEAF2FE),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          tag.replaceAll('_', ' '),
+                          style: AppTextV2.name(
+                            color: const Color(0xFF1A56DB), size: 11.5,
+                          ).copyWith(fontWeight: FontWeight.w600),
+                        ),
                       ),
-                      child: Text(
-                        s.tr(tag),
-                        style: AppTextV2.name(
-                          color: const Color(0xFF1A56DB), size: 11.5,
-                        ).copyWith(fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                ]),
+                  ]),
+                ],
+                const SizedBox(height: 12),
+                _Overlap(s: s),
                 const SizedBox(height: 12),
                 Row(children: [
                   Expanded(
@@ -195,66 +261,32 @@ class _Portrait extends StatelessWidget {
     final mate = s.mate;
     return SizedBox(
       height: 172,
-      child: Stack(children: [
-        Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Color(0xFFE7F0FF), Color(0xFFF7FAFF)],
-              ),
-            ),
-            child: FoodArt(
-              asset: mate.img, fillFraction: 0.62,
-              shadowOpacity: 0.16, shadowBlur: 14,
-            ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFFE7F0FF), Color(0xFFF7FAFF)],
           ),
         ),
-        Positioned(
-          top: 11, left: 11,
-          child: _Pill(
-            label: s.tr(mate.urgency),
-            bg: mate.urgent ? AppColorsV2.alert : AppColorsV2.wisteria,
-            fg: Colors.white,
-          ),
+        child: FoodArt(
+          asset: mate.img, fillFraction: 0.62,
+          shadowOpacity: 0.16, shadowBlur: 14,
         ),
-        Positioned(
-          top: 11, right: 11,
-          child: _Pill(
-            label: 'Trust ${mate.trust}',
-            bg: Colors.white,
-            fg: AppColorsV2.ink,
-          ),
-        ),
-      ]),
+      ),
     );
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label, required this.bg, required this.fg});
-
-  final String label;
-  final Color bg;
-  final Color fg;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(999)),
-      child: Text(label, style: AppTextV2.name(color: fg, size: 10.5)),
-    );
-  }
-}
-
-class _Intent extends StatelessWidget {
-  const _Intent({required this.s});
+/// Real overlap facts from the API — replaces the design's invented "dining
+/// intent" sentence ("Muốn ăn lẩu bò tối nay, chia đều 4 người").
+class _Overlap extends StatelessWidget {
+  const _Overlap({required this.s});
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
+    final foods = s.mate.overlapFoods;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -265,12 +297,14 @@ class _Intent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            s.t('Ý ĐỊNH ĐI ĂN', 'DINING INTENT'),
+            s.t('CÙNG THÍCH', 'BOTH LIKE'),
             style: AppTextV2.eyebrow().copyWith(fontSize: 10),
           ),
           const SizedBox(height: 5),
           Text(
-            s.tr(s.mate.intent),
+            foods.isEmpty
+                ? s.t('Chưa rõ điểm chung', 'No shared foods on file yet')
+                : foods.map((f) => f.replaceAll('_', ' ')).join(', '),
             style: AppTextV2.name(size: 14).copyWith(height: 1.4),
           ),
         ],

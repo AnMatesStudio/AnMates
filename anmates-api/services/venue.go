@@ -51,7 +51,7 @@ func HaversineM(a, b LatLng) float64 {
 
 // Midpoint returns the average of two coordinates. For intra-city distances the
 // simple mean is within metres of the true geographic midpoint — adequate for the
-// MVP slice. Replace with Goong Distance-Matrix travel-time midpoint in V2.
+// MVP slice.
 func Midpoint(a, b LatLng) LatLng {
 	return LatLng{Lat: (a.Lat + b.Lat) / 2, Lng: (a.Lng + b.Lng) / 2}
 }

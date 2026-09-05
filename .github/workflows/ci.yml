@@ -6,9 +6,10 @@ name: CI
 # Deploy stays MANUAL on the host — the last job prints the exact helm command.
 # See docs/plans/2026-09-01-mvp-1day-onprem-k8s.md.
 #
-# Only secret needed: GOONG_MAPTILES_KEY. GHCR login uses the built-in
-# GITHUB_TOKEN. No repo variables — the web image is domain-agnostic (nginx
-# proxies /api/ + /ws/ same-origin, see anmates_flutter/nginx.conf).
+# No repo secrets needed. GHCR login uses the built-in GITHUB_TOKEN. The web
+# image is domain-agnostic (nginx proxies /api/ + /ws/ same-origin, see
+# anmates_flutter/nginx.conf) — no API_BASE_URL or map-key dart-defines exist
+# anymore (all venue data, including photos, lives in the API DB).
 
 on:
   pull_request:
@@ -112,18 +113,14 @@ jobs:
           flutter analyze --no-fatal-infos
           flutter test --reporter=compact
 
-      # No --dart-define=API_BASE_URL on purpose: the bundle resolves its own
-      # origin at runtime (auth_service.dart), so one image works behind any
-      # hostname — no rebuild when DNS/tunnel changes.
+      # No --dart-define on purpose: the bundle resolves its own origin at
+      # runtime (auth_service.dart), so one image works behind any hostname —
+      # no rebuild when DNS/tunnel changes. All venue data (incl. photos)
+      # comes from the API; there are no client-side map/search keys anymore.
       - name: Build web bundle
         working-directory: anmates_flutter
-        env:
-          # Via env (not inline interpolation) so a key with shell metacharacters
-          # can't break or inject into the command.
-          GOONG_MAPTILES_KEY: ${{ secrets.GOONG_MAPTILES_KEY }}
         run: |
-          flutter build web --release \
-            --dart-define=GOONG_MAPTILES_KEY="$GOONG_MAPTILES_KEY"
+          flutter build web --release
 
       - uses: docker/setup-buildx-action@v3
 

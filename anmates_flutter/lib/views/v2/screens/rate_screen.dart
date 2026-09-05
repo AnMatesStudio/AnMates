@@ -8,7 +8,9 @@ import '../v2_kit.dart';
 import '../v2_state.dart';
 
 /// **D4 · Chốt bữa ăn** — both sides rate privately; nothing shows until both
-/// submit, and only the Trust Score moves.
+/// submit. There's no Trust Score to move any more (see trust_screen.dart) —
+/// the rating itself isn't persisted anywhere yet either, since there's no
+/// ratings table in the schema.
 class RateScreen extends StatelessWidget {
   const RateScreen({super.key});
 
@@ -26,8 +28,8 @@ class RateScreen extends StatelessWidget {
                   .copyWith(fontSize: 25, height: 1.15, letterSpacing: -0.75)),
           const SizedBox(height: 6),
           Text(
-            s.t('Hai bên rate riêng. Không ai thấy điểm của ai cho tới khi cả hai xong, và chỉ Trust Score thay đổi.',
-                'Both of you rate privately. Neither rating is shown until both are in, and only the Trust Score moves.'),
+            s.t('Hai bên rate riêng. Không ai thấy điểm của ai cho tới khi cả hai xong.',
+                'Both of you rate privately. Neither rating is shown until both are in.'),
             style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5)
                 .copyWith(height: 1.5),
           ),
@@ -48,7 +50,7 @@ class RateScreen extends StatelessWidget {
                       ),
                     ),
                     child: FoodArt(
-                      asset: s.mate.img, fillFraction: 0.8,
+                      asset: s.chatPartner.img, fillFraction: 0.8,
                       shadowOpacity: 0.12, shadowBlur: 10,
                     ),
                   ),
@@ -57,7 +59,7 @@ class RateScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(s.mate.name,
+                        Text(s.chatPartner.name,
                             style: AppTextV2.section()
                                 .copyWith(fontSize: 17, letterSpacing: -0.34)),
                         const SizedBox(height: 2),
@@ -116,30 +118,21 @@ class RateScreen extends StatelessWidget {
                     ),
                 ]),
                 const SizedBox(height: 16),
+                // The design showed a "+3 Trust Score" style effect box here.
+                // There's no trust_score column and no ratings table at all —
+                // submitting just flips a local flag, no backend persists it
+                // yet — so no point delta is claimed.
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF6F3FF),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Row(children: [
-                    Container(
-                      width: 36, height: 36, alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColorsV2.wisteria,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(s.ratePoints,
-                          style: AppTextV2.section(color: Colors.white)
-                              .copyWith(fontSize: 13, letterSpacing: 0)),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(s.rateEffect,
-                          style: AppTextV2.name(size: 12)
-                              .copyWith(fontWeight: FontWeight.w600, height: 1.45)),
-                    ),
-                  ]),
+                  child: Text(
+                    s.t('Đánh giá được gửi riêng tư, không hiển thị công khai.',
+                        'Your rating is sent privately and never shown publicly.'),
+                    style: AppTextV2.name(size: 12).copyWith(fontWeight: FontWeight.w600, height: 1.45),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 V2Cta(
@@ -179,8 +172,8 @@ class _EatAgainCard extends StatelessWidget {
               style: AppTextV2.name(size: 12.5)),
           const SizedBox(height: 6),
           Text(
-            s.t('Chọn có thì lần sau cặp này bỏ qua Vibe Check — nút hẹn mở ngay từ tin nhắn đầu.',
-                'Say yes and the pair skips Vibe Check next time — the scheduling button is open from the first message.'),
+            s.t('Giữ mate này lại để dễ nhắn tin và hẹn ăn lần sau.',
+                'Keep this mate around to message and schedule with again.'),
             style: AppTextV2.body(size: 11.5).copyWith(height: 1.5),
           ),
           const SizedBox(height: 10),

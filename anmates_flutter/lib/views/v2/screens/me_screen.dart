@@ -7,8 +7,12 @@ import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **E1 · Profile** — sticker hero, the spots you've been to as a fanned deck,
-/// and reviews you can only write after a verified check-in.
+/// **E1 · Profile** — the design paired this with a fanned deck of "spots
+/// you've been to" and reviews "only written after a verified check-in".
+/// Neither has any backing: there's no visited-venue tracking and no
+/// user-authored review table anywhere in the schema, so both sections are
+/// now an honest placeholder instead of four invented restaurant visits and
+/// three invented five-paragraph reviews.
 class MeScreen extends StatelessWidget {
   const MeScreen({super.key});
 
@@ -86,7 +90,7 @@ class MeScreen extends StatelessWidget {
                   child: const CircleAvatar(backgroundImage: AssetImage(A.avatar)),
                 ),
                 const SizedBox(height: 12),
-                Text('Yuna',
+                Text(s.profileName.isEmpty ? '—' : s.profileName,
                     style: AppTextV2.section().copyWith(fontSize: 26, letterSpacing: -0.78)),
                 const SizedBox(height: 9),
                 Padding(
@@ -143,11 +147,14 @@ class MeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 14),
-                _VisitedDeck(s: s),
-                const SizedBox(height: 2),
-                Text(s.t('Chạm vào thẻ để mở lại quán', 'Tap a card to reopen the spot'),
-                    style: AppTextV2.meta(color: AppColorsV2.inkA(0.42))
-                        .copyWith(fontSize: 11)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Text(
+                    s.t('Chưa có lịch sử ghé quán — tính năng đang phát triển.',
+                        "No visit history yet — this feature is still being built."),
+                    style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                  ),
+                ),
                 const SizedBox(height: 22),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -164,11 +171,11 @@ class MeScreen extends StatelessWidget {
                         style: AppTextV2.meta().copyWith(fontSize: 11.5),
                       ),
                       const SizedBox(height: 12),
-                      for (final r in kMyReviews) ...[
-                        _ReviewCard(s: s, review: r),
-                        const SizedBox(height: 11),
-                      ],
-                      const SizedBox(height: 5),
+                      Text(
+                        s.t('Bạn chưa viết review nào.', "You haven't written any reviews yet."),
+                        style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                      ),
+                      const SizedBox(height: 16),
                       _UpgradeCard(s: s),
                     ],
                   ),
@@ -227,21 +234,14 @@ class _TrustRow extends StatelessWidget {
           boxShadow: AppShadowsV2.pill,
         ),
         child: Row(children: [
-          SizedBox(
-            width: 56, height: 56,
-            child: CustomPaint(
-              painter: TrustRingPainter(pct: s.trust / 100),
-              child: Center(
-                child: Container(
-                  width: 44, height: 44, alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Colors.white, shape: BoxShape.circle,
-                  ),
-                  child: Text('${s.trust}',
-                      style: AppTextV2.section().copyWith(fontSize: 16, letterSpacing: 0)),
-                ),
-              ),
+          Container(
+            width: 56, height: 56, alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3F7FD),
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColorsV2.inkA(0.08)),
             ),
+            child: Text('—', style: AppTextV2.section().copyWith(fontSize: 16, letterSpacing: 0)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -250,248 +250,13 @@ class _TrustRow extends StatelessWidget {
               children: [
                 Text('Trust Score', style: AppTextV2.name(size: 13.5)),
                 const SizedBox(height: 3),
-                Text(s.trustTier,
+                Text(s.t('Chưa được theo dõi', 'Not tracked yet'),
                     style: AppTextV2.body(size: 11.5).copyWith(height: 1.4)),
               ],
             ),
           ),
           Text('›', style: AppTextV2.name(color: AppColorsV2.wisteria, size: 19)),
         ]),
-      ),
-    );
-  }
-}
-
-/// `conic-gradient(#8B5CF6 <pct>, …)` — the Trust dial.
-class TrustRingPainter extends CustomPainter {
-  const TrustRingPainter({required this.pct, this.trackColor = const Color(0xFFEFEAFB)});
-
-  final double pct;
-  final Color trackColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawArc(rect, 0, 6.2832, true, Paint()..color = trackColor);
-    canvas.drawArc(
-      rect, -1.5708, 6.2832 * pct.clamp(0.0, 1.0), true,
-      Paint()..color = AppColorsV2.wisteria,
-    );
-  }
-
-  @override
-  bool shouldRepaint(TrustRingPainter old) => old.pct != pct;
-}
-
-/// The fanned deck of visited spots — cards overlap by 44px and each sits at its
-/// own angle, so the stack reads as a hand of photos.
-class _VisitedDeck extends StatelessWidget {
-  const _VisitedDeck({required this.s});
-  final V2State s;
-
-  static const _rots = [-7.0, -2.5, 3.0, 8.0];
-  static const _lifts = [6.0, 0.0, 3.0, 11.0];
-
-  @override
-  Widget build(BuildContext context) {
-    // Cards are 118 wide and overlap by 44, so each one steps 74px along.
-    const step = 74.0;
-    const width = 118 + step * 3;
-
-    return SizedBox(
-      height: 176,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        child: SizedBox(
-          width: width,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              for (var i = 0; i < kVisited.length; i++)
-                Positioned(
-                  left: i * step,
-                  top: _lifts[i],
-                  child: Transform.rotate(
-                    angle: _rots[i] * 0.017453,
-                    child: GestureDetector(
-                      onTap: () => s.openPlace(i),
-                      child: _VisitedCard(s: s, i: i),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VisitedCard extends StatelessWidget {
-  const _VisitedCard({required this.s, required this.i});
-  final V2State s;
-  final int i;
-
-  @override
-  Widget build(BuildContext context) {
-    final v = kVisited[i];
-    return Container(
-      width: 118, height: 150,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white, width: 3),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
-          colors: [Color(0xFFE8F1FE), Color(0xFFF7FAFF)],
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0A285A).withValues(alpha: 0.22),
-            blurRadius: 26,
-            offset: const Offset(-6, 12),
-          ),
-        ],
-      ),
-      child: Stack(children: [
-        Positioned(
-          left: 4, top: 36, width: 68, height: 64,
-          child: FoodArt(asset: v.img, shadowOpacity: 0.18, shadowBlur: 13),
-        ),
-        const Positioned.fill(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                colors: [Color(0x0008142C), Color(0xCC08142C)],
-                stops: [0.46, 0.9],
-              ),
-            ),
-          ),
-        ),
-        Positioned(
-          top: 9, left: 8,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColorsV2.whiteA(0.92),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(s.tr(v.when), style: AppTextV2.name(size: 8.5)),
-          ),
-        ),
-        Positioned(
-          left: 8, bottom: 9,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: AppColorsV2.whiteA(0.94),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text('★ ${v.stars}',
-                    style: AppTextV2.section(color: AppColorsV2.wisteria)
-                        .copyWith(fontSize: 9.5, letterSpacing: 0)),
-              ),
-              const SizedBox(height: 3),
-              Text(s.tr(v.short),
-                  style: AppTextV2.name(color: AppColorsV2.whiteA(0.78), size: 9)),
-            ],
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.s, required this.review});
-
-  final V2State s;
-  final ({String img, String name, String stars, T meta, T text, List<T> tags, T helpful}) review;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColorsV2.inkA(0.07)),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: AppShadowsV2.pill,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(children: [
-            Container(
-              width: 44, height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft, end: Alignment.bottomRight,
-                  colors: [Color(0xFFE8F1FE), Color(0xFFF7FAFF)],
-                ),
-              ),
-              child: FoodArt(
-                asset: review.img, fillFraction: 0.78,
-                shadowOpacity: 0.1, shadowBlur: 8,
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(review.name, style: AppTextV2.name(size: 13.5)),
-                  const SizedBox(height: 2),
-                  Text(s.tr(review.meta),
-                      maxLines: 1, overflow: TextOverflow.ellipsis,
-                      style: AppTextV2.meta()),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4F1FD),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text('★ ${review.stars}',
-                  style: AppTextV2.section(color: AppColorsV2.wisteria)
-                      .copyWith(fontSize: 10.5, letterSpacing: 0)),
-            ),
-          ]),
-          const SizedBox(height: 11),
-          Text(s.tr(review.text),
-              style: AppTextV2.body(color: AppColorsV2.inkA(0.68), size: 12.5)
-                  .copyWith(height: 1.6)),
-          const SizedBox(height: 11),
-          Row(children: [
-            Expanded(
-              child: Wrap(spacing: 7, runSpacing: 7, children: [
-                for (final tg in review.tags)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF3F7FD),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(s.tr(tg),
-                        style: AppTextV2.meta(color: AppColorsV2.inkA(0.55))
-                            .copyWith(fontWeight: FontWeight.w600)),
-                  ),
-              ]),
-            ),
-            const SizedBox(width: 8),
-            Text(s.tr(review.helpful),
-                style: AppTextV2.meta(color: AppColorsV2.inkA(0.38))),
-          ]),
-        ],
       ),
     );
   }

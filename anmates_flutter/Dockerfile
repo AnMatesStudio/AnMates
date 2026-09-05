@@ -7,12 +7,13 @@
 # (seconds instead of minutes). Keep the nginx stage below in sync with that file.
 
 FROM ghcr.io/cirruslabs/flutter:stable AS builder
-# Absolute API URL for local compose, where web (:54180) and API (:8080) are
-# different origins. Left empty in same-origin deploys — see auth_service.dart.
-ARG API_BASE_URL=http://localhost:8080
-# Goong Maptiles key (client-side map tiles). Empty = blank "Bản đồ" tab (build
-# still succeeds). Distinct from the server-side GOONG_API_KEY (REST).
-ARG GOONG_MAPTILES_KEY=
+# Absolute API URL, baked into the JS bundle at build time. Empty by default —
+# see auth_service.dart's Uri.base.origin runtime fallback — so the same image
+# works behind localhost, a LAN IP, or a public tunnel with no rebuild. Only
+# pass a non-empty value for a split-origin deploy (web and API on different
+# hosts/ports with no reverse proxy between them); a value baked here breaks
+# every other origin (see docker-compose.yml's API_BASE_URL comment).
+ARG API_BASE_URL=
 WORKDIR /app
 
 # Prime dependency cache.
@@ -23,8 +24,7 @@ RUN flutter pub get
 COPY . .
 RUN flutter pub get \
  && flutter build web --release \
-    --dart-define=API_BASE_URL=${API_BASE_URL} \
-    --dart-define=GOONG_MAPTILES_KEY=${GOONG_MAPTILES_KEY}
+    --dart-define=API_BASE_URL=${API_BASE_URL}
 
 FROM nginx:1.27-alpine
 RUN rm -f /etc/nginx/conf.d/default.conf

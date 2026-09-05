@@ -28,17 +28,19 @@ type venueCacheEntry struct {
 	expires time.Time
 }
 
-// Venue handler: GET /api/v1/venues/search
+// Venue handler: GET /api/v1/venues/search — free-text venue search backed by
+// the app's own `restaurants` table (services.VenueEngine). No external
+// search service involved.
 type Venue struct {
-	provider *services.WebSearchProvider
-	mu       sync.Mutex
-	cache    map[string]venueCacheEntry
+	engine *services.VenueEngine
+	mu     sync.Mutex
+	cache  map[string]venueCacheEntry
 }
 
-func NewVenue(provider *services.WebSearchProvider) *Venue {
+func NewVenue(engine *services.VenueEngine) *Venue {
 	return &Venue{
-		provider: provider,
-		cache:    make(map[string]venueCacheEntry),
+		engine: engine,
+		cache:  make(map[string]venueCacheEntry),
 	}
 }
 
@@ -109,9 +111,14 @@ func (h *Venue) Search(c *fiber.Ctx) error {
 	defer cancel()
 
 	loc := services.LatLng{Lat: lat, Lng: lng}
-	picks, err := h.provider.SearchText(ctx, q, loc, radiusM, limit)
+	// No location → no geo filter (DistanceM comes back 0, per ISSUE-9 the
+	// client hides the distance label then). radiusM only applies with a center.
+	if loc.Lat == 0 && loc.Lng == 0 {
+		radiusM = 0
+	}
+	picks, err := h.engine.SearchVenues(ctx, q, loc, radiusM, limit)
 	if err != nil {
-		return httputil.Err(c, fiber.StatusBadGateway, httputil.ErrInternal, "search failed")
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "search failed")
 	}
 
 	filtered := filterAndSortPicks(picks, sortByDistance, maxDistanceM)

@@ -6,7 +6,9 @@ import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **C1 · Lọc bể match** — area, price tier, life vibe and the Trust ≥ 90 gate.
+/// **C1 · Lọc bể match** — area, price tier, life vibe. The design's fourth
+/// filter, "Trust Score ≥ 90", is gone along with the rest of that mechanic
+/// (see trust_screen.dart) — there was never a real score to filter on.
 class FiltersScreen extends StatelessWidget {
   const FiltersScreen({super.key});
 
@@ -45,10 +47,12 @@ class FiltersScreen extends StatelessWidget {
               children: [
                 _label(s.t('Khu vực / Quận', 'Area / district')),
                 const SizedBox(height: 11),
+                // Districts that actually appear in the loaded catalogue, so
+                // the sheet can't offer a filter that matches nothing.
                 Wrap(spacing: 8, runSpacing: 8, children: [
-                  for (var i = 0; i < kAreaNames.length; i++)
+                  for (var i = 0; i < s.areaNames.length; i++)
                     V2Chip(
-                      label: kAreaNames[i],
+                      label: s.areaNames[i],
                       selected: s.areas.contains(i),
                       onTap: () => s.toggleArea(i),
                     ),
@@ -81,8 +85,6 @@ class FiltersScreen extends StatelessWidget {
                       onTap: () => s.toggleVibeTag(i),
                     ),
                 ]),
-                const SizedBox(height: 22),
-                _TrustToggle(s: s),
                 const SizedBox(height: 22),
                 V2Cta(
                   label: s.filterCta,
@@ -157,62 +159,6 @@ class _PriceTrack extends StatelessWidget {
           },
         ),
       ),
-    );
-  }
-}
-
-class _TrustToggle extends StatelessWidget {
-  const _TrustToggle({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF6F3FF),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(children: [
-        GestureDetector(
-          onTap: s.toggleTrustOnly,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: 46, height: 28,
-            decoration: BoxDecoration(
-              color: s.trustOnly ? AppColorsV2.wisteria : const Color(0xFFDDE4EE),
-              borderRadius: BorderRadius.circular(99),
-            ),
-            child: AnimatedAlign(
-              duration: const Duration(milliseconds: 200),
-              alignment: s.trustOnly ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                width: 22, height: 22,
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            s.t('Chỉ mates có Trust Score ≥ 90', 'Only mates with Trust Score ≥ 90'),
-            style: AppTextV2.body(color: AppColorsV2.ink, size: 12)
-                .copyWith(fontWeight: FontWeight.w600, height: 1.45),
-          ),
-        ),
-      ]),
     );
   }
 }

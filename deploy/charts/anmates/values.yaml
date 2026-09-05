@@ -23,7 +23,7 @@ api:
   service:
     port: 8080
   # Bí danh secret tạo thủ công chứa DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
-  # GOONG_API_KEY, FOURSQUARE_KEY, SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
+  # SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
   secretName: anmates-api
   env:
     # GOMAXPROCS/GOMEMLIMIT đè giá trị hardcode cho Cloud Run 1 vCPU trong Dockerfile.

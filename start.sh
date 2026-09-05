@@ -96,67 +96,13 @@ docker info &>/dev/null || error "Cannot connect to Docker daemon ($DOCKER_RUNTI
 export API_BASE_URL="http://$LAN_IP:$API_PORT"
 log "API_BASE_URL → $API_BASE_URL"
 
-# Client-side Goong Maptiles key for the "Bản đồ" tab — export from .env so the
-# compose build arg picks it up regardless of cwd. Empty = blank map (build OK).
-GOONG_MAPTILES_KEY="$(grep -E '^GOONG_MAPTILES_KEY=' "$SCRIPT_DIR/.env" 2>/dev/null | cut -d= -f2- | tr -d '\r' | tr -d '"')"
-export GOONG_MAPTILES_KEY
-if [[ -n "$GOONG_MAPTILES_KEY" ]]; then
-  log "GOONG_MAPTILES_KEY → set (Bản đồ tab enabled)"
-else
-  warn "GOONG_MAPTILES_KEY not set in .env → Bản đồ tab will be blank"
-fi
-
-# ── 5b. Select compose files + LLM mode ──────────────────────────────────────
-# Three modes (auto-selected, overridable via env vars):
-#   A. Host Ollama   — port 11434 already in use → no Docker Ollama, sidecar
-#                      routes to host.docker.internal:11434 (GPU or CPU on host)
-#   B. Docker GPU    — OLLAMA_GPU=1 (auto-set when nvidia-smi detects a GPU)
-#   C. Docker CPU    — fallback, no GPU toolkit required
-#
+# ── 5b. Compose files ────────────────────────────────────────────────────────
 # COMPOSE_FILE is read automatically by every `docker compose` call below.
 export COMPOSE_PATH_SEPARATOR=":"
-export OLLAMA_MODEL="${OLLAMA_MODEL:-qwen2.5:3b}"
-
-# Auto-detect NVIDIA GPU when user hasn't explicitly set OLLAMA_GPU
-if [[ -z "${OLLAMA_GPU+x}" ]]; then
-  if command -v nvidia-smi &>/dev/null && nvidia-smi -L &>/dev/null 2>&1; then
-    OLLAMA_GPU=1
-  else
-    OLLAMA_GPU=0
-  fi
-fi
-
-# Detect whether the host is already running Ollama on port 11434
-_port_in_use() { (echo >/dev/tcp/127.0.0.1/"$1") 2>/dev/null; }
-HOST_OLLAMA=0
-if _port_in_use 11434; then
-  HOST_OLLAMA=1
-fi
-
-if [[ "$HOST_OLLAMA" == "1" ]]; then
-  # Mode A: host Ollama is running — use it, skip the Docker ollama service
-  export COMPOSE_FILE="docker-compose.yml:docker-compose.host-ollama.yml"
-  _gpu_name=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 || true)
-  if [[ -n "$_gpu_name" ]]; then
-    log "Ollama: host instance on :11434 detected (${_gpu_name}) — skipping Docker Ollama"
-  else
-    log "Ollama: host instance on :11434 detected — skipping Docker Ollama"
-  fi
-elif [[ "${OLLAMA_GPU}" == "1" ]]; then
-  # Mode B: no host Ollama, GPU available → Docker Ollama with GPU
-  export COMPOSE_FILE="docker-compose.yml:docker-compose.gpu.yml"
-  log "Ollama LLM: Docker GPU mode · model $OLLAMA_MODEL"
-  if ! command -v nvidia-smi &>/dev/null; then
-    warn "OLLAMA_GPU=1 but nvidia-smi not found — ensure NVIDIA Container Toolkit is installed"
-  fi
-else
-  # Mode C: no host Ollama, no GPU → Docker Ollama CPU
-  export COMPOSE_FILE="docker-compose.yml"
-  log "Ollama LLM: Docker CPU mode · model $OLLAMA_MODEL  (set OLLAMA_GPU=1 to force GPU)"
-fi
+export COMPOSE_FILE="docker-compose.yml"
 
 # ── 6. Build + start all services ────────────────────────────────────────────
-log "Building and starting services (DB · API · AI search · Ollama · Flutter web)..."
+log "Building and starting services (DB · API · Flutter web)..."
 log "First run: Flutter image pull + Dart compile may take a few minutes."
 cd "$SCRIPT_DIR"
 docker compose up --build -d 2>&1 \
@@ -194,28 +140,6 @@ for i in {1..60}; do
   fi
 done
 
-# ── 8b. Wait for the local LLM model (pulled by the ollama_pull job) ──────────
-if [[ "${HOST_OLLAMA:-0}" == "1" ]]; then
-  # Host Ollama is managing the model — nothing to wait for
-  log "LLM model: managed by host Ollama ✓"
-else
-  # The model download (~2GB first run) runs in parallel with the builds above.
-  # The AI Concierge only needs it deep in the chat flow, so this is a soft wait.
-  log "Ensuring local LLM model '$OLLAMA_MODEL' is ready (first run pulls ~2GB)..."
-  MODEL_BASE="${OLLAMA_MODEL%%:*}"
-  for i in {1..150}; do
-    if docker compose exec -T ollama ollama list 2>/dev/null | grep -qi "$MODEL_BASE"; then
-      log "LLM model ready ✓"
-      break
-    fi
-    sleep 4
-    if [[ $i == 150 ]]; then
-      warn "LLM model still downloading — AI suggestions will work once it finishes."
-      warn "  Watch:  docker compose logs -f ollama_pull"
-    fi
-  done
-fi
-
 # ── 9. Open browser ───────────────────────────────────────────────────────────
 APP_URL="http://localhost:$WEB_PORT"
 case "$PLATFORM" in
@@ -233,12 +157,6 @@ echo -e "  Flutter web   →  ${CYAN}http://localhost:$WEB_PORT${NC}"
 echo -e "  LAN (mobile)  →  ${CYAN}http://$LAN_IP:$WEB_PORT${NC}"
 echo -e "  Go API        →  ${CYAN}http://localhost:$API_PORT${NC}"
 echo -e "  API health    →  ${CYAN}http://localhost:$API_PORT/health${NC}"
-if [[ "${HOST_OLLAMA:-0}" == "1" ]]; then
-  echo -e "  Ollama LLM    →  ${CYAN}http://localhost:11434${NC}  (host)"
-else
-  echo -e "  Ollama LLM    →  container-internal  (model: $OLLAMA_MODEL)"
-  echo -e "                   docker compose exec ollama ollama list"
-fi
 echo ""
 echo -e "  Press ${YELLOW}Ctrl+C${NC} to stop"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"

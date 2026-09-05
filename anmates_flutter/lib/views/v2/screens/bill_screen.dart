@@ -1,18 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../services/booking_service.dart';
 import '../../../theme/app_theme_v2.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **D3 · AI Smart Split** — OCR the receipt, split by item or evenly, settle
-/// over VietQR. No escrow: the app never holds anyone's money.
+/// **D3 · Meal booking.** The design called this "AI Smart Split" — a
+/// receipt-OCR + per-item split + VietQR settlement flow. None of it is real:
+/// there is no OCR pipeline, no bill/amount column anywhere in the schema, and
+/// no payment integration. What IS real is the First Date booking API
+/// (`GET/POST /matches/:id/booking`, fully built in booking_service.dart but
+/// never wired into the v2 UI) — so this screen now shows that instead: the
+/// actual proposed venue and time, or an honest "not scheduled yet" state.
 class BillScreen extends StatelessWidget {
   const BillScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
+    final booking = s.booking;
 
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
@@ -23,273 +30,100 @@ class BillScreen extends StatelessWidget {
             V2BackButton(onTap: () => s.go(V2Screen.chat)),
             const SizedBox(width: 12),
             Expanded(
-              child: Text('AI Smart Split',
+              child: Text(s.t('Lịch hẹn', 'Booking'),
                   maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: AppTextV2.section()
                       .copyWith(fontSize: 25, letterSpacing: -0.75)),
             ),
           ]),
           const SizedBox(height: 8),
-          Text(s.billSub,
-              style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5)),
+          Text(
+            s.t('Không OCR, không chia bill tự động, không ký quỹ trong app — tính năng đó chưa tồn tại.',
+                "No receipt scanning, no auto-split, no in-app escrow — that feature doesn't exist yet."),
+            style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5),
+          ),
           const SizedBox(height: 16),
-          V2Sheet(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _OcrRow(s: s),
-                const SizedBox(height: 15),
-                _SplitTabs(s: s),
-                const SizedBox(height: 15),
-                for (final it in s.billItems)
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
-                    decoration: const BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Color(0xFFF0F4F9))),
-                    ),
-                    child: Row(children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(it.name,
-                                style: AppTextV2.name(size: 13.5)
-                                    .copyWith(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(it.who,
-                                style: AppTextV2.meta().copyWith(fontSize: 11)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(it.amount, style: AppTextV2.name(size: 13)),
-                    ]),
-                  ),
-                const SizedBox(height: 15),
-                Row(children: [
-                  Expanded(
-                    child: Text(s.t('Bạn phải trả', 'You owe'),
-                        style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 12.5)
-                            .copyWith(fontWeight: FontWeight.w600)),
-                  ),
-                  Text(s.yourShare,
-                      style: AppTextV2.section().copyWith(fontSize: 25, letterSpacing: -0.5)),
-                ]),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          _VietQrCard(s: s),
-          const SizedBox(height: 12),
-          _TrustNudge(s: s),
+          if (s.bookingLoading)
+            const Center(child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColorsV2.wisteria))
+          else if (booking == null)
+            _NoBookingCard(s: s)
+          else
+            _BookingCard(s: s, booking: booking),
         ],
       ),
     );
   }
 }
 
-class _OcrRow extends StatelessWidget {
-  const _OcrRow({required this.s});
+class _NoBookingCard extends StatelessWidget {
+  const _NoBookingCard({required this.s});
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 94, height: 122,
-          padding: const EdgeInsets.all(8),
-          alignment: Alignment.bottomLeft,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft, end: Alignment.bottomRight,
-              colors: [Color(0xFFEEF3FA), Color(0xFFE1E9F4)],
-            ),
-          ),
-          child: Text(
-            s.t('ảnh hóa đơn đã scan', 'scanned receipt photo'),
-            style: const TextStyle(
-              fontSize: 7.5, height: 1.35, color: Color(0xFF7A8AA0),
-              fontFamily: 'monospace',
-            ),
-          ),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: AppColorsV2.wisteriaTint,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(s.t('OCR HOÀN TẤT', 'OCR COMPLETE'),
-                    style: AppTextV2.name(color: AppColorsV2.wisteria, size: 9.5)
-                        .copyWith(letterSpacing: 0.76)),
-              ),
-              const SizedBox(height: 8),
-              Text(s.ocrLine,
-                  style: AppTextV2.name(size: 12.5)
-                      .copyWith(fontWeight: FontWeight.w600, height: 1.45)),
-              const SizedBox(height: 8),
-              Text(
-                s.t('Hóa đơn mờ hoặc viết tay? Nhập thủ công',
-                    'Blurry or handwritten? Enter manually'),
-                style: AppTextV2.name(color: const Color(0xFF1A56DB), size: 11.5)
-                    .copyWith(height: 1.4, decoration: TextDecoration.underline),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SplitTabs extends StatelessWidget {
-  const _SplitTabs({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    Widget tab(String label, bool active, VoidCallback onTap) => Expanded(
-          child: GestureDetector(
-            onTap: onTap,
-            child: Container(
-              height: 38, alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: active ? Colors.white : Colors.transparent,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                label,
-                style: AppTextV2.name(
-                  color: active ? AppColorsV2.wisteria : AppColorsV2.inkA(0.45),
-                  size: 12.5,
-                ),
-              ),
-            ),
-          ),
-        );
-
-    final equal = s.split == SplitMode.equal;
-    return Container(
-      padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F7FD),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(children: [
-        tab(s.t('Theo món', 'By item'), !equal, () => s.setSplit(SplitMode.item)),
-        const SizedBox(width: 6),
-        tab(s.t('Chia đều', 'Divided equally'), equal, () => s.setSplit(SplitMode.equal)),
-      ]),
-    );
-  }
-}
-
-class _VietQrCard extends StatelessWidget {
-  const _VietQrCard({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A56DB),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A56DB).withValues(alpha: 0.32),
-            blurRadius: 34,
-            offset: const Offset(0, 16),
+    return V2Sheet(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.t('Chưa có lịch hẹn nào', 'No booking proposed yet'),
+              style: AppTextV2.name(size: 14.5)),
+          const SizedBox(height: 8),
+          Text(
+            s.t('Đề xuất quán và giờ hẹn trong khung chat để chốt bữa ăn với ${s.chatPartner.name}.',
+                'Propose a venue and time in chat to lock in a meal with ${s.chatPartner.name}.'),
+            style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5).copyWith(height: 1.5),
           ),
         ],
       ),
-      child: Row(children: [
-        Container(
-          width: 88, height: 88,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Text(
-            s.t('VietQR mã động', 'VietQR dynamic code'),
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 7.5, height: 1.4, color: Color(0xFF7A8AA0),
-              fontFamily: 'monospace',
-            ),
-          ),
-        ),
-        const SizedBox(width: 15),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(s.t('Chuyển sòng phẳng', 'Settle straight up'),
-                  style: AppTextV2.name(color: Colors.white, size: 15)),
-              const SizedBox(height: 6),
-              Text(
-                s.t('Quét là xong. Không ký quỹ, không giữ tiền trong app.',
-                    "Scan and it's done. No escrow, no money parked in the app."),
-                style: AppTextV2.body(color: AppColorsV2.whiteA(0.86), size: 11.5)
-                    .copyWith(height: 1.5),
-              ),
-            ],
-          ),
-        ),
-      ]),
     );
   }
 }
 
-class _TrustNudge extends StatelessWidget {
-  const _TrustNudge({required this.s});
+class _BookingCard extends StatelessWidget {
+  const _BookingCard({required this.s, required this.booking});
   final V2State s;
+  final Booking booking;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => s.go(V2Screen.rate),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          gradient: AppGradientsV2.cta,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: AppShadowsV2.ctaGlow(opacity: 0.28),
-        ),
-        child: Row(children: [
+    final statusLabel = switch (booking.status) {
+      'confirmed' => s.t('Đã xác nhận', 'Confirmed'),
+      'cancelled' => s.t('Đã huỷ', 'Cancelled'),
+      'completed' => s.t('Đã hoàn tất', 'Completed'),
+      _ => s.t('Đang chờ xác nhận', 'Awaiting confirmation'),
+    };
+
+    return V2Sheet(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
           Container(
-            width: 34, height: 34, alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColorsV2.wisteria,
-              borderRadius: BorderRadius.circular(12),
+              color: AppColorsV2.wisteriaTint,
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Text('+2',
-                style: AppTextV2.section(color: Colors.white)
-                    .copyWith(fontSize: 13, letterSpacing: 0)),
+            child: Text(statusLabel.toUpperCase(),
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 9.5)
+                    .copyWith(letterSpacing: 0.76)),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              s.t('Check-in đúng giờ — Trust Score +2. Rate mate để chốt bữa ăn.',
-                  'Checked in on time — Trust Score +2. Rate your mate to close the meal.'),
-              style: AppTextV2.name(color: Colors.white, size: 12)
-                  .copyWith(fontWeight: FontWeight.w600, height: 1.45),
-            ),
+          const SizedBox(height: 12),
+          Text(booking.restaurantName, style: AppTextV2.name(size: 16)),
+          if (booking.restaurantAddress.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(booking.restaurantAddress,
+                style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12.5)),
+          ],
+          const SizedBox(height: 10),
+          Text(
+            '${booking.scheduledAt.day}/${booking.scheduledAt.month} · '
+            '${booking.scheduledAt.hour.toString().padLeft(2, '0')}:'
+            '${booking.scheduledAt.minute.toString().padLeft(2, '0')}',
+            style: AppTextV2.name(size: 13.5),
           ),
-          const SizedBox(width: 8),
-          Text('›', style: AppTextV2.name(color: Colors.white, size: 18)),
-        ]),
+        ],
       ),
     );
   }

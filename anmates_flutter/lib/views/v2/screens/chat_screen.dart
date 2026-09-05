@@ -8,23 +8,46 @@ import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **D1 / D2 · Vibe Check → Vibe Match.** The gauge boils up with every message;
-/// crossing the threshold unlocks the scheduling button and fires the celebration
-/// sheet once.
-class ChatScreen extends StatelessWidget {
+/// **D1 · Chat.** Real message history (`GET /matches/:id/messages`) plus a
+/// live WebSocket connection for new ones (`ChatSocket` in
+/// services/chat_socket.dart — fully built already, just never wired into the
+/// v2 UI until now).
+///
+/// The design's version boiled a "Vibe %" gauge with every message and popped
+/// a celebration sheet at 70% to "unlock" scheduling. No `vibe_score` exists
+/// anywhere in the schema — it was a client-side counter with no real signal
+/// behind it — so it's gone, along with the gate: scheduling a table is always
+/// reachable now, the same way messaging always was.
+class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _send(V2State s) {
+    if (_controller.text.trim().isEmpty) return;
+    s.sendRealMessage(_controller.text);
+    _controller.clear();
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
 
-    return Stack(children: [
-      Column(children: [
-        _Header(s: s),
-        Expanded(child: _Transcript(s: s)),
-        _Composer(s: s),
-      ]),
-      if (s.celebrate) _CelebrateSheet(s: s),
+    return Column(children: [
+      _Header(s: s),
+      Expanded(child: _Transcript(s: s)),
+      _Composer(s: s, controller: _controller, onSend: () => _send(s)),
     ]);
   }
 }
@@ -66,7 +89,7 @@ class _Header extends StatelessWidget {
                     boxShadow: AppShadowsV2.pill,
                   ),
                   child: FoodArt(
-                    asset: s.mate.img, fillFraction: 0.74, shadowOpacity: 0,
+                    asset: s.chatPartner.img, fillFraction: 0.74, shadowOpacity: 0,
                   ),
                 ),
                 Positioned(
@@ -87,126 +110,16 @@ class _Header extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(s.mate.name, style: AppTextV2.name(size: 15)),
+                  Text(s.chatPartner.name, style: AppTextV2.name(size: 15)),
                   Text(s.chatSub,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: AppTextV2.meta().copyWith(fontSize: 11)),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            _VibeGauge(s: s),
           ]),
         ),
       ),
-    );
-  }
-}
-
-/// The boiling gauge — a wisteria fill with a diagonal shimmer sliding across it.
-class _VibeGauge extends StatefulWidget {
-  const _VibeGauge({required this.s});
-  final V2State s;
-
-  @override
-  State<_VibeGauge> createState() => _VibeGaugeState();
-}
-
-class _VibeGaugeState extends State<_VibeGauge> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1100),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final s = widget.s;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Text('VIBE',
-              style: AppTextV2.meta(color: AppColorsV2.inkA(0.45))
-                  .copyWith(fontSize: 9.5, fontWeight: FontWeight.w600, letterSpacing: 0.57)),
-          const SizedBox(width: 5),
-          Text('${s.vibe}%',
-              style: AppTextV2.section(color: AppColorsV2.wisteria)
-                  .copyWith(fontSize: 12.5, letterSpacing: 0)),
-        ]),
-        const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(99),
-          child: SizedBox(
-            width: 72, height: 5,
-            child: Stack(children: [
-              const Positioned.fill(child: ColoredBox(color: Color(0xFFEFEAFB))),
-              AnimatedFractionallySizedBox(
-                duration: const Duration(milliseconds: 400),
-                curve: Curves.easeOutBack,
-                widthFactor: (s.vibe / 100).clamp(0.0, 1.0),
-                alignment: Alignment.centerLeft,
-                child: AnimatedBuilder(
-                  animation: _c,
-                  builder: (context, _) => CustomPaint(
-                    painter: _BoilPainter(phase: _c.value),
-                  ),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _BoilPainter extends CustomPainter {
-  _BoilPainter({required this.phase});
-  final double phase;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawRect(
-      rect,
-      Paint()..shader = const LinearGradient(
-        colors: [AppColorsV2.wisteria, Color(0xFFA78BFA)],
-      ).createShader(rect),
-    );
-
-    // `@keyframes amBoil` — repeating diagonal stripes drifting sideways.
-    canvas.save();
-    canvas.clipRect(rect);
-    final stripe = Paint()..color = Colors.white.withValues(alpha: 0.5);
-    const gap = 10.0;
-    final offset = phase * gap;
-    for (double x = -size.height - gap + offset; x < size.width + gap; x += gap) {
-      canvas.drawParallelogram(x, size, stripe);
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_BoilPainter old) => old.phase != phase;
-}
-
-extension on Canvas {
-  /// One 3px-wide slanted stripe of the boiling shimmer.
-  void drawParallelogram(double x, Size size, Paint paint) {
-    drawPath(
-      Path()
-        ..moveTo(x, size.height)
-        ..lineTo(x + size.height, 0)
-        ..lineTo(x + size.height + 3, 0)
-        ..lineTo(x + 3, size.height)
-        ..close(),
-      paint,
     );
   }
 }
@@ -217,17 +130,31 @@ class _Transcript extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (s.messagesLoading) {
+      return const Center(
+        child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColorsV2.wisteria),
+      );
+    }
+
+    final msgs = s.messages;
+    if (msgs.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
+          child: Text(
+            s.t('Match mới — gửi tin nhắn đầu tiên đi!',
+                'New match — send the first message!'),
+            textAlign: TextAlign.center,
+            style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 13),
+          ),
+        ),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
       children: [
-        Center(
-          child: Text(s.t('Hôm nay 18:42', 'Today 18:42'),
-              style: AppTextV2.meta(color: AppColorsV2.inkA(0.38)).copyWith(fontSize: 10.5)),
-        ),
-        const SizedBox(height: 10),
-        _IceBreaker(s: s),
-        const SizedBox(height: 6),
-        for (final m in s.messages) ...[
+        for (final m in msgs)
           Align(
             alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
             child: ConstrainedBox(
@@ -257,163 +184,25 @@ class _Transcript extends StatelessWidget {
               ),
             ),
           ),
-        ],
-        if (s.unlocked) const Center(child: _VibeMatchBadge()),
-        const SizedBox(height: 4),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(s.t('Đã xem', 'Seen'),
-              style: AppTextV2.meta(color: AppColorsV2.inkA(0.36)).copyWith(fontSize: 10)),
-        ),
       ],
     );
   }
 }
 
-class _IceBreaker extends StatelessWidget {
-  const _IceBreaker({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.86),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: AppColorsV2.wisteria.withValues(alpha: 0.18)),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(children: [
-            Text(s.t('PHÁ BĂNG', 'ICE-BREAKER'),
-                style: AppTextV2.eyebrow(color: AppColorsV2.wisteria)
-                    .copyWith(fontSize: 9.5)),
-            const SizedBox(height: 6),
-            Text(s.prompt, textAlign: TextAlign.center,
-                style: AppTextV2.name(size: 12.5)
-                    .copyWith(fontWeight: FontWeight.w600, height: 1.4)),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: s.sendMessage,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColorsV2.wisteriaTint,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(s.t('Trả lời · +vibe', 'Answer · +vibe'),
-                    style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11)),
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
-  }
-}
-
-class _VibeMatchBadge extends StatelessWidget {
-  const _VibeMatchBadge();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 4),
-      padding: const EdgeInsets.fromLTRB(6, 6, 12, 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: AppColorsV2.wisteria.withValues(alpha: 0.2)),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: AppColorsV2.wisteria.withValues(alpha: 0.14),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 26, height: 26, alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: AppColorsV2.wisteria, shape: BoxShape.circle,
-          ),
-          child: Transform.rotate(
-            angle: 0.785,
-            child: Container(
-              width: 10, height: 10,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(5), topRight: Radius.circular(5),
-                  bottomLeft: Radius.circular(5), bottomRight: Radius.circular(2),
-                ),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text('VIBE MATCH',
-            style: AppTextV2.section(color: AppColorsV2.wisteria)
-                .copyWith(fontSize: 11, letterSpacing: 0.44)),
-      ]),
-    );
-  }
-}
-
 class _Composer extends StatelessWidget {
-  const _Composer({required this.s});
+  const _Composer({required this.s, required this.controller, required this.onSend});
   final V2State s;
+  final TextEditingController controller;
+  final VoidCallback onSend;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(14, 0, 14, navClearance(context) - 12),
       child: Column(children: [
-        if (s.unlocked)
-          GestureDetector(
-            onTap: () => s.go(V2Screen.rate),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              decoration: BoxDecoration(
-                gradient: AppGradientsV2.cta,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: AppShadowsV2.ctaGlow(opacity: 0.3),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 8, height: 8,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColorsV2.whiteA(0.35),
-                        spreadRadius: 3,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(s.confirmCta,
-                      style: AppTextV2.name(color: Colors.white, size: 12.5)),
-                ),
-                Container(
-                  width: 30, height: 30, alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColorsV2.whiteA(0.22), shape: BoxShape.circle,
-                  ),
-                  child: Text('›',
-                      style: AppTextV2.name(color: Colors.white, size: 15)),
-                ),
-              ]),
-            ),
-          )
-        else
-          Container(
+        GestureDetector(
+          onTap: () => s.go(V2Screen.bill),
+          child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
             decoration: BoxDecoration(
               color: AppColorsV2.whiteA(0.7),
@@ -421,43 +210,49 @@ class _Composer extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             child: Row(children: [
-              Icon(Icons.lock_outline_rounded, size: 14, color: AppColorsV2.inkA(0.45)),
+              Icon(Icons.calendar_month_rounded, size: 15, color: AppColorsV2.wisteria),
               const SizedBox(width: 9),
               Expanded(
-                child: Text(s.lockedCta,
-                    style: AppTextV2.name(color: AppColorsV2.inkA(0.55), size: 11.5)
-                        .copyWith(fontWeight: FontWeight.w600)),
+                child: Text(
+                  s.booking == null
+                      ? s.t('Đặt bàn cho bữa ăn này', 'Schedule this meal')
+                      : s.billSub,
+                  style: AppTextV2.name(color: AppColorsV2.inkA(0.65), size: 11.5)
+                      .copyWith(fontWeight: FontWeight.w600),
+                ),
               ),
+              Text('›', style: AppTextV2.name(color: AppColorsV2.wisteria, size: 15)),
             ]),
           ),
+        ),
         const SizedBox(height: 8),
         Row(children: [
-          GestureDetector(
-            onTap: () => s.go(V2Screen.bill),
-            child: SizedBox(
-              width: 38, height: 38,
-              child: Icon(Icons.receipt_long_rounded,
-                  size: 21, color: AppColorsV2.wisteria),
-            ),
-          ),
-          const SizedBox(width: 8),
           Expanded(
             child: Container(
               height: 42,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              alignment: Alignment.centerLeft,
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: AppColorsV2.inkA(0.07)),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(s.t('Nhắn tin…', 'Message…'),
-                  style: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 13)),
+              child: TextField(
+                controller: controller,
+                onSubmitted: (_) => onSend(),
+                textInputAction: TextInputAction.send,
+                decoration: InputDecoration(
+                  border: InputBorder.none,
+                  isCollapsed: true,
+                  hintText: s.t('Nhắn tin…', 'Message…'),
+                  hintStyle: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 13),
+                ),
+                style: AppTextV2.body(size: 13),
+              ),
             ),
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: s.sendMessage,
+            onTap: onSend,
             child: Container(
               width: 38, height: 38,
               decoration: const BoxDecoration(
@@ -468,91 +263,6 @@ class _Composer extends StatelessWidget {
           ),
         ]),
       ]),
-    );
-  }
-}
-
-class _CelebrateSheet extends StatelessWidget {
-  const _CelebrateSheet({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned.fill(
-      child: ColoredBox(
-        color: AppColorsV2.ink.withValues(alpha: 0.52),
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(26),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Container(
-                  width: 104, height: 104, alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColorsV2.wisteria,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColorsV2.wisteria.withValues(alpha: 0.45),
-                        blurRadius: 34,
-                        offset: const Offset(0, 16),
-                      ),
-                    ],
-                  ),
-                  child: Transform.rotate(
-                    angle: 0.785,
-                    child: Container(
-                      width: 40, height: 40,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(20), topRight: Radius.circular(20),
-                          bottomLeft: Radius.circular(20), bottomRight: Radius.circular(5),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(s.t('Đã mở khóa Vibe Match', 'Vibe Match unlocked'),
-                    textAlign: TextAlign.center,
-                    style: AppTextV2.section().copyWith(fontSize: 22, height: 1.2)),
-                const SizedBox(height: 10),
-                Text(s.celebrateBody, textAlign: TextAlign.center,
-                    style: AppTextV2.body(size: 12.5).copyWith(height: 1.55)),
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: GestureDetector(
-                    onTap: () => s.go(V2Screen.rate),
-                    child: Container(
-                      height: 52, alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: AppColorsV2.wisteria,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(s.confirmCta,
-                          textAlign: TextAlign.center,
-                          style: AppTextV2.cta().copyWith(fontSize: 15)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: s.dismissCelebrate,
-                  child: Text(s.t('Nhắn tiếp đã', 'Keep chatting'),
-                      style: AppTextV2.name(color: AppColorsV2.inkA(0.45), size: 12)),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

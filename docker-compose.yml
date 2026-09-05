@@ -37,14 +37,8 @@ services:
     env_file: .env
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-debug}
-      # AI Concierge venue source = the ai-venue-search sidecar (MCP web-search).
-      # Takes precedence over AI_BASE_URL (legacy DB+LLM) when set. Reachable on the
-      # compose network by service name. Override/empty in .env to fall back.
-      AI_SEARCH_URL: ${AI_SEARCH_URL-http://ai_venue_search:8090}
     depends_on:
       db:
-        condition: service_healthy
-      ai_venue_search:
         condition: service_healthy
     healthcheck:
       # --spider just probes the URL (no body download) — most reliable across
@@ -62,108 +56,22 @@ services:
         max-size: "20m"
         max-file: "5"
 
-  # AI venue-search sidecar. FREE defaults, no keys: DuckDuckGo MCP web-search +
-  # Pollinations structurer. See ai-venue-search/README.md. Override any of the
-  # provider env vars here or in .env to switch to LM Studio / Anthropic / Brave.
-  ai_venue_search:
-    build:
-      context: ./ai-venue-search
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:8090:8090"
-    environment:
-      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-mcp}
-      MCP_SERVER_CMD: ${MCP_SERVER_CMD:-uvx duckduckgo-mcp-server}
-      MCP_FETCH_TOP_N: ${MCP_FETCH_TOP_N:-2}
-      GEOCODE_ENABLED: ${GEOCODE_ENABLED:-1}
-      # Default = the bundled `ollama` container → the structurer LLM runs fully
-      # in Docker (no host model, no cloud). Set STRUCTURER=pollinations to use the
-      # keyless cloud structurer instead.
-      STRUCTURER: ${STRUCTURER:-openai}
-      POLLINATIONS_MODEL: ${POLLINATIONS_MODEL:-openai}
-      POLLINATIONS_TOKEN: ${POLLINATIONS_TOKEN:-}
-      # Structurer LLM endpoint. Defaults to the in-Docker `ollama` service. Override
-      # to point elsewhere, e.g. host LM Studio at http://host.docker.internal:1234/v1.
-      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
-      # Ollama model tag (single source of truth, shared with the ollama_pull job).
-      LLM_MODEL: ${OLLAMA_MODEL:-qwen2.5:3b}
-      # Agentic venue enrichment (detail-screen realtime Google crawl). Headless
-      # Chromium drives google.com → finds the venue's pages → LLM verifies photos.
-      ENRICH_HEADLESS: ${ENRICH_HEADLESS:-1}
-      ENRICH_MAX_PAGES: ${ENRICH_MAX_PAGES:-4}
-      ENRICH_MAX_ITERATIONS: ${ENRICH_MAX_ITERATIONS:-2}
-      ENRICH_BING_FALLBACK: ${ENRICH_BING_FALLBACK:-1}
-    extra_hosts:
-      # Lets LLM_BASE_URL still reach a model on the host if you override it.
-      - "host.docker.internal:host-gateway"
-    depends_on:
-      ollama:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8090/health').status==200 else sys.exit(1)"]
-      interval: 10s
-      timeout: 4s
-      retries: 5
-      start_period: 20s
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # Local LLM for the venue-search structurer — keeps the whole AI path inside
-  # Docker (no host LM Studio, no cloud). Exposes an OpenAI-compatible API at
-  # /v1, which the sidecar's STRUCTURER=openai path consumes. CPU by default;
-  # for GPU, run via start.sh with OLLAMA_GPU=1 (merges docker-compose.gpu.yml).
-  ollama:
-    image: ollama/ollama:latest
-    restart: unless-stopped
-    volumes:
-      - ollama:/root/.ollama
-    # Internal service only — no host port binding to avoid conflict with a
-    # host-installed Ollama. Containers reach it via http://ollama:11434.
-    # Use `docker compose exec ollama ollama list` to inspect from the host.
-    healthcheck:
-      # `ollama list` succeeds only once the embedded server is accepting requests.
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  # One-shot job: pulls the structurer model into the shared ollama volume, then
-  # exits. Idempotent (a no-op once cached). Uses OLLAMA_HOST so the CLI drives the
-  # `ollama` server container instead of a local one. First run downloads ~2GB.
-  ollama_pull:
-    image: ollama/ollama:latest
-    depends_on:
-      ollama:
-        condition: service_healthy
-    environment:
-      OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["sh", "-c", "ollama pull ${OLLAMA_MODEL:-qwen2.5:3b}"]
-    restart: "no"
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
   flutter_web:
     build:
       context: ./anmates_flutter
       dockerfile: Dockerfile
       args:
-        API_BASE_URL: ${API_BASE_URL:-http://127.0.0.1:8080}
-        # Client-side Goong Maptiles key for the "Bản đồ" tab. Read from .env
-        # (or the shell env exported by start.sh). Empty = blank map, build OK.
-        GOONG_MAPTILES_KEY: ${GOONG_MAPTILES_KEY:-}
+        # Empty by default so the bundle stays domain-agnostic (runtime
+        # Uri.base.origin fallback in auth_service.dart) — it then works
+        # unmodified behind localhost, a LAN IP, or a public tunnel. start.sh
+        # explicitly exports a LAN IP here for the "phone on the same WiFi"
+        # workflow; that override still applies since it's a real shell env
+        # var, not this empty default. A stale non-empty API_BASE_URL in .env
+        # used to override this every plain `docker compose build` and broke
+        # every origin except the one it was baked for — see
+        # sessions/2026-09-03-v2-feed-real-db-data.md, "Deploy public qua
+        # Cloudflare Tunnel".
+        API_BASE_URL: ${API_BASE_URL:-}
     restart: unless-stopped
     ports:
       - "0.0.0.0:${FLUTTER_WEB_PORT:-54180}:80"
@@ -180,4 +88,3 @@ services:
 
 volumes:
   pgdata:
-  ollama:

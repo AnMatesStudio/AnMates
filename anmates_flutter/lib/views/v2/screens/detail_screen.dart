@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../widgets/v2/food_art.dart';
+import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **B2 · Chi tiết quán** — the AI culinary summary, five lines, cons in red.
+/// **B2 · Chi tiết quán** — the venue's own columns from `GET /api/v1/venues`,
+/// one line each, with a missing price flagged in red.
 class DetailScreen extends StatelessWidget {
   const DetailScreen({super.key});
 
@@ -23,16 +25,20 @@ class DetailScreen extends StatelessWidget {
           SizedBox(
             height: 300,
             child: Stack(children: [
-              Positioned(
-                left: 0, right: 0, bottom: 34, height: 230,
-                child: FloatingArt(
-                  period: const Duration(milliseconds: 6000),
-                  child: FoodArt(
-                    asset: place.img, fillFraction: 0.76,
-                    shadowOpacity: 0.26, shadowBlur: 26,
+              // A real photo is a full-bleed cover shot, not the small
+              // bottom-anchored floating render the design used as a
+              // placeholder — the bob-and-tilt animation and drop shadow only
+              // make sense on a transparent cutout.
+              if (place.photoUrl != null)
+                Positioned.fill(
+                  child: Image.network(
+                    place.photoUrl!,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => _DetailArt(place: place),
                   ),
-                ),
-              ),
+                )
+              else
+                _DetailArt(place: place),
               Positioned(
                 top: 104, left: 18,
                 child: V2BackButton(size: 40, onTap: () => s.go(V2Screen.home)),
@@ -126,8 +132,11 @@ class _AiSummary extends StatelessWidget {
                 color: AppColorsV2.wisteria,
                 borderRadius: BorderRadius.circular(8),
               ),
+              // These lines are the venue's own DB columns, not a generated
+              // summary — the old "AI CULINARY SUMMARY" badge would now be
+              // claiming something the content doesn't do.
               child: Text(
-                'AI CULINARY SUMMARY',
+                s.t('THÔNG TIN QUÁN', 'VENUE DETAILS'),
                 style: AppTextV2.name(color: Colors.white, size: 9.5)
                     .copyWith(letterSpacing: 0.76),
               ),
@@ -193,6 +202,28 @@ class _Stat extends StatelessWidget {
             fontWeight: FontWeight.w600, height: 1.35,
           )),
         ],
+      ),
+    );
+  }
+}
+
+/// The bottom-anchored floating 3D render — the hero's fallback when the
+/// venue has no stored photo, and the shape a photo replaces entirely rather
+/// than sitting alongside.
+class _DetailArt extends StatelessWidget {
+  const _DetailArt({required this.place});
+  final Place place;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0, right: 0, bottom: 34, height: 230,
+      child: FloatingArt(
+        period: const Duration(milliseconds: 6000),
+        child: FoodArt(
+          asset: place.img, fillFraction: 0.76,
+          shadowOpacity: 0.26, shadowBlur: 26,
+        ),
       ),
     );
   }

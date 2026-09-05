@@ -56,7 +56,10 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		me AS (
 			SELECT COALESCE((SELECT tags FROM interests WHERE user_id = $1), '{}'::text[]) AS tags
 		)
-		SELECT c.user_id, u.name, u.avatar_url, c.overlap_count, c.overlap_foods,
+		SELECT c.user_id, u.name, u.avatar_url,
+		       (date_part('year', age(u.birth_date)))::int AS age,
+		       u.food_tags, u.vibe_tags,
+		       c.overlap_count, c.overlap_foods,
 		       (c.overlap_count::float / NULLIF(c.union_count, 0)) AS score
 		FROM (
 			SELECT i.user_id,
@@ -94,7 +97,8 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 	out := make([]models.MatchCandidate, 0, 16)
 	for rows.Next() {
 		var mc models.MatchCandidate
-		if err := rows.Scan(&mc.UserID, &mc.Name, &mc.AvatarURL,
+		if err := rows.Scan(&mc.UserID, &mc.Name, &mc.AvatarURL, &mc.Age,
+			&mc.FoodTags, &mc.VibeTags,
 			&mc.OverlapCount, &mc.OverlapFoods, &mc.Score); err != nil {
 			return nil, err
 		}

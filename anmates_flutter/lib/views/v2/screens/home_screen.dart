@@ -16,8 +16,12 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
-    final tiles = kVenues.take(4).toList();
-    final cards = kVenues.sublist(1, 6);
+    // Straight from GET /api/v1/venues. The two rows show different slices of
+    // the same catalogue, and both shrink gracefully when the DB holds fewer
+    // venues than the design's six.
+    final all = s.venues;
+    final tiles = all.take(4).toList();
+    final cards = all.length > 1 ? all.skip(1).take(5).toList() : all;
 
     return Stack(
       children: [
@@ -63,11 +67,15 @@ class HomeScreen extends StatelessWidget {
                         onTap: () => s.go(V2Screen.swipe),
                       )),
                       const SizedBox(width: 10),
+                      // The design's second stat was Trust Score — no
+                      // trust_score column exists anywhere in the schema, so
+                      // it's replaced with a real number: how many candidates
+                      // GET /api/v1/matches actually returned.
                       Expanded(child: _StatCard(
-                        value: '${s.trust}',
+                        value: '${s.candidates.length}',
                         valueColor: AppColorsV2.ink,
-                        label: 'Trust Score',
-                        onTap: () => s.go(V2Screen.trust),
+                        label: s.t('mates hợp gu', 'matching mates'),
+                        onTap: () => s.go(V2Screen.swipe),
                       )),
                     ]),
                   ]),
@@ -89,7 +97,12 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                SizedBox(height: 198, child: _TileRow(tiles: tiles, s: s)),
+                SizedBox(
+                  height: 198,
+                  child: tiles.isEmpty
+                      ? _FeedPlaceholder(s: s)
+                      : _TileRow(tiles: tiles, s: s),
+                ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(18, 26, 18, 0),
                   child: Text(
@@ -97,7 +110,12 @@ class HomeScreen extends StatelessWidget {
                     style: AppTextV2.section(),
                   ),
                 ),
-                SizedBox(height: 194, child: _CardRow(cards: cards, s: s)),
+                SizedBox(
+                  height: 194,
+                  child: cards.isEmpty
+                      ? _FeedPlaceholder(s: s)
+                      : _CardRow(cards: cards, s: s),
+                ),
                 _LocalMatesCard(s: s),
               ],
             ),
@@ -136,17 +154,9 @@ class _ProfilePill extends StatelessWidget {
                   s.t('Chào buổi tối', 'Good evening'),
                   style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 9.5),
                 ),
-                Text('Yuna', style: AppTextV2.name()),
+                Text(s.profileName.isEmpty ? '—' : s.profileName, style: AppTextV2.name()),
               ],
             ),
-          ),
-          Container(
-            width: 36, height: 36, alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColorsV2.wisteriaTint, shape: BoxShape.circle,
-            ),
-            child: Text('${s.trust}',
-                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11)),
           ),
         ]),
       ),
@@ -398,7 +408,7 @@ class _TileRow extends StatelessWidget {
       itemBuilder: (context, i) {
         final v = tiles[i];
         return GestureDetector(
-          onTap: () => s.openPlace(kPlaces.indexWhere((p) => p.name == v.name)),
+          onTap: () => s.openVenueNamed(v.name),
           child: SizedBox(
             width: 132,
             child: Column(
@@ -408,14 +418,22 @@ class _TileRow extends StatelessWidget {
                   height: 120,
                   child: Stack(children: [
                     Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: AppColorsV2.tileBeds[i % AppColorsV2.tileBeds.length],
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: FoodArt(
-                          asset: v.img, fillFraction: 0.76,
-                          shadowOpacity: 0.16, shadowBlur: 12,
+                      // ClipRRect (not just BoxDecoration.borderRadius, which
+                      // doesn't clip a child) so a real cover-fit photo can't
+                      // spill past the rounded corners the color bed implies.
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: AppColorsV2.tileBeds[i % AppColorsV2.tileBeds.length],
+                          ),
+                          child: VenuePhotoOrFallback(
+                            photoUrl: v.photoUrl,
+                            fallback: FoodArt(
+                              asset: v.img, fillFraction: 0.76,
+                              shadowOpacity: 0.16, shadowBlur: 12,
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -462,7 +480,7 @@ class _CardRow extends StatelessWidget {
       itemBuilder: (context, i) {
         final v = cards[i];
         return GestureDetector(
-          onTap: () => s.openPlace(kPlaces.indexWhere((p) => p.name == v.name)),
+          onTap: () => s.openVenueNamed(v.name),
           child: Container(
             width: 138, height: 172,
             decoration: BoxDecoration(
@@ -475,9 +493,12 @@ class _CardRow extends StatelessWidget {
             child: Stack(children: [
               Positioned(
                 left: 0, right: 0, top: 14, height: 84,
-                child: FoodArt(
-                  asset: v.img, fillFraction: 0.86,
-                  shadowOpacity: 0.18, shadowBlur: 12,
+                child: VenuePhotoOrFallback(
+                  photoUrl: v.photoUrl,
+                  fallback: FoodArt(
+                    asset: v.img, fillFraction: 0.86,
+                    shadowOpacity: 0.18, shadowBlur: 12,
+                  ),
                 ),
               ),
               Positioned(
@@ -594,4 +615,52 @@ class FeedWashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(FeedWashPainter oldDelegate) => false;
+}
+
+/// Shown in place of a venue row while the catalogue is loading, when the
+/// fetch failed, or when the DB simply holds no active venues. The feed never
+/// falls back to sample rows — an empty catalogue reads as empty.
+class _FeedPlaceholder extends StatelessWidget {
+  const _FeedPlaceholder({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    if (s.venuesLoading) {
+      return const Center(
+        child: SizedBox(
+          width: 22, height: 22,
+          child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColorsV2.wisteria),
+        ),
+      );
+    }
+
+    final failed = s.venuesError != null && s.venuesError != 'empty';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              failed
+                  ? s.t('Không tải được danh sách quán', "Couldn't load venues")
+                  : s.t('Chưa có quán nào trong khu vực này',
+                      'No venues in the catalogue yet'),
+              textAlign: TextAlign.center,
+              style: AppTextV2.name(size: 13),
+            ),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: () => s.loadVenues(force: true),
+              child: Text(
+                s.t('Thử lại', 'Retry'),
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
