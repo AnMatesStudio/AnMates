@@ -1,7 +1,7 @@
 const puppeteer = require('C:/Users/Admin/AppData/Local/Temp/node_modules/puppeteer');
 
 const URL  = 'http://127.0.0.1:54180';
-const OUT  = 'C:/AnM/AnMates/.claude/shared-memory/screenshots/latest/';
+const OUT  = 'C:/AnM/AnMatesStudio/AnMates/.claude/shared-memory/screenshots/latest/';
 
 (async () => {
   const browser = await puppeteer.launch({

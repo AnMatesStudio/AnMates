@@ -8,12 +8,12 @@ If you only read one file, read **this one** — it explains the entire layout a
 
 ## Access from Anywhere
 
-**Canonical physical location:** `c:\AnM\AnMates\.claude\shared-memory\`
+**Canonical physical location:** `c:\AnM\AnMatesStudio\AnMates\.claude\shared-memory\`
 
 **Access path that works regardless of cwd:** `.claude/shared-memory/`
 
 ```
-c:\AnM\AnMates\                          ← Project root (cwd)
+c:\AnM\AnMatesStudio\AnMates\                          ← Project root (cwd)
 ├── .claude/
 │   ├── agents/                          ← Real agent definitions (team-leader, coder, qa)
 │   │   ├── team-leader.md
@@ -31,7 +31,7 @@ c:\AnM\AnMates\                          ← Project root (cwd)
 
 | Entry point | Path |
 |-------------|------|
-| CLI from project root (`c:\AnM\AnMates`) | `.claude/shared-memory/` |
+| CLI from project root (`c:\AnM\AnMatesStudio\AnMates`) | `.claude/shared-memory/` |
 | VS Code extension (project root) | `.claude/shared-memory/` |
 | `@.claude/agents/team-leader.md` invocation | Works from project root |
 

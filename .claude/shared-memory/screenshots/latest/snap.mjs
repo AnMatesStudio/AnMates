@@ -1,7 +1,7 @@
 import puppeteer from '/tmp/node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js';
 
 const URL = 'http://127.0.0.1:54180';
-const OUT = 'c:/AnM/AnMates/.claude/shared-memory/screenshots/latest/';
+const OUT = 'c:/AnM/AnMatesStudio/AnMates/.claude/shared-memory/screenshots/latest/';
 
 const browser = await puppeteer.launch({
   executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',

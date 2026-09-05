@@ -32,7 +32,7 @@ OSM tags ambiance sparsely in VN, so a strict tag-only filter would empty the li
   - **02_viahe** — Vỉa hè → fast-food/street only (Lotteria branches, KFC).
   - **03_ngoikhuya** — Ngồi khuya → bars + open-late (Quán Bar Saigon Saigon, Quán Bar Trung Tâm, Nhà Hàng Alibaba "Đang mở").
   - **04_sangchanh** — Sang chảnh → upscale (Cà Phê The Refinery, Mimi Ultra Lounge, Alibaba).
-  - Screenshots copied to `C:\AnM\AnMates\screenshots\0*.png` (originals in `.dev-e2e/shots/`).
+  - Screenshots copied to `C:\AnM\AnMatesStudio\AnMates\screenshots\0*.png` (originals in `.dev-e2e/shots/`).
 - `flutter analyze lib/views/discover/discover_view.dart lib/services/places_service.dart` → 0 errors/warnings (5 pre-existing `curly_braces` infos in the untouched `emoji` getter).
 - `flutter test test/places_merge_test.dart` → 4/4 PASS (OsmPlace additions don't break merge/dedup).
 
