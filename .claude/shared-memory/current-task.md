@@ -86,6 +86,128 @@ Xem sessions/2026-09-03-v2-feed-real-db-data.md.
 
 ---
 
+**Status (2026-09-05, rev 4) — `AnMates-Data-Bridge` viết lại theo 6 bước luồng user, đã push, CHƯA chạy thật:**
+**https://github.com/AnMatesStudio/AnMates-Data-Bridge** (PRIVATE) · commit `fe9bce3` · local
+`/Users/thanhit/AnMatesStudio/AnMates-Data-Bridge`.
+**Luồng:** PC A (Data-Pipeline/Windows) → publish **AMQP :5672** qua Tailscale → **RabbitMQ**
+container trên PC B (devops-pc, KVM host) → **writer** → **MetalLB LoadBalancer
+`192.168.122.240:5432`** → `anmates-db` pod → log kết quả → Grafana (sau).
+**Đổi so với rev 3:** NATS→RabbitMQ quorum queue · bỏ lớp HTTP ingest (PC A nói AMQP thẳng) ·
+NodePort→MetalLB · thêm OTLP traces+metrics+logs.
+**HAI CÁI BẪY, đọc kỹ trước khi làm:**
+1. **MetalLB CHƯA cài ở đâu cả** — `anmates-infra/charts/network` chỉ có ingress-nginx +
+   cert-manager. Runbook §B3 là bước cài mới.
+2. **Thu hẹp dải DHCP libvirt TRƯỚC khi cài MetalLB** — `virsh net-update default modify
+   ip-dhcp-range` về `.2–.199`, chừa `.240–.250`. Làm ngược thứ tự → cấp trùng IP, lỗi hiện
+   ngẫu nhiên vài ngày sau. Runbook §B2.
+**NEXT (user):** `docs/RUNBOOK.md` — A (PC B: RabbitMQ, kiểm bind ≠ 0.0.0.0) → B (ACL, thu hẹp
+DHCP, cài MetalLB, svc LoadBalancer, migration 014+015) → C (bật writer) → D (PC A: `pip install
+pika`, copy `anmates_publisher.py`, xoá `ANMATES_DB_URL`, đổi `sync_anmates.py`) → E (verify +
+test tắt DB 2 phút) → F (observability GĐ1).
+**Chưa làm:** chưa `docker compose up` lần nào · chưa cài MetalLB · Loki/Tempo (GĐ1/GĐ2) ·
+trigger-on-approval (đòn bẩy lớn nhất cho độ trễ hiển thị, ~7,5 phút trung vị).
+**⚠️ Repo AnMates có thay đổi CHƯA COMMIT:** 014, 015, con trỏ `docs/plans/`, shared-memory.
+Xem sessions/2026-09-05-sync-data-pipeline-onprem-1day.md (Addendum 4).
+
+---
+
+**Status (2026-09-05) — `AnMates-Data-Bridge` đã tách repo và push (PRIVATE), CHƯA chạy thật:**
+**https://github.com/AnMatesStudio/AnMates-Data-Bridge** · local
+`/Users/thanhit/AnMatesStudio/AnMates-Data-Bridge`.
+Chở quán đã duyệt từ Data-Pipeline (Windows) qua tailnet vào `anmates-db`, KHÔNG mở subnet:
+`bridge :8443` bind đúng IP tailnet trên devops-pc → NATS JetStream → writer → NodePort 30432
+(chỉ host với tới, vì devops-pc vốn đã là gateway virbr0 `192.168.122.1`).
+**Trong repo mới:** compose 3 service, service thật (`bridge/app/`), client cho Windows
+(`client/bridge_client.py`), `docs/RUNBOOK.md` setup 2 máy với 6 cổng kiểm soát.
+**Ở LẠI repo này:** `anmates-api/db/migrations/014_pipeline_source.sql` + `015_sync_ledger.sql`
+— đi vào binary api qua `//go:embed`, tách ra là migration runner không thấy.
+**NEXT (user):** theo `docs/RUNBOOK.md` — Phần A (devops-pc: ghim IP VM, `.env`, `make up`,
+systemd) → B (ACL 1 dòng, TẮT `--advertise-routes` nếu từng bật, commit+CI+helm cho migration,
+NodePort) → C (Windows: clone repo, copy client, xoá `ANMATES_DB_URL` khỏi `.env`, sửa
+`sync_anmates.py` bỏ `upsert`/`sync_photos`) → D (verify + bài test tắt DB 2 phút).
+**Cổng quan trọng nhất (#B):** từ Windows `ping 192.168.122.11` phải KHÔNG tới,
+`curl -k https://devops-pc...:8443/healthz` phải tới.
+**Chưa làm:** chưa `docker compose up` lần nào; trigger-on-approval (đòn bẩy lớn nhất cho độ
+trễ hiển thị, ~7,5 phút trung vị) nằm phía Data-Pipeline, chưa làm.
+**⚠️ Repo AnMates có thay đổi CHƯA COMMIT:** 014, 015, file con trỏ `docs/plans/`, shared-memory.
+Xem sessions/2026-09-05-sync-data-pipeline-onprem-1day.md (Addendum 3).
+
+---
+
+**Status (2026-09-05, rev 3) — Relay + message queue trên devops-pc (design done, service CHƯA viết):**
+User không muốn mở subnet Tailscale cho máy ngoài gọi thẳng worker node → **bỏ subnet router**.
+Điểm xoay: devops-pc VỐN ĐÃ là gateway virbr0 `192.168.122.1`, host với tới VM không cần route
+nào; chỉ các máy *khác* mới thiếu đường. Nên đặt dịch vụ ngay trên host.
+**Kiến trúc `anm-relay`** (compose trên `/opt/anm-relay/`, systemd giữ sống): `ingest :8443`
+bind ĐÚNG IP tailnet + `nats` JetStream file-store (`workqueue`, dedup 24h, `max_payload=8MB`)
++ `writer` tuần tự + `nats-exporter` bind chỉ `192.168.122.1:7777`. Tailnet chỉ thấy 1 host 1
+cổng; dải `192.168.122.0/24` KHÔNG quảng bá.
+**1 message = 1 quán**, ảnh subject riêng `Nats-Msg-Id=sha256`, dedup `source_ref:content_hash`.
+Ba trạng thái: ACK → synced · NAK+backoff → quay lại stream · quá 5 lần → `venues.dlq` +
+`outcome='failed'`. Writer TỰ đẩy DLQ ở lần giao cuối (workqueue xoá message khi vượt max_deliver).
+**Được thêm:** mật khẩu Postgres rời khỏi máy Windows (chỉ còn bearer token); cụm sập vẫn nhận
+được, queue giữ hộ. **Giá:** 3 container phải giữ sống, 5 chỗ debug thay vì 3, state trên đĩa host.
+**CHƯA LÀM:** (1) service `anm-relay` chưa viết — mới có compose + unit + hợp đồng API;
+(2) `sync_anmates.py` chưa đổi từ ghi DB sang POST (code mẫu ở runbook §R4).
+**NEXT (user):** 6 cổng kiểm soát trong `docs/plans/2026-09-05-sync-pipeline-onprem-1day.md`.
+Quan trọng nhất là **#2**: từ Windows `ping 192.168.122.11` phải KHÔNG tới, còn
+`curl https://devops-pc:8443/healthz` phải tới. Nếu rev 2 đã bật `--advertise-routes` thì TẮT.
+Xem sessions/2026-09-05-sync-data-pipeline-onprem-1day.md (Addendum 2).
+
+---
+
+**Status (2026-09-05, rev 2) — Tuyến sync Data-Pipeline → catalog on-prem + lớp quan sát (design done, PENDING user chạy trên cụm):**
+⚠️ **devops-pc là KVM host, KHÔNG phải node của cụm.** Node k8s là VM sau libvirt NAT
+(`virbr0`, mặc định `192.168.122.0/24`). Tailscale chạy trên host, NodePort nghe trên IP VM →
+gói tin gửi tới `devops-pc.tail795b47.ts.net:30432` **dừng ở netstack của host**. Phương án
+rev 1 không chạy được.
+**Chốt transport:** devops-pc làm **subnet router** — `sudo tailscale up
+--advertise-routes=192.168.122.0/24` + `net.ipv4.ip_forward=1` + Approve route trong admin
+console. Windows nối thẳng `192.168.122.<node>:30432`. **Ghim static lease cho VM TRƯỚC khi
+tạo NodePort** (`virsh net-update default add ip-dhcp-host`).
+**Chốt quan sát:** 2 bảng sổ trong `anmates-db` (`015_sync_ledger.sql`) + Grafana datasource
+Postgres qua ClusterIP. Không Pushgateway/exporter. Panel quan trọng nhất: bảng "quán chưa qua
+được" (lý do nguyên văn + số ngày kẹt).
+**Migration:** `014_pipeline_source.sql` + `015_sync_ledger.sql` đi qua `go:embed`, phải commit
++ CI + `helm upgrade`, **không** `kubectl exec psql`.
+**NEXT (user):** 7 cổng kiểm soát trong `docs/plans/2026-09-05-sync-pipeline-onprem-1day.md` —
+#A ping VM · #B psql tới `:30432` · #1 schema · #2 dry-run 25/1/0 · #C `sync_runs.ok=true` ·
+#D dashboard hiện 1 dòng kẹt · #3 count = 25.
+**Chưa làm:** vá `sync_anmates.py` (~40 dòng, code có sẵn ở runbook §M1) — repo Data-Pipeline
+riêng, để user review. Xác nhận dải virbr0 thật.
+Xem sessions/2026-09-05-sync-data-pipeline-onprem-1day.md (có Addendum rev 2).
+
+---
+
+**Status (2026-09-05) — Tuyến sync Data-Pipeline → catalog on-prem, bản 1 ngày (design done, PENDING user chạy trên cụm):**
+Chốt **NodePort qua tailnet** (`svc/anmates-db-tailnet`, NodePort 30432, khoá bằng ACL Tailscale),
+KHÔNG dùng Tailscale k8s operator ở ngày 1 — theo đúng logic plan 2026-09-01 §0 và ràng buộc
+"user gõ tay mọi lệnh". Sync vẫn chạy trên máy Windows bằng Scheduled Task đã có; chỉ đổi
+`ANMATES_DB_URL` trong `Data-Pipeline/.env`, không sửa code Python.
+**Chặn cứng đã tìm ra:** `restaurants.source` CHECK chưa nhận `'pipeline'`, thiếu unique index
+`(source, source_ref)`, chưa có bảng `venue_photos` — `serving/README` dặn apply
+`013_pipeline_source.sql` nhưng file đó không tồn tại và số 013 đã bị `013_seed_admin.sql` chiếm.
+Đã viết **`anmates-api/db/migrations/014_pipeline_source.sql`**. Migration chạy qua `go:embed`
+lúc `api` boot → phải commit + CI + `helm upgrade`, **không** `kubectl exec psql`.
+**NEXT (user):** 4 cổng kiểm soát trong `docs/plans/2026-09-05-sync-pipeline-onprem-1day.md` —
+(1) `\d restaurants` thấy `'pipeline'` + có `venue_photos`; (2) từ Windows `psql` tới `:30432`;
+(3) `doctor` 5/5 + `--dry-run` ra 25 upsert / 1 skip / 0 lỗi; (4) `count(*) WHERE source='pipeline'` = 25.
+**Cần xác nhận:** `devops-pc` có phải node của cụm không (cả runbook giả định thế).
+Xem sessions/2026-09-05-sync-data-pipeline-onprem-1day.md.
+
+---
+
+**Status (2026-09-02, cache) — R-010: fix cache policy nginx, PENDING verify trên prod:**
+Sau khi deploy v2, domain vẫn ra UI v1. Root cause đã confirm (user purge → v2 hiện ngay):
+`nginx.conf` gắn `immutable, max-age=30d` cho `.js`, mà Flutter **không hash tên file** nên
+Cloudflare edge giữ `main.dart.js` cũ 30 ngày. Đã sửa: `max-age=7200` (2h, trùng default
+Cloudflare), bỏ `immutable`, bỏ `expires` (tránh gửi trùng Cache-Control), thêm `otf`.
+Giữ nguyên việc cache `.js` — bundle 2.64 MB, bỏ cache là mỗi page load kéo lại qua tunnel.
+**NEXT:** deploy → soi header của `main.dart.js` (KHÔNG phải `/`), kỳ vọng
+`cache-control: public, max-age=7200` và không còn `immutable` → confirm → cập nhật R-010.
+Nếu muốn staleness = 0: cần cache-bust URL bằng `?v=<git-sha>` (post-build sed trong CI), chưa làm.
+
+---
 
 **Status (2026-09-02) — R-009 CLOSED: UI v2 duyệt, xoá sạch UI v1:**
 User đã xem UI v2 (build web + `flutter run -t lib/main_v2.dart`), báo 2 bug (lưới gu món
