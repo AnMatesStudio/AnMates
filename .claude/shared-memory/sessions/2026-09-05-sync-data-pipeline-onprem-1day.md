@@ -388,3 +388,107 @@ phép thành phụ thuộc cứng của đường ghi dữ liệu.
 Đã verify: compose parse bằng pyyaml (3 service), mọi `.py` parse bằng `ast`, quét không có
 chuỗi bí mật nào bị staged, push thành công. **Chưa verify:** chưa `docker compose up` lần nào,
 chưa có kết nối RabbitMQ/Postgres thật, chưa cài MetalLB.
+
+
+---
+
+# Addendum 5 — sửa mạng k8s: `virbr1` / `10.10.10.0/24`
+
+User báo mạng thật của cụm là `virbr1  UP  10.10.10.1/24`, không phải `virbr0` /
+`192.168.122.0/24` như tôi giả định. Commit `402e99f`.
+
+## Đổi cơ học
+
+| Cũ | Mới |
+|---|---|
+| `virbr0` | `virbr1` |
+| `192.168.122.x` | `10.10.10.x` (gateway `.1`, MetalLB pool `.240–.250`) |
+| biến `VIRBR0_IP` | `K8S_NET_IP` — tên trung tính, không hết hiệu lực nếu bridge đổi lần nữa |
+
+Dùng regex `192\.168\.122\.(\d+)` → `10.10.10.\1` để không bị `.1` ăn nhầm vào `.11`/`.12`/`.199`.
+
+## Cái bẫy KHÔNG sửa được bằng tìm-thay-thế
+
+**Mạng libvirt gắn `virbr1` không phải tên `default`.** `default` là mạng của `virbr0` và vẫn
+tồn tại trên máy này. Mọi lệnh `virsh net-*` gõ `default` theo quán tính sẽ **sửa nhầm mạng
+khác**, và triệu chứng chỉ hiện ra khi VM cấp lại IP — rất khó truy.
+
+Đã thêm vào RUNBOOK §A1 bước dò tên thật:
+```bash
+for n in $(virsh net-list --name); do
+  printf '%-14s %s\n' "$n" "$(virsh net-dumpxml "$n" | grep -o "bridge name='[^']*'")"
+done
+K8S_NET=<tên có bridge name='virbr1'>
+```
+rồi §B2 dùng `virsh net-update "$K8S_NET"` thay cho `default`.
+
+Cũng bỏ câu "mặc định libvirt lấy gần hết `.2–.254`" trong architecture.md §3 — mạng này đã
+được đặt tay nên dải DHCP thật có thể đã khác. Runbook nay nói rõ `.2–.199` là **ví dụ**,
+phải đọc bằng `net-dumpxml` chứ đừng chép.
+
+## Phát hiện phụ: worktree bị ghi đè bằng bản cũ
+
+`docs/RUNBOOK.md` trong working tree đang là **nội dung rev 3 (297 dòng)** trong khi HEAD
+`fe9bce3` đã có **rev 4 (405 dòng)**. Nhiều khả năng một buffer cũ trong editor ghi đè lại file
+sau khi commit. Đã `git checkout HEAD -- docs/RUNBOOK.md` để lấy lại bản đúng rồi mới áp đổi
+tên. Các file khác khớp HEAD, không bị.
+
+**Bài học vận hành:** sau khi commit mà còn mở file trong editor, kiểm `git status` trước lần
+sửa kế tiếp — nếu không, một bản cũ có thể lặng lẽ quay lại và lần sửa sau sẽ áp lên nội dung sai.
+
+
+---
+
+# Addendum 6 — B4 đổi sang ingress-nginx giữ VIP (commit `7c4b852`)
+
+User: *"Service LoadBalancer cho anmates-db chưa hợp lí lắm, thay vào đó tạo Service
+LoadBalancer cho Ingress resource sau đó trỏ về anmates-db svc ClusterIP."*
+
+## Hướng đúng, nhưng một chữ phải sửa
+
+**`Ingress` resource KHÔNG route được Postgres.** Ingress là tài nguyên HTTP/HTTPS; viết một
+`Ingress` trỏ vào `anmates-db` thì `kubectl apply` báo thành công nhưng **không có gì xảy ra**
+— không cổng nào mở, không backend nào nối. Hỏng im lặng, tốn cả buổi để tìm.
+
+Cơ chế đúng là **ConfigMap `tcp-services`** (cờ `--tcp-services-configmap`). Đã **xác minh
+bằng cách giải nén chart vendored** `anmates-infra/charts/network/charts/ingress-nginx-4.15.1.tgz`:
+- `values.yaml` dòng 1260: `tcp: {}`
+- `templates/controller-configmap-tcp.yaml` sinh ConfigMap
+- `templates/controller-service.yaml` tự thêm cổng vào Service của controller
+
+→ chỉ cần `ingress-nginx.tcp: { 5432: "anmates/anmates-db:5432" }` trong wrapper chart.
+
+## Kiến trúc sau khi đổi
+
+MetalLB cấp **một VIP** `10.10.10.200` cho ingress-nginx → ingress chuyển tiếp 5432 về
+**ClusterIP sẵn có** của `anmates-db`. Database **không còn Service thứ hai**.
+
+**Được:** 1 IP MetalLB cho cả cụm thay vì 1 mỗi service · khớp spec full-reference (`.200`
+đúng là VIP ingress như đã định từ 2026-08-31) · `anmates-db` giữ nguyên ClusterIP.
+
+**Mất — ghi thẳng trong architecture.md §3:** thêm một hop trong đường ghi · **ingress-nginx
+thành SPOF của đường ghi** (restart controller là writer treo — nhưng KHÔNG mất dữ liệu vì
+message nằm trong RabbitMQ, writer nack rồi thử lại; đúng tình huống hàng đợi sinh ra để chịu)
+· không được gì của HTTP vì `tcp-services` là L4 thuần · phải bật lại component đã bị cắt có
+chủ đích trong onprem profile (~0.3 Gi).
+
+**Lựa chọn thứ ba đã ghi để sau cân nhắc:** annotation `metallb.universe.tf/allow-shared-ip`
+cho nhiều Service dùng chung một IP — được "một IP cho cả cụm" mà không thêm hop nào, đổi lại
+mất chỗ tập trung để gắn TLS/giới hạn kết nối sau này.
+
+## Đảo lại ghi chú của Addendum 5
+
+Addendum 5 viết *"đừng đưa `.200` vào pool MetalLB"*. **Nay ngược lại:** pool phải **bao**
+`.200` vì đó chính là VIP ingress sẽ ghim. Dải đổi `.240–.250` → **`.200–.250`**, và dải DHCP
+libvirt chừa `.200–.250` thay vì `.240–.250`. Đã sửa ở B2, B3 và architecture.md §3.
+
+## Đổi biến
+
+`ANMATES_DB_LB_IP` → **`ANMATES_DB_HOST`** = `10.10.10.200`.
+
+## Files
+
+`docs/RUNBOOK.md` (§B2 dải, §B3 pool + bỏ cảnh báo cũ, **§B4 viết lại hoàn toàn**, cổng #B,
+bảng troubleshooting +2 dòng gồm "viết Ingress mà không có gì xảy ra") ·
+`docs/architecture.md` (§3 viết lại, bảng cổng, bảng 6 bước) · `docs/networking-topology.html`
+(sơ đồ + bảng cổng + ô cảnh báo 3→4 mục) · `docker-compose.yml` · `.env.example` · `README.md`

@@ -10,6 +10,11 @@
 -- bằng ClusterIP + CoreDNS. Và relay vốn đã mở sẵn kết nối tới chính DB này để upsert — ghi sổ
 -- nằm cùng transaction với việc ghi dữ liệu, nên sổ không bao giờ nói dối.
 --
+-- KHÔNG lặp lại việc của 013_pipeline_source.sql (CHECK source='pipeline' + partial unique
+-- index (source, source_ref)) — file đó đã có và đã live từ 2026-08-30. Cũng KHÔNG tạo
+-- venue_photos: bảng đó do 014_venue_photo_blobs.sql sở hữu, với định nghĩa chặt hơn
+-- (CHECK mime_type, CHECK byte_size > 0, position smallint, hai unique index slot + dedup).
+--
 -- Hôm nay `skipped` chỉ đi ra logger.warning rồi chết theo tiến trình, nên "quán nào chưa vào
 -- được catalog, kẹt bao lâu rồi" không trả lời được nếu không SSH vào Windows đọc
 -- logs/publish_sync.log. Hai bảng dưới đây biến nó thành một câu SELECT.
@@ -83,4 +88,4 @@ CREATE INDEX IF NOT EXISTS idx_sync_venue_state_outcome
 -- trên host qua gateway virbr0 192.168.122.1 — hai nguồn, mỗi nguồn đúng việc của nó.
 --
 -- Role `grafana_ro` + mật khẩu KHÔNG nằm trong migration này (secret không vào git) —
--- tạo bằng tay theo runbook 2026-09-05-sync-pipeline-onprem-1day.md §R5.
+-- tạo bằng tay theo runbook AnMates-Data-Bridge docs/RUNBOOK.md §F.

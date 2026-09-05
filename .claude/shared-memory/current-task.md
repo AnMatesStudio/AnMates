@@ -86,19 +86,21 @@ Xem sessions/2026-09-03-v2-feed-real-db-data.md.
 
 ---
 
-**Status (2026-09-05, rev 4) — `AnMates-Data-Bridge` viết lại theo 6 bước luồng user, đã push, CHƯA chạy thật:**
+**Status (2026-09-05, rev 4 + sửa mạng) — `AnMates-Data-Bridge` viết lại theo 6 bước luồng user, đã push, CHƯA chạy thật:**
 **https://github.com/AnMatesStudio/AnMates-Data-Bridge** (PRIVATE) · commit `fe9bce3` · local
 `/Users/thanhit/AnMatesStudio/AnMates-Data-Bridge`.
 **Luồng:** PC A (Data-Pipeline/Windows) → publish **AMQP :5672** qua Tailscale → **RabbitMQ**
-container trên PC B (devops-pc, KVM host) → **writer** → **MetalLB LoadBalancer
-`192.168.122.240:5432`** → `anmates-db` pod → log kết quả → Grafana (sau).
+container trên PC B (devops-pc, KVM host) → **writer** → **VIP ingress-nginx `10.10.10.200:5432`** (tcp-services → ClusterIP) → `anmates-db` pod → log kết quả → Grafana (sau).
 **Đổi so với rev 3:** NATS→RabbitMQ quorum queue · bỏ lớp HTTP ingest (PC A nói AMQP thẳng) ·
 NodePort→MetalLB · thêm OTLP traces+metrics+logs.
-**HAI CÁI BẪY, đọc kỹ trước khi làm:**
+**MẠNG THẬT: `virbr1` = `10.10.10.0/24`, gateway `10.10.10.1`** (không phải virbr0/192.168.122.x).
+**BỐN CÁI BẪY, đọc kỹ trước khi làm:**
 1. **MetalLB CHƯA cài ở đâu cả** — `anmates-infra/charts/network` chỉ có ingress-nginx +
    cert-manager. Runbook §B3 là bước cài mới.
-2. **Thu hẹp dải DHCP libvirt TRƯỚC khi cài MetalLB** — `virsh net-update default modify
-   ip-dhcp-range` về `.2–.199`, chừa `.240–.250`. Làm ngược thứ tự → cấp trùng IP, lỗi hiện
+2. **Mạng libvirt gắn `virbr1` KHÔNG tên `default`** — `default` là của `virbr0`. Dò tên thật ở runbook §A1 rồi dùng `$K8S_NET`, đừng gõ `default`.
+3. **KHÔNG viết `Ingress` resource cho Postgres** — Ingress là HTTP/HTTPS, apply thành công nhưng không có gì xảy ra. Phải dùng ConfigMap `tcp-services` (§B4).
+4. **Thu hẹp dải DHCP libvirt TRƯỚC khi cài MetalLB** — `virsh net-update default modify
+   ip-dhcp-range` về `.2–.199`, chừa `.200–.250` (dải VÍ DỤ — đọc dải thật bằng `virsh net-dumpxml`). Làm ngược thứ tự → cấp trùng IP, lỗi hiện
    ngẫu nhiên vài ngày sau. Runbook §B2.
 **NEXT (user):** `docs/RUNBOOK.md` — A (PC B: RabbitMQ, kiểm bind ≠ 0.0.0.0) → B (ACL, thu hẹp
 DHCP, cài MetalLB, svc LoadBalancer, migration 014+015) → C (bật writer) → D (PC A: `pip install
