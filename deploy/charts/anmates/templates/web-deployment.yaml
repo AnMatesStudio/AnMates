@@ -31,7 +31,7 @@ spec:
             # vao day — thieu no la moi request /api treo 30s roi 502 (2026-09-06).
             # Cung namespace nen dung ten ngan la du.
             - name: API_UPSTREAM
-              value: "http://{{ .Values.api.serviceName }}:{{ .Values.api.service.port }}.{{ .Values.api.service.namespace }}.svc.cluster.local"
+              value: "http://{{ .Values.api.serviceName }}.{{ .Values.api.service.namespace }}.svc.cluster.local:{{ .Values.api.service.port }}"
           livenessProbe:
             httpGet:
               path: {{ .Values.web.probe.path }}
