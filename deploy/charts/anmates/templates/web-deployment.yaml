@@ -24,6 +24,14 @@ spec:
           ports:
             - name: http
               containerPort: 80
+          env:
+            # nginx trong pod nay proxy /api/, /ws/ va /health sang Service API.
+            # Ten Service o k8s la "anmates-api", KHAC han ten service "api" cua
+            # docker compose (mac dinh nam trong image), nen bat buoc phai truyen
+            # vao day — thieu no la moi request /api treo 30s roi 502 (2026-09-06).
+            # Cung namespace nen dung ten ngan la du.
+            - name: API_UPSTREAM
+              value: "http://{{ .Values.api.serviceName }}:{{ .Values.api.service.port }}"
           livenessProbe:
             httpGet:
               path: {{ .Values.web.probe.path }}

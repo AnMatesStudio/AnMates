@@ -1,0 +1,30 @@
+#!/bin/sh
+# Sourced (".envsh") by the nginx image entrypoint BEFORE its own
+# 20-envsubst-on-templates.sh, so what we export here is what gets substituted
+# into /etc/nginx/templates/default.conf.template.
+#
+# Both values below are PLATFORM-SPECIFIC. Hardcoding them in nginx.conf is what
+# broke prod on 2026-09-06: the file carried the docker-compose values, so on
+# k8s every /api request hung ~26s (resolver_timeout) and then returned 502.
+
+# Where /api/, /ws/ and /health are proxied.
+#   docker compose : service "api"        (container is anmates-api-1, so the
+#                                          literal name "anmates-api" never resolves)
+#   kubernetes     : service "anmates-api" (values.yaml api.serviceName — injected
+#                                          as env by deploy/.../web-deployment.yaml)
+export API_UPSTREAM="${API_UPSTREAM:-http://api:8080}"
+
+# nginx does NOT read /etc/resolv.conf for a proxy_pass that goes through a
+# variable — it needs an explicit `resolver`. The address differs per platform
+# (docker embedded DNS 127.0.0.11 vs the kube-dns/CoreDNS ClusterIP), so read the
+# first nameserver off /etc/resolv.conf instead of guessing.
+if [ -z "$NGINX_RESOLVER" ]; then
+    NGINX_RESOLVER=$(awk '/^nameserver/ { print $2; exit }' /etc/resolv.conf 2>/dev/null)
+    # An IPv6 nameserver must be bracketed in the resolver directive.
+    case "$NGINX_RESOLVER" in
+        *:*) NGINX_RESOLVER="[$NGINX_RESOLVER]" ;;
+    esac
+fi
+export NGINX_RESOLVER="${NGINX_RESOLVER:-127.0.0.11}"
+
+echo "$0: API_UPSTREAM=$API_UPSTREAM NGINX_RESOLVER=$NGINX_RESOLVER"

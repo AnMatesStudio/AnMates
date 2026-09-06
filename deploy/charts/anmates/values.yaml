@@ -19,7 +19,9 @@ imagePullSecrets:
 
 api:
   replicaCount: 1 # 1 replica ở MVP — hub WebSocket in-memory, chưa cần Redis
-  serviceName: anmates-api # PHẢI khớp với nginx.conf location /api/ + /ws/ proxy_pass
+  # Truyền vào pod web qua env API_UPSTREAM (web-deployment.yaml) — nginx.conf KHÔNG
+  # còn hardcode tên này nữa (nó mặc định tên service "api" của docker compose).
+  serviceName: anmates-api
   service:
     port: 8080
   # Bí danh secret tạo thủ công chứa DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
