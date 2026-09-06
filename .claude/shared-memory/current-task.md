@@ -1,5 +1,20 @@
 # Current Task
 
+**Status (2026-09-06) — Fix thu tu thumbnail Data_Pipeline→AnMates + rig test 1 may:**
+Va 3 bug: (1) `drop_unsendable_photos()` khong renumber sau khi loc anh trung/qua
+kho -> de lo hong `position`, Flutter duyet tuan tu bi 404 mat anh; (2) `write_photo()`
+khong xu ly case reorder (cung sha256, position moi) -> anh ket vinh vien o slot cu;
+(3) (phu, phat hien khi verify) `ensure_batch()` thieu `schema_ver` -> **MOI lan ghi
+cua writer chet**, khong lien quan thumbnail nhung chan dung toan bo duong ghi.
+Ca 3 da vá + verify bang du lieu that qua rig 1 may moi (xem
+`AnMates-Data-Bridge/docs/LOCAL_TESTING.md`) toi tan API `anmates-api` that
+(`photo_count`, `/photos/:position`). CHUA verify duoc Flutter UI thuc su (may nay
+khong co Flutter SDK) — UI v2 hien tai cung moi chi render `photoUrls.first`, chua co
+carousel nhieu anh nao dung toi danh sach day du. Xem
+`sessions/2026-09-06-thumbnail-order-fix-and-local-test-rig.md`.
+
+---
+
 **Status (2026-09-03, tiep tuc) — Fix goc bug API_BASE_URL bake-in (3 lop) + search that tu DB:**
 Sau khi deploy public qua Cloudflare Tunnel bi loi (feed rong tren dien thoai that), user
 xac nhan fix + yeu cau them search that. Da sua CA 3 lop tung bake absolute host vao web
