@@ -6,7 +6,13 @@ metadata:
     app: {{ .Values.api.serviceName }}
     app.kubernetes.io/part-of: anmates
 spec:
+  {{- if not .Values.api.hpa.enabled }}
+  # BỎ HẲN field `replicas` khi HPA bật — không phải đặt giá trị khác.
+  # Helm ghi spec.replicas ở MỌI `helm upgrade`; HPA thấy số bị đặt lại sẽ
+  # chỉnh về mức nó tính -> mỗi lần deploy là một vòng scale-down rồi scale-up.
+  # Vắng field này thì Deployment giữ nguyên replica count do HPA quản lý.
   replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Values.api.serviceName }}

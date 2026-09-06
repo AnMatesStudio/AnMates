@@ -14,12 +14,20 @@ api:
   # ServiceMonitor tồn tại. Kiểm tra: kubectl get crd servicemonitors.monitoring.coreos.com
   metrics:
     enabled: true
-  # HPA vẫn TẮT cho tới khi đủ 2 điều kiện:
-  #   1. REDIS_URL có trong Secret `anmates-api` (deploy redis.yaml bên anmates-infra)
-  #   2. Đã đo ngưỡng req/s thật bằng load-test/k6-script.js — con số 20 mặc
-  #      định trong values.yaml là ước lượng, chưa đo.
+  # HPA BẬT từ 2026-09-07 (observability + Redis backplane đã lên).
+  #
+  # Khi enabled=true, template BỎ HẲN spec.replicas -> api.replicaCount không
+  # còn tác dụng, HPA sở hữu replica count.
+  #
+  # HAI con số dưới đây vẫn là ƯỚC LƯỢNG, chưa đo:
+  #   averageValue 20 req/s/pod, averageUtilization 200 (=200m CPU)
+  # Hiệu chỉnh bằng load-test/k6-script.js rồi --set lại, lấy ~70% mức bão hoà.
+  #
+  # cpu.enabled=true cần metrics-server. Chưa có thì `kubectl top nodes` lỗi ->
+  # phải --set api.hpa.cpu.enabled=false, nếu không metric CPU không đọc được
+  # sẽ chặn scale-down của cả HPA.
   hpa:
-    enabled: false
+    enabled: true
 
 web:
   replicaCount: 2

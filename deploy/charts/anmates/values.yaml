@@ -18,7 +18,11 @@ imagePullSecrets:
   - name: ghcr-pull
 
 api:
-  replicaCount: 1 # 1 replica ở MVP — hub WebSocket in-memory, chưa cần Redis
+  # CHỈ có tác dụng khi api.hpa.enabled=false — bật HPA thì template bỏ hẳn
+  # field spec.replicas và HPA sở hữu replica count.
+  # Scale >1 đòi hỏi REDIS_URL có trong Secret `anmates-api`, nếu không mỗi
+  # replica giữ một in-process hub riêng và WebSocket broadcast không xuyên pod.
+  replicaCount: 1
   # Truyền vào pod web qua env API_UPSTREAM (web-deployment.yaml) — nginx.conf KHÔNG
   # còn hardcode tên này nữa (nó mặc định tên service "api" của docker compose).
   serviceName: anmates-api
@@ -61,8 +65,17 @@ api:
     minReplicas: 1
     maxReplicas: 5
     cpu:
-      enabled: true # đặt false nếu cụm chưa có metrics-server
-      averageUtilization: 80
+      enabled: true # đặt false nếu cụm chưa có metrics-server (kubectl top nodes)
+      # HPA tính utilization theo `requests`, KHÔNG theo `limits`. Ở đây
+      # requests.cpu=100m còn limits.cpu=1 — tỉ lệ 1:10. Nên mốc 80 (mặc định
+      # quen thuộc) thực chất là 80m CPU: pod xử lý traffic thật vượt qua trong
+      # tích tắc rồi ở lì trên ngưỡng, HPA scale tới maxReplicas và không xuống.
+      #
+      # 200 = 200m CPU = 20% năng lực của một pod (GOMAXPROCS=1). Vẫn là con số
+      # ƯỚC LƯỢNG như averageValue bên dưới — hiệu chỉnh sau khi đo bằng k6.
+      # Cách sạch hơn về lâu dài: nâng requests.cpu lên sát mức dùng thật rồi
+      # đưa averageUtilization về khoảng 70-80.
+      averageUtilization: 200
     requestsPerSecond:
       # Tên do prometheus-adapter sinh ra: http_requests_total -> http_requests_per_second.
       metricName: http_requests_per_second
