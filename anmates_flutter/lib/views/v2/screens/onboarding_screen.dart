@@ -596,34 +596,41 @@ class _TasteStep extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 26),
-            for (var r = 0; r < 4; r++) ...[
-              _TasteRow(s: s, row: r),
-              if (r != 3) const SizedBox(height: 11),
-            ],
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
-                decoration: BoxDecoration(
-                  color: AppColorsV2.whiteA(0.72),
-                  border: Border.all(color: AppColorsV2.whiteA(0.9)),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Row(children: [
-                  Text('${s.tastes.length}',
-                      style: AppTextV2.stat(color: const Color(0xFF5B6BF5))),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      s.t('món đã chọn — đủ 3 là bắt đầu ghép được',
-                          'tastes picked — three is enough to start matching'),
-                      style: AppTextV2.body(size: 12.5).copyWith(height: 1.4),
+            // Scrolls the chip grid on short screens (e.g. iPhone SE) instead of
+            // letting it push the CTA below the fold — CTA stays pinned below.
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(children: [
+                  for (var r = 0; r < 4; r++) ...[
+                    _TasteRow(s: s, row: r),
+                    if (r != 3) const SizedBox(height: 11),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 15),
+                      decoration: BoxDecoration(
+                        color: AppColorsV2.whiteA(0.72),
+                        border: Border.all(color: AppColorsV2.whiteA(0.9)),
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Row(children: [
+                        Text('${s.tastes.length}',
+                            style: AppTextV2.stat(color: const Color(0xFF5B6BF5))),
+                        const SizedBox(width: 11),
+                        Expanded(
+                          child: Text(
+                            s.t('món đã chọn — đủ 3 là bắt đầu ghép được',
+                                'tastes picked — three is enough to start matching'),
+                            style: AppTextV2.body(size: 12.5).copyWith(height: 1.4),
+                          ),
+                        ),
+                      ]),
                     ),
                   ),
                 ]),
               ),
             ),
-            const Spacer(),
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
               child: Column(children: [
