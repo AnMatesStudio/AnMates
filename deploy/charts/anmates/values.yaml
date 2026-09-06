@@ -24,6 +24,7 @@ api:
   serviceName: anmates-api
   service:
     port: 8080
+    namespace: anmates
   # Bí danh secret tạo thủ công chứa DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
   # SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
   secretName: anmates-api
@@ -51,6 +52,7 @@ web:
   serviceName: anmates-web
   service:
     port: 80
+    namespace: anmates
   probe:
     path: /
     initialDelaySeconds: 5
