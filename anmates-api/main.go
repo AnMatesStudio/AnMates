@@ -90,6 +90,10 @@ func run(log *slog.Logger) error {
 	})
 
 	app.Use(recover.New())
+	// Đặt sau recover.New(): panic được recover thành 500 rồi mới ghi vào
+	// http_requests_total, thay vì làm rơi luôn phép đo. Đặt trước cors/logger
+	// để bao trọn thời gian xử lý request.
+	middleware.Metrics(app, "anmates-api")
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",

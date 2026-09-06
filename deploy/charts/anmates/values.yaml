@@ -39,6 +39,30 @@ api:
     path: /health # đã tự ping DB — dùng chung cho liveness lẫn readiness
     initialDelaySeconds: 5
     periodSeconds: 10
+  # Prometheus scrape — cần Prometheus Operator trong cụm (chart observability
+  # ở repo anmates-infra). Bật lên khi observability đã chạy, nếu không
+  # `helm install` sẽ lỗi "no matches for kind ServiceMonitor".
+  metrics:
+    enabled: false
+    path: /metrics # middleware.Metrics; nginx của pod web KHÔNG proxy path này ra ngoài
+    interval: 30s
+    scrapeTimeout: 10s
+  # HPA custom metrics. Mặc định TẮT ở MVP: 1 replica, và hub WebSocket còn
+  # in-memory nên scale-out sẽ làm client mất broadcast (xem api.replicaCount).
+  # Bật cùng lúc với Redis hub, không sớm hơn.
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 5
+    cpu:
+      enabled: true # đặt false nếu cụm chưa có metrics-server
+      averageUtilization: 80
+    requestsPerSecond:
+      # Tên do prometheus-adapter sinh ra: http_requests_total -> http_requests_per_second.
+      metricName: http_requests_per_second
+      # 20 req/s mỗi pod. Đổi số này sau khi đo bằng load-test/k6-script.js —
+      # đừng đoán.
+      averageValue: "20"
   resources:
     requests:
       cpu: 100m

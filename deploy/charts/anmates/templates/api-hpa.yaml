@@ -1,0 +1,59 @@
+{{- if .Values.api.hpa.enabled }}
+# HPA custom metrics — xem anmates-infra/charts/observability/README.md.
+#
+# Chuỗi phụ thuộc, thiếu một mắt là HPA đứng ở <unknown>:
+#   anmates-api expose http_requests_total  (middleware.Metrics)
+#     -> ServiceMonitor (file bên cạnh) để Prometheus scrape
+#     -> prometheus-adapter đổi tên thành http_requests_per_second
+#     -> HPA đọc qua custom.metrics.k8s.io
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.api.serviceName }}
+  labels:
+    app: {{ .Values.api.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.api.serviceName }}
+  minReplicas: {{ .Values.api.hpa.minReplicas }}
+  maxReplicas: {{ .Values.api.hpa.maxReplicas }}
+  metrics:
+    {{- if .Values.api.hpa.cpu.enabled }}
+    # Metric Resource cần metrics-server trong cụm. CHƯA có metrics-server thì
+    # đặt api.hpa.cpu.enabled=false: một metric không đọc được sẽ làm HPA đặt
+    # ScalingActive=False và khoá luôn cả việc scale theo metric còn lại.
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.api.hpa.cpu.averageUtilization }}
+    {{- end }}
+    - type: Pods
+      pods:
+        metric:
+          name: {{ .Values.api.hpa.requestsPerSecond.metricName }}
+        target:
+          # averageValue = req/s TRÊN MỖI POD. Đơn vị hỗ trợ hậu tố milli:
+          # "500m" = 0.5 req/s/pod.
+          type: AverageValue
+          averageValue: {{ .Values.api.hpa.requestsPerSecond.averageValue | quote }}
+  behavior:
+    scaleUp:
+      # Cụm MVP chỉ có 13.9Gi: scale-out ồ ạt sẽ đẩy pod vào Pending vì thiếu RAM.
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+    scaleDown:
+      # Chờ 5 phút mới thu hẹp — tránh dao động khi tải lên xuống thất thường.
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+{{- end }}

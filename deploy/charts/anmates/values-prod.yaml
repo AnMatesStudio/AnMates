@@ -10,6 +10,15 @@ image:
 
 api:
   replicaCount: 1
+  # Bật scrape sau khi chart observability (repo anmates-infra) đã chạy và CRD
+  # ServiceMonitor tồn tại. Kiểm tra: kubectl get crd servicemonitors.monitoring.coreos.com
+  metrics:
+    enabled: true
+  # HPA vẫn TẮT: ws.Hub còn in-memory, nhiều replica = client mất broadcast.
+  # Bật cùng lúc với RedisHub (ws/redis_hub.go), sau khi đã đo ngưỡng req/s
+  # thật bằng load-test/k6-script.js.
+  hpa:
+    enabled: false
 
 web:
   replicaCount: 2

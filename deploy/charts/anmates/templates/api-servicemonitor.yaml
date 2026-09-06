@@ -1,0 +1,30 @@
+{{- if .Values.api.metrics.enabled }}
+# ServiceMonitor là CRD của Prometheus Operator (cài kèm kube-prometheus-stack
+# ở repo anmates-infra, chart charts/observability). Không có Operator trong
+# cụm thì apply file này sẽ lỗi "no matches for kind ServiceMonitor" —
+# giữ api.metrics.enabled=false cho tới khi observability đã chạy.
+#
+# KHÔNG cần label `release: <tên release observability>`: profile bên
+# anmates-infra đặt serviceMonitorSelectorNilUsesHelmValues=false nên Prometheus
+# nhận mọi ServiceMonitor ở mọi namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.api.serviceName }}
+  labels:
+    app: {{ .Values.api.serviceName }}
+    app.kubernetes.io/part-of: anmates
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.api.service.namespace }}
+  selector:
+    matchLabels:
+      app: {{ .Values.api.serviceName }}
+  endpoints:
+    - port: http
+      path: {{ .Values.api.metrics.path }}
+      interval: {{ .Values.api.metrics.interval }}
+      # scrapeTimeout phải < interval, nếu không Operator từ chối cấu hình.
+      scrapeTimeout: {{ .Values.api.metrics.scrapeTimeout }}
+{{- end }}
