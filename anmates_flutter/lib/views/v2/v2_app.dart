@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../theme/app_theme_v2.dart';
 import '../../widgets/v2/aurora_background.dart';
+import '../../widgets/v2/design_frame.dart';
 import '../../widgets/v2/glass_nav_bar.dart';
 import '../../widgets/v2/notifications_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
@@ -54,64 +55,69 @@ class V2AppBody extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColorsV2.canvas,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AuroraBackground(
-              washOpacity: s.washOpacity,
-              grainOpacity: s.grainOpacity,
-            ),
-          ),
-
-          Positioned.fill(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 260),
-              switchInCurve: Curves.easeOut,
-              child: KeyedSubtree(
-                key: ValueKey('${s.screen}-${s.step}'),
-                child: _screenFor(s.screen),
+      // Everything — screens, glass nav, overlays — lays out in the canvas's
+      // 402 × 874 frame and scales down together on shorter phones, so the nav
+      // keeps its proportions against the content it floats over.
+      body: DesignFrame(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: AuroraBackground(
+                washOpacity: s.washOpacity,
+                grainOpacity: s.grainOpacity,
               ),
             ),
-          ),
 
-          if (s.showNav)
-            Positioned(
-              left: 0, right: 0, bottom: 0,
-              child: SafeArea(
-                top: false,
-                child: GlassNavBar(
-                  en: s.en,
-                  current: _tabFor(s.screen),
-                  onSelect: (tab) => s.go(switch (tab) {
-                    NavTab.discover => V2Screen.home,
-                    NavTab.swipe => V2Screen.swipe,
-                    NavTab.tables => V2Screen.chat,
-                    NavTab.me => V2Screen.me,
-                  }),
+            Positioned.fill(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOut,
+                child: KeyedSubtree(
+                  key: ValueKey('${s.screen}-${s.step}'),
+                  child: _screenFor(s.screen),
                 ),
               ),
             ),
 
-          Positioned(top: topInset + 8, right: 16, child: _LangToggle(s: s)),
-
-          if (s.searchOpen)
-            Positioned.fill(
-              child: SearchOverlay(
-                en: s.en,
-                onClose: () => s.setSearchOpen(false),
-                venues: s.venues,
-                onOpenVenue: (v) => s.openVenueNamed(v.name),
+            if (s.showNav)
+              Positioned(
+                left: 0, right: 0, bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  child: GlassNavBar(
+                    en: s.en,
+                    current: _tabFor(s.screen),
+                    onSelect: (tab) => s.go(switch (tab) {
+                      NavTab.discover => V2Screen.home,
+                      NavTab.swipe => V2Screen.swipe,
+                      NavTab.tables => V2Screen.chat,
+                      NavTab.me => V2Screen.me,
+                    }),
+                  ),
+                ),
               ),
-            ),
 
-          if (s.notifsOpen)
-            Positioned.fill(
-              child: NotificationsSheet(
-                en: s.en,
-                onClose: () => s.setNotifsOpen(false),
+            Positioned(top: topInset + 8, right: 16, child: _LangToggle(s: s)),
+
+            if (s.searchOpen)
+              Positioned.fill(
+                child: SearchOverlay(
+                  en: s.en,
+                  onClose: () => s.setSearchOpen(false),
+                  venues: s.venues,
+                  onOpenVenue: (v) => s.openVenueNamed(v.name),
+                ),
               ),
-            ),
-        ],
+
+            if (s.notifsOpen)
+              Positioned.fill(
+                child: NotificationsSheet(
+                  en: s.en,
+                  onClose: () => s.setNotifsOpen(false),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

@@ -260,7 +260,14 @@ class _SocialProof extends StatelessWidget {
             Text(s.t('TỐI NAY Ở SÀI GÒN', 'TONIGHT IN SAIGON'),
                 style: AppTextV2.eyebrow(color: AppColorsV2.inkA(0.5))
                     .copyWith(fontSize: 11, letterSpacing: 1.54)),
-            const Expanded(child: Center(child: _OrbitField())),
+            // The orbit is a fixed 354×452 composition, so it has to be scaled
+            // as a whole — on a short screen it would otherwise spill over the
+            // headline below it.
+            const Expanded(
+              child: Center(
+                child: FittedBox(fit: BoxFit.contain, child: _OrbitField()),
+              ),
+            ),
             RichText(
               textAlign: TextAlign.center,
               text: TextSpan(children: [

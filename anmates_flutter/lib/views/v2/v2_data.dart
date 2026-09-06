@@ -193,6 +193,10 @@ const List<Taste> kTastes = [
 /// chip whole.
 const List<double> kTasteRowShifts = [0, 46, 0, 62];
 
+/// Height of the canvas frame every v2 metric was drawn against (402 × 874).
+/// Screens divide by it to scale their fixed sizes down on shorter phones.
+const double kDesignFrameHeight = 874;
+
 /// Orbit ring geometry for onboarding A2, in the design's 354×452 box.
 const double kOrbitCx = 177;
 const double kOrbitCy = 226;
