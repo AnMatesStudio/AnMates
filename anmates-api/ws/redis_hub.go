@@ -1,8 +1,5 @@
-//go:build ignore
-// +build ignore
-// To activate: run `go get github.com/redis/go-redis/v9`, remove the build
-// tags above, and set REDIS_URL in your environment. main.go already wires
-// NewRedisHub when cfg.RedisURL is non-empty.
+// Activated 2026-09-07: build tags removed, go-redis/v9 added to go.mod.
+// Chọn backplane qua NewBackplane() — xem backplane.go.
 
 package ws
 
@@ -13,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9" // go get github.com/redis/go-redis/v9
+	"github.com/redis/go-redis/v9"
 )
 
 const redisChanPrefix = "anmates:chat:"
@@ -22,12 +19,12 @@ const redisChanPrefix = "anmates:chat:"
 // Each instance subscribes to per-match channels; Broadcast publishes to Redis
 // so all instances in the cluster receive the message.
 type RedisHub struct {
-	rdb     *redis.Client
-	local   *Hub // local client registry — delivery still happens in-process
-	mu      sync.RWMutex
-	subs    map[uuid.UUID]*redis.PubSub // one sub per active match room
-	ctx     context.Context
-	cancel  context.CancelFunc
+	rdb    *redis.Client
+	local  *Hub // local client registry — delivery still happens in-process
+	mu     sync.RWMutex
+	subs   map[uuid.UUID]*redis.PubSub // one sub per active match room
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 type redisEnvelope struct {

@@ -25,8 +25,13 @@ api:
   service:
     port: 8080
     namespace: anmates
-  # Bí danh secret tạo thủ công chứa DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
-  # SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
+  # Bí danh secret tạo thủ công chứa DATABASE_URL, REDIS_URL, JWT_SECRET,
+  # FIREBASE_WEB_API_KEY, SMTP_PASSWORD, DEV_BYPASS_SECRET, ...
+  #
+  # REDIS_URL bật Redis pub/sub backplane cho WebSocket (ws.NewBackplane).
+  # Không có key đó trong secret = in-process Hub = phải giữ replicaCount 1 và
+  # api.hpa.enabled false. Chart KHÔNG kiểm tra được điều này — xem log startup
+  # "ws backplane: redis pub/sub" để xác nhận.
   secretName: anmates-api
   env:
     # GOMAXPROCS/GOMEMLIMIT đè giá trị hardcode cho Cloud Run 1 vCPU trong Dockerfile.
@@ -47,9 +52,10 @@ api:
     path: /metrics # middleware.Metrics; nginx của pod web KHÔNG proxy path này ra ngoài
     interval: 30s
     scrapeTimeout: 10s
-  # HPA custom metrics. Mặc định TẮT ở MVP: 1 replica, và hub WebSocket còn
-  # in-memory nên scale-out sẽ làm client mất broadcast (xem api.replicaCount).
-  # Bật cùng lúc với Redis hub, không sớm hơn.
+  # HPA custom metrics. Mặc định TẮT ở MVP.
+  # PRECONDITION: REDIS_URL phải có trong Secret `anmates-api`. Không có nó,
+  # ws.NewBackplane trả in-process Hub và mọi replica thứ 2 trở đi sẽ không
+  # nhận được WebSocket broadcast — mất message im lặng, không log, không error.
   hpa:
     enabled: false
     minReplicas: 1

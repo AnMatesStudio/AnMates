@@ -64,13 +64,18 @@ func run(log *slog.Logger) error {
 	}
 	log.Info("migrations applied")
 
-	// To enable Redis-backed hub for multi-instance deployments:
-	// 1. Run: go get github.com/redis/go-redis/v9
-	// 2. Remove the build tags from ws/redis_hub.go
-	// 3. Replace the line below with: hub, _ := ws.NewRedisHub(cfg.RedisURL)
-	hub := ws.NewHub()
-	if cfg.RedisURL != "" {
-		log.Warn("REDIS_URL set but RedisHub not yet activated — remove build:ignore tag in ws/redis_hub.go to enable")
+	// Broadcast backplane. REDIS_URL rỗng -> in-process Hub (single replica);
+	// có giá trị -> Redis pub/sub, precondition để bật HPA cho anmates-api.
+	// Fail fast khi URL malformed: pod Ready với backplane hỏng sẽ làm mất
+	// WebSocket message một cách im lặng.
+	hub, err := ws.NewBackplane(cfg.RedisURL)
+	if err != nil {
+		return fmt.Errorf("ws backplane: %w", err)
+	}
+	if cfg.RedisURL == "" {
+		log.Warn("REDIS_URL not set — using in-process hub; do NOT scale api beyond 1 replica")
+	} else {
+		log.Info("ws backplane: redis pub/sub")
 	}
 
 	app := fiber.New(fiber.Config{

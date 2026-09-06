@@ -33,9 +33,15 @@ spec:
               value: {{ .Values.api.env.goMemLimit | quote }}
             - name: DEV_MODE
               value: {{ .Values.api.env.devMode | quote }}
-          # DATABASE_URL, JWT_SECRET, FIREBASE_WEB_API_KEY, SMTP_PASSWORD,
-          # DEV_BYPASS_SECRET, ... — tạo thủ công (xem plan H3), KHÔNG nhúng
-          # giá trị vào chart.
+          # DATABASE_URL, REDIS_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
+          # SMTP_PASSWORD, DEV_BYPASS_SECRET, ... — tạo thủ công (xem plan H3),
+          # KHÔNG nhúng giá trị vào chart.
+          #
+          # REDIS_URL là connection string có credential nên nằm chung ở đây với
+          # DATABASE_URL, không tách thành secretKeyRef riêng.
+          #   redis://:<password>@anmates-redis.anmates.svc.cluster.local:6379/0
+          # Vắng mặt REDIS_URL = ws.NewBackplane trả in-process Hub -> api KHÔNG
+          # được scale quá 1 replica (api.hpa.enabled phải giữ false).
           envFrom:
             - secretRef:
                 name: {{ .Values.api.secretName }}

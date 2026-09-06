@@ -14,9 +14,10 @@ api:
   # ServiceMonitor tồn tại. Kiểm tra: kubectl get crd servicemonitors.monitoring.coreos.com
   metrics:
     enabled: true
-  # HPA vẫn TẮT: ws.Hub còn in-memory, nhiều replica = client mất broadcast.
-  # Bật cùng lúc với RedisHub (ws/redis_hub.go), sau khi đã đo ngưỡng req/s
-  # thật bằng load-test/k6-script.js.
+  # HPA vẫn TẮT cho tới khi đủ 2 điều kiện:
+  #   1. REDIS_URL có trong Secret `anmates-api` (deploy redis.yaml bên anmates-infra)
+  #   2. Đã đo ngưỡng req/s thật bằng load-test/k6-script.js — con số 20 mặc
+  #      định trong values.yaml là ước lượng, chưa đo.
   hpa:
     enabled: false
 
