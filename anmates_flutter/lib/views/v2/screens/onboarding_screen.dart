@@ -661,45 +661,58 @@ class _TasteRow extends StatelessWidget {
     final items = kTastes.sublist(row * 5, row * 5 + 5);
     return SizedBox(
       height: 54,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.only(left: 24 + kTasteRowShifts[row], right: 24),
-        itemCount: items.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 11),
-        itemBuilder: (context, j) {
-          final index = row * 5 + j;
-          final on = s.tastes.contains(index);
-          return GestureDetector(
-            onTap: () => s.toggleTaste(index),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              decoration: BoxDecoration(
-                color: on ? null : Colors.white,
-                gradient: on ? AppGradientsV2.cta : null,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: [
-                  BoxShadow(
-                    color: on
-                        ? const Color(0xFF5A50F0).withValues(alpha: 0.42)
-                        : const Color(0xFF0A285A).withValues(alpha: 0.14),
-                    blurRadius: on ? 10 : 8,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text(items[j].emoji, style: const TextStyle(fontSize: 19, height: 1)),
-                const SizedBox(width: 10),
-                Text(
-                  s.tr(items[j].name),
-                  style: AppTextV2.name(
-                    color: on ? Colors.white : AppColorsV2.ink, size: 15,
-                  ).copyWith(fontWeight: FontWeight.w600),
+      // Fades both edges so a row that overflows the viewport reads as
+      // "swipe for more" rather than a clipped/broken layout.
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (rect) => const LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            Colors.transparent, Colors.black, Colors.black, Colors.transparent,
+          ],
+          stops: [0, 0.03, 0.94, 1],
+        ).createShader(rect),
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          padding: EdgeInsets.only(left: 24 + kTasteRowShifts[row], right: 24),
+          itemCount: items.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 11),
+          itemBuilder: (context, j) {
+            final index = row * 5 + j;
+            final on = s.tastes.contains(index);
+            return GestureDetector(
+              onTap: () => s.toggleTaste(index),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                decoration: BoxDecoration(
+                  color: on ? null : Colors.white,
+                  gradient: on ? AppGradientsV2.cta : null,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: [
+                    BoxShadow(
+                      color: on
+                          ? const Color(0xFF5A50F0).withValues(alpha: 0.42)
+                          : const Color(0xFF0A285A).withValues(alpha: 0.14),
+                      blurRadius: on ? 10 : 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
                 ),
-              ]),
-            ),
-          );
-        },
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(items[j].emoji, style: const TextStyle(fontSize: 19, height: 1)),
+                  const SizedBox(width: 10),
+                  Text(
+                    s.tr(items[j].name),
+                    style: AppTextV2.name(
+                      color: on ? Colors.white : AppColorsV2.ink, size: 15,
+                    ).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ]),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

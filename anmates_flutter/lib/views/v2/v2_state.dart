@@ -28,7 +28,7 @@ enum SplitMode { item, equal }
 class V2State extends ChangeNotifier {
   V2Screen _screen = V2Screen.onb;
   bool _en = false;
-  int _step = 0;
+  int _step = 3; // TEMP-VERIFY: revert to 0
 
   int _budget = 2;
   Set<int> _tastes = {0, 3};
