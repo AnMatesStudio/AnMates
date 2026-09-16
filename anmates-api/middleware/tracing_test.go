@@ -1,9 +1,13 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"net/http/httptest"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -151,5 +155,37 @@ func TestSpanNameUsesRoutePattern(t *testing.T) {
 	}
 	if got := spans[0].Name(); got != "GET /api/v1/venues/:id" {
 		t.Fatalf("span name = %q, muốn \"GET /api/v1/venues/:id\"", got)
+	}
+}
+
+// Log phải mang trace_id thì log -> trace jump mới chạy. Loki derivedFields
+// có matcher regex '(?:trace_id|traceID|traceId)[=:"\s]+([a-f0-9]{32})' —
+// định dạng slog JSON ("trace_id":"<32 hex>") khớp matcher đó.
+func TestRequestLoggerIncludesTraceID(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sr)))
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	var buf bytes.Buffer
+	log := slog.New(slog.NewJSONHandler(&buf, nil))
+
+	app := fiber.New()
+	Tracing(app)
+	app.Use(RequestLogger(log))
+	app.Get("/api/v1/venues", func(c *fiber.Ctx) error { return c.SendString("ok") })
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/venues", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	out := buf.String()
+	if !strings.Contains(out, `"trace_id":"`) {
+		t.Fatalf("log không có trace_id — log->trace jump sẽ không chạy.\nlog: %s", out)
+	}
+	m := regexp.MustCompile(`"trace_id":"([a-f0-9]{32})"`).FindStringSubmatch(out)
+	if m == nil {
+		t.Fatalf("trace_id không phải 32 ký tự hex, Loki derivedFields sẽ không khớp.\nlog: %s", out)
 	}
 }
