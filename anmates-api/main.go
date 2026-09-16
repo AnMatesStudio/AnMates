@@ -302,7 +302,14 @@ func run(log *slog.Logger) error {
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())
 
 	// Graceful shutdown.
+	//
+	// shutdownDone: app.Listen trả về NGAY khi ShutdownWithContext bắt đầu, nên
+	// run() phải đợi goroutine này xong. Không đợi thì main thoát trong lúc
+	// otelShutdown còn đang flush — span của vài giây cuối mất trên MỌI lần pod
+	// bị terminate (đã tái hiện ở E2E local).
+	shutdownDone := make(chan struct{})
 	go func() {
+		defer close(shutdownDone)
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
@@ -323,7 +330,11 @@ func run(log *slog.Logger) error {
 	}()
 
 	log.Info("listening", "port", cfg.Port)
-	return app.Listen(":" + cfg.Port)
+	if err := app.Listen(":" + cfg.Port); err != nil {
+		return err
+	}
+	<-shutdownDone
+	return nil
 }
 
 func logLevel() slog.Level {
