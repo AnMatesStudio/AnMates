@@ -1,0 +1,20 @@
+# Rig E2E local cho OTel của anmates-api: Postgres scratch + OTel Collector
+# (spanmetrics với CÙNG dimensions semconv như gateway) + Tempo.
+# App -> collector:54317 -> Tempo(:53200) + spanmetrics (Prometheus :58889).
+# Collector self-metrics: :58888. Xem docs/observability-e2e-verified.md.
+name: otel-e2e-anmates
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_PASSWORD: e2e, POSTGRES_DB: anmates }
+    ports: ["55432:5432"]
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["./tempo.yaml:/etc/tempo.yaml"]
+    ports: ["53200:3200"]
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/c.yaml"]
+    volumes: ["./collector.yaml:/etc/c.yaml"]
+    ports: ["54317:4317", "58889:8889", "58888:8888"]
