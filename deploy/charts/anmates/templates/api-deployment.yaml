@@ -39,6 +39,36 @@ spec:
               value: {{ .Values.api.env.goMemLimit | quote }}
             - name: DEV_MODE
               value: {{ .Values.api.env.devMode | quote }}
+            {{- if .Values.api.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.api.otel.endpoint | quote }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: {{ .Values.api.otel.protocol | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.api.otel.serviceName | quote }}
+            - name: OTEL_TRACES_SAMPLER
+              value: {{ .Values.api.otel.sampler | quote }}
+            # Downward API: k8sattributes của Alloy có HAI pod_association rule.
+            # Rule đọc resource attribute chạy trước và bền hơn rule theo
+            # source IP — IP bị rewrite ở đâu đó là rule kia hỏng im lặng.
+            #
+            # $(VAR) là cú pháp expand của KUBERNETES, không phải shell: chỉ chạy
+            # khi VAR đã khai báo TRƯỚC trong cùng danh sách env — đừng đảo thứ tự.
+            - name: K8S_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: K8S_NAMESPACE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace={{ .Values.api.otel.serviceNamespace }},service.version={{ .Values.image.api.tag }},deployment.environment={{ .Values.api.otel.environment }},k8s.pod.name=$(K8S_POD_NAME),k8s.namespace.name=$(K8S_NAMESPACE_NAME),k8s.node.name=$(K8S_NODE_NAME)"
+            {{- end }}
           # DATABASE_URL, REDIS_URL, JWT_SECRET, FIREBASE_WEB_API_KEY,
           # SMTP_PASSWORD, DEV_BYPASS_SECRET, ... — tạo thủ công (xem plan H3),
           # KHÔNG nhúng giá trị vào chart.

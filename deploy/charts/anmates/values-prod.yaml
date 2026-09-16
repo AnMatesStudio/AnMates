@@ -28,6 +28,11 @@ api:
   # sẽ chặn scale-down của cả HPA.
   hpa:
     enabled: true
+  # OpenTelemetry. Endpoint không tới được KHÔNG chặn khởi động (exporter
+  # retry ở nền), nhưng span sẽ bị bỏ cho tới khi Alloy lên. Xác nhận:
+  #   kubectl -n monitoring get svc observability-alloy
+  otel:
+    enabled: true
 
 web:
   replicaCount: 2
