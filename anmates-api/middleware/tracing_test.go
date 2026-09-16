@@ -12,6 +12,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -187,5 +188,32 @@ func TestRequestLoggerIncludesTraceID(t *testing.T) {
 	m := regexp.MustCompile(`"trace_id":"([a-f0-9]{32})"`).FindStringSubmatch(out)
 	if m == nil {
 		t.Fatalf("trace_id không phải 32 ký tự hex, Loki derivedFields sẽ không khớp.\nlog: %s", out)
+	}
+}
+
+// Tail sampling policy keep-all-errors dựa vào status ERROR. Theo semconv, 5xx
+// là ERROR ở server span; 4xx là lỗi phía client và để UNSET.
+func TestServerSpanStatusFollowsSemconv(t *testing.T) {
+	app, sr := newTracingTestApp(t)
+	app.Get("/boom", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusInternalServerError) })
+	app.Get("/missing", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNotFound) })
+
+	for _, p := range []string{"/boom", "/missing"} {
+		resp, err := app.Test(httptest.NewRequest("GET", p, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+	}
+
+	got := map[string]codes.Code{}
+	for _, s := range sr.Ended() {
+		got[s.Name()] = s.Status().Code
+	}
+	if got["GET /boom"] != codes.Error {
+		t.Fatalf("5xx status = %v, muốn Error", got["GET /boom"])
+	}
+	if got["GET /missing"] != codes.Unset {
+		t.Fatalf("4xx status = %v, muốn Unset", got["GET /missing"])
 	}
 }

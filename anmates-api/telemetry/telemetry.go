@@ -102,7 +102,7 @@ func Setup(ctx context.Context, log *slog.Logger) (func(context.Context) error, 
 		sdktrace.WithResource(res),
 		// Batch, không phải SimpleSpanProcessor: simple export đồng bộ trên
 		// đường request và biến độ trễ của collector thành độ trễ của API.
-		sdktrace.WithBatcher(traceExp,
+		sdktrace.WithBatcher(redactingExporter{traceExp},
 			sdktrace.WithBatchTimeout(5*time.Second),
 			sdktrace.WithMaxExportBatchSize(512),
 			sdktrace.WithMaxQueueSize(4096),
