@@ -19,6 +19,7 @@ import (
 	"github.com/anmates/api/internal/httputil"
 	"github.com/anmates/api/middleware"
 	"github.com/anmates/api/services"
+	"github.com/anmates/api/telemetry"
 	"github.com/anmates/api/ws"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -52,6 +53,13 @@ func run(log *slog.Logger) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Telemetry dựng TRƯỚC pool: otelpgx lấy TracerProvider global lúc khởi
+	// tạo pool. Đảo thứ tự thì DB span rơi vào no-op provider và biến mất.
+	otelShutdown, err := telemetry.Setup(ctx, log)
+	if err != nil {
+		return fmt.Errorf("telemetry: %w", err)
+	}
 
 	pool, err := db.NewPool(ctx, cfg.DatabaseURL, cfg.PGMaxConns, cfg.PGMinConns)
 	if err != nil {
@@ -99,10 +107,16 @@ func run(log *slog.Logger) error {
 	// http_requests_total, thay vì làm rơi luôn phép đo. Đặt trước cors/logger
 	// để bao trọn thời gian xử lý request.
 	middleware.Metrics(app, "anmates-api")
+	// Sau Metrics, trước cors/logger: server span bao trọn thời gian xử lý,
+	// và RequestLogger ở dưới đọc được trace_id từ c.UserContext().
+	middleware.Tracing(app)
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: cfg.CORSOrigins,
 		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
-		AllowHeaders: "Content-Type,Authorization",
+		AllowHeaders: "Content-Type,Authorization,traceparent,tracestate",
+		// Không có dòng này thì browser NHẬN được header nhưng JS không đọc
+		// được — X-Trace-Id vô dụng phía client.
+		ExposeHeaders: "X-Trace-Id",
 	}))
 	app.Use(middleware.RequestLogger(log))
 
@@ -298,6 +312,12 @@ func run(log *slog.Logger) error {
 		defer shutCancel()
 		if err := app.ShutdownWithContext(shutCtx); err != nil {
 			log.Error("shutdown", "err", err)
+		}
+		// Flush span còn trong buffer SAU khi server ngừng nhận request mới.
+		// Không flush = mất mọi span của vài giây cuối, đúng những span mô tả
+		// sự cố khiến pod bị giết.
+		if err := otelShutdown(shutCtx); err != nil {
+			log.Error("otel shutdown", "err", err)
 		}
 		cancel()
 	}()
