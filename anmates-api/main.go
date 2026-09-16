@@ -323,7 +323,12 @@ func run(log *slog.Logger) error {
 		// Flush span còn trong buffer SAU khi server ngừng nhận request mới.
 		// Không flush = mất mọi span của vài giây cuối, đúng những span mô tả
 		// sự cố khiến pod bị giết.
-		if err := otelShutdown(shutCtx); err != nil {
+		//
+		// Timeout RIÊNG 5s, không dùng chung shutCtx: collector chết thì flush
+		// treo tới hết deadline — telemetry không được giữ pod terminate lâu.
+		otelCtx, otelCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer otelCancel()
+		if err := otelShutdown(otelCtx); err != nil {
 			log.Error("otel shutdown", "err", err)
 		}
 		cancel()
