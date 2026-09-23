@@ -65,5 +65,46 @@ giá trị cố định nào trong file commit được.
 
 ## Còn phải làm khi cluster lên
 
-Chạy nguyên văn Task 6 Step 1–11 và Task 7 Step 1–9 của plan trên cluster, cập nhật cột
-**Cluster** ở bảng trên và `docs/otel-conformance.md`.
+### Điều kiện: image có SDK phải chạy trên cluster
+
+Code OTel nằm trên branch `feat/otel-go-instrumentation`. CI chỉ build + push image khi
+push lên `main`. Pod đang chạy là image cũ → **không có SDK**, dù chart đã có
+`api.otel.enabled`.
+
+```bash
+# 1. Pipeline observability 0.5.0 đã lên (runbook anmates-infra otlp-lgtm-deploy.md §4.1–4.7)
+kubectl -n monitoring get svc observability-alloy observability-otel-gateway
+
+# 2. Merge branch → CI push ghcr.io/<owner>/anmates-api:<sha>, rồi trên host:
+helm upgrade --install anmates ./deploy/charts/anmates -n anmates \
+  -f deploy/charts/anmates/values-prod.yaml \
+  --set image.owner=<owner> --set image.api.tag=<sha> --set image.web.tag=<sha> \
+  --atomic --wait --timeout 10m
+
+# 3. Verify tự động (runbook §4.5–4.7 §6 + plan Task 6/7)
+deploy/scripts/verify-otel.sh
+```
+
+### Bốn tầng để biết SDK đã thật sự được áp
+
+| Tầng | Câu hỏi | Kiểm bằng | `verify-otel.sh` |
+|---|---|---|---|
+| Image | binary có instrumentation không | `go version -m` trên `/app/api` rút từ image → phải thấy `otelfiber`, `otelpgx`, `otlptracegrpc`. **Không** grep `opentelemetry` trơn: `main` đã có `go.opentelemetry.io/otel` gián tiếp | mục 1 |
+| Cấu hình | pod có `OTEL_*` không | env của Deployment: `OTEL_EXPORTER_OTLP_ENDPOINT` trỏ Alloy, `OTEL_TRACES_SAMPLER=parentbased_always_on` | mục 2 |
+| Runtime | SDK có khởi động không | log `"msg":"OpenTelemetry bật"` (image mới + env có) hoặc `"OpenTelemetry tắt"` (image mới, thiếu env). Không thấy dòng nào = image cũ | mục 3 |
+| Pipeline | dữ liệu tới được đâu | `X-Trace-Id` → Alloy `accepted_spans` → gateway `sent_spans`/`send_failed` → Tempo → spanmetrics Mimir → Loki | mục 4–9 |
+
+Mục 10 là hợp đồng HPA (runbook §4.7), mục 11 là checklist correlation làm tay trên Grafana.
+
+Script đã chạy thử trên rig local (có thêm Prometheus đứng thay query API của Mimir, và
+spanmetrics namespace `traces.spanmetrics` giống gateway) — 10/10 PASS:
+
+```bash
+deploy/otel-e2e-local/up.sh && deploy/otel-e2e-local/run-api.sh &
+SKIP_K8S=1 SKIP_LOKI=1 API_URL=http://localhost:58080 \
+  ALLOY_METRICS_URL=http://localhost:58888/metrics GATEWAY_METRICS_URL=http://localhost:58888/metrics \
+  TEMPO_URL=http://localhost:53200 MIMIR_URL=http://localhost:59090 \
+  deploy/scripts/verify-otel.sh
+```
+
+Sau khi chạy trên cluster, cập nhật cột **Cluster** ở bảng trên và `docs/otel-conformance.md`.

@@ -4,6 +4,9 @@ receivers:
       grpc: { endpoint: 0.0.0.0:4317 }
 connectors:
   spanmetrics:
+    # Giống gateway (anmates-infra values: gateway.spanMetrics.namespace) →
+    # traces_spanmetrics_calls_total, không phải default traces_span_metrics_*.
+    namespace: traces.spanmetrics
     dimensions:
       - name: http.request.method
       - name: http.response.status_code

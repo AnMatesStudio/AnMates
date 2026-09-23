@@ -1,6 +1,7 @@
 # Rig E2E local cho OTel của anmates-api: Postgres scratch + OTel Collector
 # (spanmetrics với CÙNG dimensions semconv như gateway) + Tempo.
-# App -> collector:54317 -> Tempo(:53200) + spanmetrics (Prometheus :58889).
+# App -> collector:54317 -> Tempo(:53200) + spanmetrics (exporter :58889,
+# Prometheus scrape :59090 — đứng thay query API của Mimir).
 # Collector self-metrics: :58888. Xem docs/observability-e2e-verified.md.
 #
 # CHỈ dùng local, KHÔNG dùng chung máy/CI nhiều người: mọi port bind vào
@@ -29,3 +30,8 @@ services:
       - "127.0.0.1:54317:4317"
       - "127.0.0.1:58889:8889"
       - "127.0.0.1:58888:8888"
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus.yml", "--web.enable-lifecycle"]
+    volumes: ["./prometheus.yml:/etc/prometheus.yml"]
+    ports: ["127.0.0.1:59090:9090"]

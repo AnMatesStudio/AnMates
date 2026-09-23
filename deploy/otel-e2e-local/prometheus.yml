@@ -1,0 +1,6 @@
+# Scrape exporter spanmetrics của collector, để verify-otel.sh query PromQL
+# giống như query Mimir trên cluster.
+global: { scrape_interval: 5s }
+scrape_configs:
+  - job_name: collector-spanmetrics
+    static_configs: [{ targets: ["collector:8889"] }]
