@@ -18,13 +18,17 @@ Vì vậy verify chia hai tầng:
 Chạy lại local:
 
 ```bash
-docker compose -f deploy/otel-e2e-local/compose.yml up -d
+deploy/otel-e2e-local/up.sh        # sinh secret ephemeral vào .env (gitignored) + lên compose
 deploy/otel-e2e-local/run-api.sh
 curl -s -D- -o /dev/null "localhost:58080/api/v1/venues?lat=10.77&lng=106.7" | grep -i x-trace-id
 curl -s -H 'Accept: application/json' localhost:53200/api/traces/<TRACE_ID>
 curl -s localhost:58889/metrics | grep traces_span_metrics_calls_total
-docker compose -f deploy/otel-e2e-local/compose.yml down -v
+docker compose --env-file deploy/otel-e2e-local/.env -f deploy/otel-e2e-local/compose.yml down -v
 ```
+
+Mọi port của rig bind vào `127.0.0.1` — không nghe được từ máy khác trên mạng.
+Mật khẩu Postgres + JWT secret sinh ngẫu nhiên mỗi lần chạy `up.sh`, không có
+giá trị cố định nào trong file commit được.
 
 ## Kết quả theo bước của Task 6
 
