@@ -79,10 +79,62 @@ class CatalogVenue {
   }
 }
 
+/// One page of `GET /api/v1/venues?offset=&limit=`.
+class VenuePage {
+  const VenuePage({required this.venues, required this.total, required this.hasMore});
+
+  final List<CatalogVenue> venues;
+
+  /// Matches across every page, before offset/limit.
+  final int total;
+  final bool hasMore;
+
+  factory VenuePage.fromJson(Object? data, {required int offset}) {
+    final raw = data is Map ? data['venues'] : null;
+    final venues = raw is List
+        ? raw
+            .whereType<Map<String, dynamic>>()
+            .map(CatalogVenue.fromJson)
+            .where((v) => v.name.isNotEmpty)
+            .toList()
+        : <CatalogVenue>[];
+    final total = data is Map ? (data['total'] as num?)?.toInt() : null;
+    final hasMore = data is Map ? data['has_more'] as bool? : null;
+    return VenuePage(
+      venues: venues,
+      total: total ?? offset + venues.length,
+      // An API without `has_more` (older build) is treated as one final page,
+      // so the list stops instead of re-requesting the same rows forever.
+      hasMore: hasMore ?? false,
+    );
+  }
+}
+
 class VenueCatalogService {
   static final VenueCatalogService _instance = VenueCatalogService._();
   VenueCatalogService._();
   factory VenueCatalogService() => _instance;
+
+  /// One page of the whole active catalogue — no radius, so paging to the end
+  /// covers every venue in the DB. With [lat]/[lng] it is nearest-first and
+  /// carries distances; without, name-sorted.
+  Future<VenuePage> page({
+    required int offset,
+    required int limit,
+    double? lat,
+    double? lng,
+  }) async {
+    final params = <String, String>{'limit': '$limit', 'offset': '$offset'};
+    if (lat != null && lng != null) {
+      params['lat'] = '$lat';
+      params['lng'] = '$lng';
+    }
+    final qs = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
+    final data = await ApiClient().get('/api/v1/venues?$qs');
+    return VenuePage.fromJson(data, offset: offset);
+  }
 
   /// Fetches the active catalogue. Passing [lat]/[lng] filters by [radiusM] and
   /// sorts nearest-first; omitting them returns everything, name-sorted.

@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"math"
 	"sort"
@@ -54,6 +55,10 @@ type CatalogQuery struct {
 	// "Bún Bò Giáo Toàn" without the user typing Vietnamese tones.
 	Query string
 	Limit int
+	// Offset skips this many matches after sorting — pagination for the
+	// "see all" list. Ordering is fully deterministic (ties broken by id), so
+	// consecutive pages never overlap or skip a row.
+	Offset int
 }
 
 func (q CatalogQuery) hasCenter() bool { return q.Center.Lat != 0 || q.Center.Lng != 0 }
@@ -63,6 +68,14 @@ func (q CatalogQuery) hasCenter() bool { return q.Center.Lat != 0 || q.Center.Ln
 // Haversine) and sorts nearest-first; otherwise it sorts by name so the feed is
 // stable across reloads.
 func (e *VenueEngine) ListVenues(ctx context.Context, q CatalogQuery) ([]CatalogVenue, error) {
+	page, _, err := e.ListVenuesPage(ctx, q)
+	return page, err
+}
+
+// ListVenuesPage is [ListVenues] plus the total number of matches before
+// Offset/Limit were applied, so a paginating client knows when it has
+// everything.
+func (e *VenueEngine) ListVenuesPage(ctx context.Context, q CatalogQuery) ([]CatalogVenue, int, error) {
 	const cols = `r.id, r.name, r.address, r.district, r.lat, r.lng, r.cuisine_tags,
 	              r.price_min, r.price_max, r.rating, r.source,
 	              (SELECT count(DISTINCT w.user_id) FROM wishlists w
@@ -95,7 +108,7 @@ func (e *VenueEngine) ListVenues(ctx context.Context, q CatalogQuery) ([]Catalog
 
 	rows, err := e.pool.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -107,7 +120,7 @@ func (e *VenueEngine) ListVenues(ctx context.Context, q CatalogQuery) ([]Catalog
 		if err := rows.Scan(&v.ID, &v.Name, &v.Address, &v.District, &v.Lat, &v.Lng,
 			&v.Cuisine, &v.PriceMin, &v.PriceMax, &v.Rating, &v.Source,
 			&v.WantCount, &v.PhotoCount); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if cuisine != "" && !hasCuisineTag(v.Cuisine, cuisine) {
 			continue
@@ -125,18 +138,44 @@ func (e *VenueEngine) ListVenues(ctx context.Context, q CatalogQuery) ([]Catalog
 		out = append(out, v)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
+	// Ties fall back to id: the SQL has no ORDER BY, so without it two venues
+	// at the same distance (or with the same name) could swap between page
+	// requests and one would show up twice while the other never appears.
 	if q.hasCenter() {
-		sort.SliceStable(out, func(i, j int) bool { return *out[i].DistanceM < *out[j].DistanceM })
+		sort.Slice(out, func(i, j int) bool {
+			if *out[i].DistanceM != *out[j].DistanceM {
+				return *out[i].DistanceM < *out[j].DistanceM
+			}
+			return bytes.Compare(out[i].ID[:], out[j].ID[:]) < 0
+		})
 	} else {
-		sort.SliceStable(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+		sort.Slice(out, func(i, j int) bool {
+			if out[i].Name != out[j].Name {
+				return out[i].Name < out[j].Name
+			}
+			return bytes.Compare(out[i].ID[:], out[j].ID[:]) < 0
+		})
 	}
-	if q.Limit > 0 && len(out) > q.Limit {
-		out = out[:q.Limit]
+
+	return pageOf(out, q.Offset, q.Limit), len(out), nil
+}
+
+// pageOf returns all[offset : offset+limit], clamped to bounds. limit <= 0
+// means no cap; an offset past the end yields an empty page, not an error.
+func pageOf[T any](all []T, offset, limit int) []T {
+	if offset > 0 {
+		if offset >= len(all) {
+			return all[:0]
+		}
+		all = all[offset:]
 	}
-	return out, nil
+	if limit > 0 && len(all) > limit {
+		all = all[:limit]
+	}
+	return all
 }
 
 func hasCuisineTag(tags []string, want string) bool {

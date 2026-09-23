@@ -236,7 +236,7 @@ func run(log *slog.Logger) error {
 	}
 
 	// The app's own venue catalogue straight from the restaurants table:
-	// GET /api/v1/venues?lat=&lng=&radius_m=&cuisine=&limit=
+	// GET /api/v1/venues?lat=&lng=&radius_m=&cuisine=&limit=&offset=
 	// Always on (no external key) — it is the discovery feed's primary and ONLY
 	// source. All venue data — including photos (venue_photos blobs served by
 	// /venues/:id/photos/:position) — lives in the DB; nothing is fetched from

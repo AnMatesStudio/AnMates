@@ -43,7 +43,7 @@ class DetailScreen extends StatelessWidget {
               _PhotoCarousel(place: place),
               Positioned(
                 top: 104, left: 18,
-                child: V2BackButton(size: 40, onTap: () => s.go(V2Screen.home)),
+                child: V2BackButton(size: 40, onTap: () => s.go(s.detailBack)),
               ),
             ]),
           ),
@@ -280,11 +280,14 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             onPageChanged: (i) => setState(() => _index = i),
             itemBuilder: (context, i) => GestureDetector(
               onTap: _openViewer,
+              // A venue with real DB photos never falls back to the 3D
+              // illustration mid-swipe — a broken slide gets a neutral
+              // placeholder instead, so it can't be mistaken for another
+              // venue's "no photo on file" art.
               child: Image.network(
                 photos[i],
                 fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    Stack(fit: StackFit.expand, children: [_DetailArt(place: place)]),
+                errorBuilder: (context, error, stackTrace) => const _BrokenPhoto(),
               ),
             ),
           ),
@@ -295,6 +298,25 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
             child: IgnorePointer(child: _Dots(count: photos.length, index: _index)),
           ),
       ]),
+    );
+  }
+}
+
+/// A neutral stand-in for a photo that failed to load — distinct from
+/// [_DetailArt]'s food illustration, so a broken slide in a venue's own
+/// photo carousel is never mistaken for "this venue has no photos on file".
+class _BrokenPhoto extends StatelessWidget {
+  const _BrokenPhoto();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox.expand(
+      child: ColoredBox(
+        color: AppColorsV2.canvas,
+        child: Center(
+          child: Icon(Icons.broken_image_outlined, color: AppColorsV2.inkA(0.28), size: 40),
+        ),
+      ),
     );
   }
 }
@@ -381,6 +403,19 @@ class _PhotoViewerState extends State<_PhotoViewer> {
             ),
           ),
         ),
+        if (widget.photos.length > 1)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: MediaQuery.paddingOf(context).bottom + 18,
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 150),
+                opacity: _zoomed ? 0 : 1,
+                child: _Dots(count: widget.photos.length, index: _index),
+              ),
+            ),
+          ),
         Positioned(
           top: MediaQuery.paddingOf(context).top + 12,
           right: 12,

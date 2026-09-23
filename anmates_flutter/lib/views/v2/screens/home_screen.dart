@@ -88,7 +88,7 @@ class HomeScreen extends StatelessWidget {
                     children: [
                       Expanded(child: Text(s.sectionTitle, style: AppTextV2.section())),
                       GestureDetector(
-                        onTap: () => s.go(V2Screen.filters),
+                        onTap: s.openAllVenues,
                         child: Text(
                           s.t('Xem tất cả', 'See all'),
                           style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11.5),

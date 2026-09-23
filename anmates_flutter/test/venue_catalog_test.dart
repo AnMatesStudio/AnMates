@@ -36,6 +36,38 @@ Map<String, dynamic> _row({
     };
 
 void main() {
+  group('VenuePage.fromJson', () {
+    test('reads total and has_more from a middle page', () {
+      final page = VenuePage.fromJson({
+        'venues': [_row(name: 'A'), _row(name: 'B')],
+        'count': 2,
+        'total': 23,
+        'has_more': true,
+      }, offset: 10);
+      expect(page.venues.map((v) => v.name), ['A', 'B']);
+      expect(page.total, 23);
+      expect(page.hasMore, isTrue);
+    });
+
+    test('last page reports no more', () {
+      final page = VenuePage.fromJson(
+          {'venues': [_row()], 'total': 21, 'has_more': false}, offset: 20);
+      expect(page.hasMore, isFalse);
+    });
+
+    test('an API without has_more is treated as the final page', () {
+      final page = VenuePage.fromJson({'venues': [_row(), _row()]}, offset: 30);
+      expect(page.hasMore, isFalse);
+      expect(page.total, 32);
+    });
+
+    test('a malformed body is an empty final page, not a crash', () {
+      final page = VenuePage.fromJson(null, offset: 0);
+      expect(page.venues, isEmpty);
+      expect(page.hasMore, isFalse);
+    });
+  });
+
   group('CatalogVenue.fromJson', () {
     test('parses a full row', () {
       final v = CatalogVenue.fromJson(_row(rating: 4.5, priceMax: 120000));

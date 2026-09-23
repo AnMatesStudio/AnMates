@@ -7,6 +7,7 @@ import '../../widgets/v2/design_frame.dart';
 import '../../widgets/v2/glass_nav_bar.dart';
 import '../../widgets/v2/notifications_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
+import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/detail_screen.dart';
@@ -135,6 +136,7 @@ class V2AppBody extends StatelessWidget {
         V2Screen.trust => const TrustScreen(),
         V2Screen.pay => const PayScreen(),
         V2Screen.local => const LocalScreen(),
+        V2Screen.allVenues => const AllVenuesScreen(),
       };
 
   /// The design keeps a tab lit for the screens that live under it — Trust under

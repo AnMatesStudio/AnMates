@@ -12,7 +12,10 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, home, filters, detail, swipe, chat, bill, rate, me, trust, pay, local }
+enum V2Screen { onb, home, filters, detail, swipe, chat, bill, rate, me, trust, pay, local, allVenues }
+
+/// Rows per request on the "see all" list.
+const int kAllVenuesPageSize = 10;
 
 enum SplitMode { item, equal }
 
@@ -58,6 +61,29 @@ class V2State extends ChangeNotifier {
   List<Place> _places = const [];
   bool _venuesLoading = false;
   String? _venuesError;
+
+  // ── "See all" list (paged GET /api/v1/venues?offset=&limit=) ─────────────
+  List<CatalogVenue> _allVenues = const [];
+  int? _allTotal;
+  bool _allHasMore = true;
+  bool _allLoading = false;
+  String? _allError;
+
+  // ── Device location — resolved once per session, shared by every loader
+  // that wants distance sort/labels (home feed, "see all" list), so a slow
+  // or denied GPS fix in one place doesn't leave another silently unlucky
+  // on a redundant call of its own.
+  ({double lat, double lng})? _deviceLocation;
+  bool _locationResolved = false;
+
+  /// Scroll position of the list, kept here because the screen widget is
+  /// rebuilt from scratch when coming back from a venue's detail.
+  double allVenuesScrollOffset = 0;
+
+  /// A venue opened from the paged list — it may not be in [_places] (the
+  /// home feed only holds the nearby slice), so detail reads it directly.
+  Place? _openedPlace;
+  V2Screen _detailBack = V2Screen.home;
 
   // ── Match candidates (GET /api/v1/matches — a real wishlist-overlap rank) ─
   List<MatchCandidate> _candidates = const [];
@@ -109,6 +135,15 @@ class V2State extends ChangeNotifier {
   String? get venuesError => _venuesError;
   bool get hasVenues => _venues.isNotEmpty;
 
+  List<CatalogVenue> get allVenues => _allVenues;
+  int? get allTotal => _allTotal;
+  bool get allHasMore => _allHasMore;
+  bool get allLoading => _allLoading;
+  String? get allError => _allError;
+
+  /// Where the detail screen's back button returns to.
+  V2Screen get detailBack => _detailBack;
+
   List<MatchCandidate> get candidates => _candidates;
   bool get hasCandidates => _candidates.isNotEmpty;
   bool get candidatesLoading => _candidatesLoading;
@@ -140,7 +175,8 @@ class V2State extends ChangeNotifier {
 
   /// The detail sheet's venue. While the catalogue is empty this is a neutral
   /// placeholder — a loading state, never invented venue data.
-  Place get place => _places.isEmpty ? _placeholderPlace : _places[_placeIdx];
+  Place get place =>
+      _openedPlace ?? (_places.isEmpty ? _placeholderPlace : _places[_placeIdx]);
 
   /// The swipe card's candidate. While there are none yet, a neutral
   /// placeholder — never a sample person.
@@ -166,6 +202,7 @@ class V2State extends ChangeNotifier {
   bool get softBackground => const {
         V2Screen.home, V2Screen.detail, V2Screen.filters, V2Screen.swipe,
         V2Screen.chat, V2Screen.bill, V2Screen.rate, V2Screen.local,
+        V2Screen.allVenues,
       }.contains(_screen);
 
   double get washOpacity => softBackground ? 0.56 : 0.8;
@@ -299,8 +336,24 @@ class V2State extends ChangeNotifier {
   void openPlace(int i) {
     if (_places.isEmpty) return;
     _placeIdx = i.clamp(0, _places.length - 1);
+    _openedPlace = null;
+    _detailBack = V2Screen.home;
     _screen = V2Screen.detail;
     notifyListeners();
+  }
+
+  /// Opens detail for a venue from the "see all" list; back returns there.
+  void openCatalogVenue(CatalogVenue v) {
+    _openedPlace = placeFromCatalog(v);
+    _detailBack = V2Screen.allVenues;
+    _screen = V2Screen.detail;
+    notifyListeners();
+  }
+
+  /// Shows the "see all" list, fetching the first page if nothing is loaded.
+  void openAllVenues() {
+    go(V2Screen.allVenues);
+    if (_allVenues.isEmpty) loadMoreAllVenues();
   }
 
   /// Records a real pass and drops the candidate locally — the backend's own
@@ -526,6 +579,20 @@ class V2State extends ChangeNotifier {
 
   // ── Loading ───────────────────────────────────────────────────────────────
 
+  /// Resolves the device's lat/lng once per session and caches it — a denied
+  /// permission or a GPS timeout is remembered as "no location" rather than
+  /// retried by every subsequent loader.
+  Future<({double lat, double lng})?> _resolveDeviceLocation() async {
+    if (_locationResolved) return _deviceLocation;
+    try {
+      _deviceLocation = await LocationService().currentLatLng();
+    } catch (_) {
+      _deviceLocation = null;
+    }
+    _locationResolved = true;
+    return _deviceLocation;
+  }
+
   /// Loads the venue catalogue from the API. Uses the device location when it
   /// is available so the feed is distance-sorted; otherwise falls back to the
   /// whole active table, name-sorted. Safe to call repeatedly.
@@ -538,20 +605,12 @@ class V2State extends ChangeNotifier {
     notifyListeners();
 
     try {
-      double? lat, lng;
-      try {
-        final pos = await LocationService().currentLatLng();
-        lat = pos?.lat;
-        lng = pos?.lng;
-      } catch (_) {
-        // Location is a nice-to-have here — without it we just lose the
-        // distance sort and the "1,2 km" labels.
-      }
+      final loc = await _resolveDeviceLocation();
 
       final rows = await VenueCatalogService().list(
-        lat: lat,
-        lng: lng,
-        radiusM: lat != null ? 20000 : null,
+        lat: loc?.lat,
+        lng: loc?.lng,
+        radiusM: loc != null ? 20000 : null,
       );
 
       _catalog = rows;
@@ -565,6 +624,45 @@ class V2State extends ChangeNotifier {
       _venuesError = e.toString();
     } finally {
       _venuesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Appends the next [kAllVenuesPageSize] venues to the "see all" list.
+  /// No-op while a page is in flight or once the DB has nothing more, so the
+  /// scroll listener can call it on every tick near the bottom.
+  Future<void> loadMoreAllVenues() async {
+    if (_allLoading || !_allHasMore) return;
+
+    _allLoading = true;
+    _allError = null;
+    notifyListeners();
+
+    try {
+      // Resolved once (shared across the whole session, see
+      // _resolveDeviceLocation): a location that shifted between pages would
+      // re-sort the list server-side and break the offset sequence.
+      final loc = await _resolveDeviceLocation();
+
+      final page = await VenueCatalogService().page(
+        offset: _allVenues.length,
+        limit: kAllVenuesPageSize,
+        lat: loc?.lat,
+        lng: loc?.lng,
+      );
+
+      final seen = {for (final v in _allVenues) v.id};
+      _allVenues = [..._allVenues, ...page.venues.where((v) => seen.add(v.id))];
+      _allTotal = page.total;
+      // An empty page also ends it — a guard against paging forever if the
+      // table shrank underneath us.
+      _allHasMore = page.hasMore && page.venues.isNotEmpty;
+    } on ApiException catch (e) {
+      _allError = 'HTTP ${e.statusCode}';
+    } catch (e) {
+      _allError = e.toString();
+    } finally {
+      _allLoading = false;
       notifyListeners();
     }
   }

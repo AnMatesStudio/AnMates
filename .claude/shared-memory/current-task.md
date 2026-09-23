@@ -1,5 +1,12 @@
 # Current Task
 
+**Status (2026-09-23) — Venue carousel + "Xem tất cả" paged list: DONE local, chờ user test UI:**
+Carousel ảnh detail + viewer full-screen, favicon AM, màn danh sách tất cả quán (10/lần, lazy load),
+API `/venues?offset=` + `total`/`has_more`. Chạy local qua `./start.sh`. Chưa commit, chưa deploy k8s.
+Xem `sessions/2026-09-23-venue-photo-carousel-and-see-all.md`.
+
+---
+
 **Status (2026-09-23) — OTel SDK instrumentation anmates-api: code + rig hardening DONE, cluster E2E PENDING:**
 Branch `feat/otel-go-instrumentation` (chưa merge, chưa push), 12 commit. Task 1–5 của plan
 `docs/superpowers/plans/2026-09-08-otel-go-instrumentation.md` xong + verify E2E local

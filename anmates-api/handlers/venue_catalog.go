@@ -43,19 +43,30 @@ func (h *VenueCatalog) List(c *fiber.Ctx) error {
 		limit = min(l, catalogMaxLimit)
 	}
 
+	offset := 0
+	if o, err := strconv.Atoi(c.Query("offset", "")); err == nil && o > 0 {
+		offset = o
+	}
+
 	ctx, cancel := context.WithTimeout(c.UserContext(), catalogTimeout)
 	defer cancel()
 
-	venues, err := h.engine.ListVenues(ctx, services.CatalogQuery{
+	venues, total, err := h.engine.ListVenuesPage(ctx, services.CatalogQuery{
 		Center:  services.LatLng{Lat: lat, Lng: lng},
 		RadiusM: radiusM,
 		Cuisine: c.Query("cuisine", ""),
 		Query:   c.Query("q", ""),
 		Limit:   limit,
+		Offset:  offset,
 	})
 	if err != nil {
 		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "venue listing failed")
 	}
 
-	return httputil.OK(c, fiber.Map{"venues": venues, "count": len(venues)})
+	return httputil.OK(c, fiber.Map{
+		"venues":   venues,
+		"count":    len(venues),
+		"total":    total,
+		"has_more": offset+len(venues) < total,
+	})
 }

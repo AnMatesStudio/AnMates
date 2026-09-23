@@ -56,3 +56,57 @@ func TestMatchesQuery(t *testing.T) {
 		}
 	})
 }
+
+func TestPageOf(t *testing.T) {
+	all := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+	cases := []struct {
+		name          string
+		offset, limit int
+		want          []int
+	}{
+		{"first page", 0, 5, []int{0, 1, 2, 3, 4}},
+		{"middle page", 5, 5, []int{5, 6, 7, 8, 9}},
+		{"short last page", 10, 5, []int{10, 11}},
+		{"offset exactly at end", 12, 5, []int{}},
+		{"offset past end", 50, 5, []int{}},
+		{"no limit returns the rest", 9, 0, []int{9, 10, 11}},
+		{"negative offset treated as zero", -3, 2, []int{0, 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := pageOf(all, tc.offset, tc.limit)
+			if len(got) != len(tc.want) {
+				t.Fatalf("pageOf(%d, %d) = %v, want %v", tc.offset, tc.limit, got, tc.want)
+			}
+			for i := range got {
+				if got[i] != tc.want[i] {
+					t.Fatalf("pageOf(%d, %d) = %v, want %v", tc.offset, tc.limit, got, tc.want)
+				}
+			}
+		})
+	}
+}
+
+// Consecutive pages must tile the full list exactly — no row twice, none missed.
+func TestPageOfTilesWithoutGapsOrOverlap(t *testing.T) {
+	all := make([]int, 23)
+	for i := range all {
+		all[i] = i
+	}
+	var seen []int
+	for off := 0; ; off += 10 {
+		p := pageOf(all, off, 10)
+		if len(p) == 0 {
+			break
+		}
+		seen = append(seen, p...)
+	}
+	if len(seen) != len(all) {
+		t.Fatalf("paged through %d rows, want %d", len(seen), len(all))
+	}
+	for i, v := range seen {
+		if v != i {
+			t.Fatalf("row %d = %d, want %d", i, v, i)
+		}
+	}
+}
