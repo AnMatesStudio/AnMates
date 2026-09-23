@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,6 +7,20 @@ import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
+
+/// Flutter's default [ScrollBehavior] only treats touch/stylus as a drag
+/// gesture — on web/desktop a mouse drag falls through as nothing, so the
+/// photo `PageView`s never see a swipe. This adds mouse and trackpad so the
+/// same left/right swipe works with a cursor.
+class _DragScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
 
 /// **B2 · Chi tiết quán** — the venue's own columns from `GET /api/v1/venues`,
 /// one line each, with a missing price flagged in red.
@@ -194,10 +209,10 @@ class _Stat extends StatelessWidget {
   }
 }
 
-/// A TikTok/Instagram-story-style full-bleed carousel of the venue's own
-/// photos: swipe or tap the left/right edge to step through, with a
-/// segmented progress bar standing in for dots. Falls back to [_DetailArt]
-/// when the venue has no stored photos, or per-photo on a network error.
+/// A full-bleed carousel of the venue's own photos: swipe to step through,
+/// dots at the bottom track position, tap opens [_PhotoViewer]. Falls back to
+/// [_DetailArt] when the venue has no stored photos, or per-photo on a
+/// network error.
 class _PhotoCarousel extends StatefulWidget {
   const _PhotoCarousel({required this.place});
   final Place place;
@@ -227,15 +242,21 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
     super.dispose();
   }
 
-  void _step(int delta) {
-    final last = widget.place.photoUrls.length - 1;
-    final next = (_index + delta).clamp(0, last);
-    if (next == _index) return;
-    _controller.animateToPage(
-      next,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOut,
+  Future<void> _openViewer() async {
+    final landed = await showGeneralDialog<int>(
+      context: context,
+      barrierLabel: 'photo-viewer',
+      barrierColor: Colors.black.withValues(alpha: 0.94),
+      transitionDuration: const Duration(milliseconds: 200),
+      pageBuilder: (context, animation, secondaryAnimation) =>
+          _PhotoViewer(photos: widget.place.photoUrls, initialIndex: _index),
+      transitionBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(opacity: animation, child: child),
     );
+    // Land the carousel on whichever photo the viewer was closed on.
+    if (!mounted || landed == null || landed == _index) return;
+    setState(() => _index = landed);
+    _controller.jumpToPage(landed);
   }
 
   @override
@@ -251,52 +272,229 @@ class _PhotoCarouselState extends State<_PhotoCarousel> {
 
     return Positioned.fill(
       child: Stack(fit: StackFit.expand, children: [
-        PageView.builder(
-          controller: _controller,
-          itemCount: photos.length,
-          onPageChanged: (i) => setState(() => _index = i),
-          itemBuilder: (context, i) => Image.network(
-            photos[i],
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) =>
-                Stack(fit: StackFit.expand, children: [_DetailArt(place: place)]),
+        ScrollConfiguration(
+          behavior: _DragScrollBehavior(),
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: photos.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (context, i) => GestureDetector(
+              onTap: _openViewer,
+              child: Image.network(
+                photos[i],
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) =>
+                    Stack(fit: StackFit.expand, children: [_DetailArt(place: place)]),
+              ),
+            ),
           ),
         ),
-        if (photos.length > 1) ...[
+        if (photos.length > 1)
           Positioned(
-            left: 0, top: 0, bottom: 0, width: 60,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => _step(-1),
+            left: 16, right: 16, bottom: 14,
+            child: IgnorePointer(child: _Dots(count: photos.length, index: _index)),
+          ),
+      ]),
+    );
+  }
+}
+
+class _Dots extends StatelessWidget {
+  const _Dots({required this.count, required this.index});
+
+  final int count;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        for (var i = 0; i < count; i++)
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i == index ? Colors.white : Colors.white.withValues(alpha: 0.45),
+              // Keeps the white dots readable over bright photos.
+              boxShadow: [
+                BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 4),
+              ],
             ),
           ),
-          Positioned(
-            right: 0, top: 0, bottom: 0, width: 60,
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => _step(1),
+      ]),
+    );
+  }
+}
+
+/// Full-screen photo viewer: pinch / scroll-wheel to zoom, swipe between
+/// photos, close with the X or a tap outside the photo. Pops with the index
+/// it was closed on so the carousel can follow.
+class _PhotoViewer extends StatefulWidget {
+  const _PhotoViewer({required this.photos, required this.initialIndex});
+
+  final List<String> photos;
+  final int initialIndex;
+
+  @override
+  State<_PhotoViewer> createState() => _PhotoViewerState();
+}
+
+class _PhotoViewerState extends State<_PhotoViewer> {
+  late final _pages = PageController(initialPage: widget.initialIndex);
+  late int _index = widget.initialIndex;
+  bool _zoomed = false;
+
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  void _close() => Navigator.of(context).pop(_index);
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: Stack(children: [
+        ScrollConfiguration(
+          behavior: _DragScrollBehavior(),
+          child: PageView.builder(
+            controller: _pages,
+            // Panning a zoomed photo must not flip to the next one.
+            physics: _zoomed ? const NeverScrollableScrollPhysics() : null,
+            itemCount: widget.photos.length,
+            onPageChanged: (i) => setState(() {
+              _index = i;
+              _zoomed = false;
+            }),
+            itemBuilder: (context, i) => _ZoomablePhoto(
+              url: widget.photos[i],
+              onTapOutside: _close,
+              onZoomChanged: (z) {
+                if (z != _zoomed) setState(() => _zoomed = z);
+              },
             ),
           ),
-          Positioned(
-            top: 58, left: 18, right: 18,
-            child: Row(children: [
-              for (var i = 0; i < photos.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                Expanded(
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    height: 3,
-                    decoration: BoxDecoration(
-                      color: i <= _index ? Colors.white : Colors.white.withValues(alpha: 0.35),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+        ),
+        Positioned(
+          top: MediaQuery.paddingOf(context).top + 12,
+          right: 12,
+          child: GestureDetector(
+            onTap: _close,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.16),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+class _ZoomablePhoto extends StatefulWidget {
+  const _ZoomablePhoto({
+    required this.url,
+    required this.onTapOutside,
+    required this.onZoomChanged,
+  });
+
+  final String url;
+  final VoidCallback onTapOutside;
+  final ValueChanged<bool> onZoomChanged;
+
+  @override
+  State<_ZoomablePhoto> createState() => _ZoomablePhotoState();
+}
+
+class _ZoomablePhotoState extends State<_ZoomablePhoto> with SingleTickerProviderStateMixin {
+  final _zoom = TransformationController();
+  late final AnimationController _zoomAnimController =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+  Animation<Matrix4>? _zoomAnim;
+
+  // The size InteractiveViewer hands its child — captured off the
+  // LayoutBuilder below so a double tap can zoom centered on the middle of
+  // the viewport without needing the tap's exact position.
+  Size _viewportSize = Size.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _zoom.addListener(() => widget.onZoomChanged(_zoom.value.getMaxScaleOnAxis() > 1.01));
+    _zoomAnimController.addListener(() {
+      final anim = _zoomAnim;
+      if (anim != null) _zoom.value = anim.value;
+    });
+  }
+
+  @override
+  void dispose() {
+    _zoomAnimController.dispose();
+    _zoom.dispose();
+    super.dispose();
+  }
+
+  void _onDoubleTap() {
+    final zoomedIn = _zoom.value.getMaxScaleOnAxis() > 1.01;
+    Matrix4 target;
+    if (zoomedIn) {
+      target = Matrix4.identity();
+    } else {
+      const scale = 2.5;
+      final cx = _viewportSize.width / 2;
+      final cy = _viewportSize.height / 2;
+      target = Matrix4.identity()
+        ..translateByDouble(-cx * (scale - 1), -cy * (scale - 1), 0, 1)
+        ..scaleByDouble(scale, scale, scale, 1);
+    }
+    _zoomAnim = Matrix4Tween(begin: _zoom.value, end: target).animate(
+      CurveTween(curve: Curves.easeOut).animate(_zoomAnimController),
+    );
+    _zoomAnimController.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The outer detector catches taps on the dark letterbox around the photo;
+    // the inner one swallows taps on the photo itself so they don't close,
+    // and owns the double-tap-to-zoom gesture.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: widget.onTapOutside,
+      child: InteractiveViewer(
+        transformationController: _zoom,
+        minScale: 1,
+        maxScale: 5,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            _viewportSize = constraints.biggest;
+            return Center(
+              child: GestureDetector(
+                onTap: () {},
+                onDoubleTap: _onDoubleTap,
+                child: Image.network(
+                  widget.url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Icon(
+                    Icons.broken_image_outlined, color: Colors.white54, size: 48,
                   ),
                 ),
-              ],
-            ]),
-          ),
-        ],
-      ]),
+              ),
+            );
+          },
+        ),
+      ),
     );
   }
 }
