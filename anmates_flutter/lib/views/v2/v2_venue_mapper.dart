@@ -143,6 +143,6 @@ Place placeFromCatalog(CatalogVenue v) {
         : T('điểm ${v.rating!.toStringAsFixed(1)} trong dữ liệu AnMates',
             'rated ${v.rating!.toStringAsFixed(1)} in the AnMates catalogue'),
     lines: lines,
-    photoUrl: v.photoUrls.isEmpty ? null : v.photoUrls.first,
+    photoUrls: v.photoUrls,
   );
 }

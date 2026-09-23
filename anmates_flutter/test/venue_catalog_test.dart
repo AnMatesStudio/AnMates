@@ -191,14 +191,18 @@ void main() {
       expect(p.wanting, 3);
     });
 
-    test('carries the first stored photo as the hero image', () {
-      final p = placeFromCatalog(CatalogVenue.fromJson(_row(photoCount: 1)));
-      expect(p.photoUrl, endsWith('/photos/0'));
+    test('carries every stored photo for the hero carousel', () {
+      final p = placeFromCatalog(CatalogVenue.fromJson(_row(photoCount: 3)));
+      expect(p.photoUrls, [
+        endsWith('/photos/0'),
+        endsWith('/photos/1'),
+        endsWith('/photos/2'),
+      ]);
     });
 
-    test('no stored photo means null, so the hero falls back to art', () {
+    test('no stored photos means an empty list, so the hero falls back to art', () {
       final p = placeFromCatalog(CatalogVenue.fromJson(_row(photoCount: 0)));
-      expect(p.photoUrl, isNull);
+      expect(p.photoUrls, isEmpty);
     });
   });
 }

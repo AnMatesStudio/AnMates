@@ -25,20 +25,7 @@ class DetailScreen extends StatelessWidget {
           SizedBox(
             height: 300,
             child: Stack(children: [
-              // A real photo is a full-bleed cover shot, not the small
-              // bottom-anchored floating render the design used as a
-              // placeholder — the bob-and-tilt animation and drop shadow only
-              // make sense on a transparent cutout.
-              if (place.photoUrl != null)
-                Positioned.fill(
-                  child: Image.network(
-                    place.photoUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => _DetailArt(place: place),
-                  ),
-                )
-              else
-                _DetailArt(place: place),
+              _PhotoCarousel(place: place),
               Positioned(
                 top: 104, left: 18,
                 child: V2BackButton(size: 40, onTap: () => s.go(V2Screen.home)),
@@ -203,6 +190,113 @@ class _Stat extends StatelessWidget {
           )),
         ],
       ),
+    );
+  }
+}
+
+/// A TikTok/Instagram-story-style full-bleed carousel of the venue's own
+/// photos: swipe or tap the left/right edge to step through, with a
+/// segmented progress bar standing in for dots. Falls back to [_DetailArt]
+/// when the venue has no stored photos, or per-photo on a network error.
+class _PhotoCarousel extends StatefulWidget {
+  const _PhotoCarousel({required this.place});
+  final Place place;
+
+  @override
+  State<_PhotoCarousel> createState() => _PhotoCarouselState();
+}
+
+class _PhotoCarouselState extends State<_PhotoCarousel> {
+  final _controller = PageController();
+  int _index = 0;
+
+  @override
+  void didUpdateWidget(covariant _PhotoCarousel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A different venue means a different photo set — restart at photo 1
+    // rather than carrying over an index that may not exist any more.
+    if (oldWidget.place.name != widget.place.name) {
+      _index = 0;
+      if (_controller.hasClients) _controller.jumpToPage(0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _step(int delta) {
+    final last = widget.place.photoUrls.length - 1;
+    final next = (_index + delta).clamp(0, last);
+    if (next == _index) return;
+    _controller.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final place = widget.place;
+    final photos = place.photoUrls;
+
+    if (photos.isEmpty) {
+      return Positioned.fill(
+        child: Stack(fit: StackFit.expand, children: [_DetailArt(place: place)]),
+      );
+    }
+
+    return Positioned.fill(
+      child: Stack(fit: StackFit.expand, children: [
+        PageView.builder(
+          controller: _controller,
+          itemCount: photos.length,
+          onPageChanged: (i) => setState(() => _index = i),
+          itemBuilder: (context, i) => Image.network(
+            photos[i],
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                Stack(fit: StackFit.expand, children: [_DetailArt(place: place)]),
+          ),
+        ),
+        if (photos.length > 1) ...[
+          Positioned(
+            left: 0, top: 0, bottom: 0, width: 60,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => _step(-1),
+            ),
+          ),
+          Positioned(
+            right: 0, top: 0, bottom: 0, width: 60,
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => _step(1),
+            ),
+          ),
+          Positioned(
+            top: 58, left: 18, right: 18,
+            child: Row(children: [
+              for (var i = 0; i < photos.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: i <= _index ? Colors.white : Colors.white.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
+            ]),
+          ),
+        ],
+      ]),
     );
   }
 }

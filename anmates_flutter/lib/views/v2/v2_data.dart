@@ -68,7 +68,7 @@ class Place {
     required this.meta,
     required this.reviews,
     required this.lines,
-    this.photoUrl,
+    this.photoUrls = const [],
   });
 
   final String img;
@@ -80,10 +80,10 @@ class Place {
   final T reviews;
   final List<SummaryLine> lines;
 
-  /// A real stored photo (see `ApiClient.venuePhotoUrl`), when the venue has
-  /// one — null falls back to the [img] 3D render. Never a dead external URL:
-  /// the API only ever returns how many photos it actually holds bytes for.
-  final String? photoUrl;
+  /// Real stored photos (see `ApiClient.venuePhotoUrl`), in display order —
+  /// empty falls back to the [img] 3D render. Never a dead external URL: the
+  /// API only ever returns how many photos it actually holds bytes for.
+  final List<String> photoUrls;
 }
 
 class Venue {
