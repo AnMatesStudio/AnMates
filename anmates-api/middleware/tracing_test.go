@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
@@ -36,11 +37,11 @@ func TestTracingCreatesServerSpan(t *testing.T) {
 	app, sr := newTracingTestApp(t)
 	app.Get("/api/v1/venues", func(c *fiber.Ctx) error { return c.SendString("ok") })
 
-	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/venues", nil))
+	resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/venues", http.NoBody))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	spans := sr.Ended()
 	if len(spans) != 1 {
@@ -65,11 +66,11 @@ func TestUserContextCarriesSpan(t *testing.T) {
 		return c.SendString("ok")
 	})
 
-	resp, err := app.Test(httptest.NewRequest("GET", "/probe", nil))
+	resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/probe", http.NoBody))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	sc := trace.SpanContextFromContext(got)
 	if !sc.IsValid() {
@@ -85,12 +86,12 @@ func TestTracingSkipsProbePaths(t *testing.T) {
 	app.Get(MetricsPath, func(c *fiber.Ctx) error { return c.SendString("ok") })
 
 	for _, p := range []string{"/health", MetricsPath} {
-		resp, err := app.Test(httptest.NewRequest("GET", p, nil))
+		resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, http.NoBody))
 		if err != nil {
 			t.Fatal(err)
 		}
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	if n := len(sr.Ended()); n != 0 {
@@ -104,11 +105,11 @@ func TestTraceIDResponseHeader(t *testing.T) {
 	app, _ := newTracingTestApp(t)
 	app.Get("/api/v1/venues", func(c *fiber.Ctx) error { return c.SendString("ok") })
 
-	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/venues", nil))
+	resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/venues", http.NoBody))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if id := resp.Header.Get("X-Trace-Id"); len(id) != 32 {
 		t.Fatalf("X-Trace-Id = %q, muốn 32 ký tự hex", id)
@@ -120,14 +121,14 @@ func TestTraceparentIsContinued(t *testing.T) {
 	app, sr := newTracingTestApp(t)
 	app.Get("/api/v1/venues", func(c *fiber.Ctx) error { return c.SendString("ok") })
 
-	req := httptest.NewRequest("GET", "/api/v1/venues", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/venues", http.NoBody)
 	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 	resp, err := app.Test(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	spans := sr.Ended()
 	if len(spans) != 1 {
@@ -144,11 +145,11 @@ func TestSpanNameUsesRoutePattern(t *testing.T) {
 	app, sr := newTracingTestApp(t)
 	app.Get("/api/v1/venues/:id", func(c *fiber.Ctx) error { return c.SendString("ok") })
 
-	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/venues/9f3c-abcd", nil))
+	resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/venues/9f3c-abcd", http.NoBody))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	spans := sr.Ended()
 	if len(spans) != 1 {
@@ -175,11 +176,11 @@ func TestRequestLoggerIncludesTraceID(t *testing.T) {
 	app.Use(RequestLogger(log))
 	app.Get("/api/v1/venues", func(c *fiber.Ctx) error { return c.SendString("ok") })
 
-	resp, err := app.Test(httptest.NewRequest("GET", "/api/v1/venues", nil))
+	resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/api/v1/venues", http.NoBody))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	out := buf.String()
 	if !strings.Contains(out, `"trace_id":"`) {
@@ -199,11 +200,11 @@ func TestServerSpanStatusFollowsSemconv(t *testing.T) {
 	app.Get("/missing", func(c *fiber.Ctx) error { return c.SendStatus(fiber.StatusNotFound) })
 
 	for _, p := range []string{"/boom", "/missing"} {
-		resp, err := app.Test(httptest.NewRequest("GET", p, nil))
+		resp, err := app.Test(httptest.NewRequestWithContext(context.Background(), http.MethodGet, p, http.NoBody))
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	got := map[string]codes.Code{}
