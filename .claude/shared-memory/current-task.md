@@ -1,5 +1,16 @@
 # Current Task
 
+**Status (2026-09-23) — OTel SDK instrumentation anmates-api: code + rig hardening DONE, cluster E2E PENDING:**
+Branch `feat/otel-go-instrumentation` (chưa merge, chưa push), 12 commit. Task 1–5 của plan
+`docs/superpowers/plans/2026-09-08-otel-go-instrumentation.md` xong + verify E2E local
+(`deploy/otel-e2e-local/`). Security review flag 3 issue trên commit rig E2E — 2 sửa thật
+(port bind → 127.0.0.1, secret hardcode → sinh ngẫu nhiên qua `up.sh`), 1 xác nhận là quy
+ước dev-local có sẵn của repo (DEV_MODE/DISABLE_RATE_LIMIT — không phải bypass mới).
+Cluster `10.10.10.11:6443` không kết nối được → Task 6/7 trên cluster còn nợ.
+Xem `sessions/2026-09-16-otel-go-instrumentation.md`.
+
+---
+
 **Status (2026-09-06) — Fix thu tu thumbnail Data_Pipeline→AnMates + rig test 1 may:**
 Va 3 bug: (1) `drop_unsendable_photos()` khong renumber sau khi loc anh trung/qua
 kho -> de lo hong `position`, Flutter duyet tuan tu bi 404 mat anh; (2) `write_photo()`

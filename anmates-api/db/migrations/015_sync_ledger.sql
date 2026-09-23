@@ -89,4 +89,3 @@ CREATE INDEX IF NOT EXISTS idx_sync_venue_state_outcome
 --
 -- Role `grafana_ro` + mật khẩu KHÔNG nằm trong migration này (secret không vào git) —
 -- tạo bằng tay theo runbook AnMates-Data-Bridge docs/RUNBOOK.md §F.
->>>>>>> 381340f168e10e866331dbf827de0da5784d69ea

@@ -1,0 +1,29 @@
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: 0.0.0.0:4317 }
+connectors:
+  spanmetrics:
+    # Giống gateway (anmates-infra values: gateway.spanMetrics.namespace) →
+    # traces_spanmetrics_calls_total, không phải default traces_span_metrics_*.
+    namespace: traces.spanmetrics
+    dimensions:
+      - name: http.request.method
+      - name: http.response.status_code
+    exemplars: { enabled: true }
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls: { insecure: true }
+  prometheus:
+    endpoint: 0.0.0.0:8889
+  debug: { verbosity: basic }
+processors:
+  batch: {}
+service:
+  telemetry:
+    metrics: { address: 0.0.0.0:8888 }
+  pipelines:
+    traces: { receivers: [otlp], processors: [batch], exporters: [otlp/tempo, spanmetrics] }
+    metrics/spanmetrics: { receivers: [spanmetrics], exporters: [prometheus] }
+    metrics/app: { receivers: [otlp], processors: [batch], exporters: [prometheus] }

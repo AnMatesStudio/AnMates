@@ -1,0 +1,37 @@
+# Rig E2E local cho OTel của anmates-api: Postgres scratch + OTel Collector
+# (spanmetrics với CÙNG dimensions semconv như gateway) + Tempo.
+# App -> collector:54317 -> Tempo(:53200) + spanmetrics (exporter :58889,
+# Prometheus scrape :59090 — đứng thay query API của Mimir).
+# Collector self-metrics: :58888. Xem docs/observability-e2e-verified.md.
+#
+# CHỈ dùng local, KHÔNG dùng chung máy/CI nhiều người: mọi port bind vào
+# 127.0.0.1 (không phải 0.0.0.0) — Postgres ở đây KHÔNG có TLS và mật khẩu là
+# giá trị ephemeral do up.sh sinh ra mỗi lần chạy (xem .env cạnh file này,
+# gitignored). Dùng `up.sh`, đừng gọi thẳng `docker compose` — nó cần
+# OTEL_E2E_DB_PASS từ .env sinh ra ở đó.
+name: otel-e2e-anmates
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${OTEL_E2E_DB_PASS:?chạy ./up.sh để sinh mật khẩu, đừng gọi compose trực tiếp}
+      POSTGRES_DB: anmates
+    ports: ["127.0.0.1:55432:5432"]
+  tempo:
+    image: grafana/tempo:2.6.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes: ["./tempo.yaml:/etc/tempo.yaml"]
+    ports: ["127.0.0.1:53200:3200"]
+  collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/c.yaml"]
+    volumes: ["./collector.yaml:/etc/c.yaml"]
+    ports:
+      - "127.0.0.1:54317:4317"
+      - "127.0.0.1:58889:8889"
+      - "127.0.0.1:58888:8888"
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus.yml", "--web.enable-lifecycle"]
+    volumes: ["./prometheus.yml:/etc/prometheus.yml"]
+    ports: ["127.0.0.1:59090:9090"]

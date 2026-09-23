@@ -44,6 +44,24 @@ api:
     goMaxProcs: "1"
     goMemLimit: "450MiB"
     devMode: "true" # bật /auth/dev-login (tester quick-login) — tắt khi có user thật
+  # OpenTelemetry. Cấu hình HOÀN TOÀN qua env — không file Go nào chứa endpoint.
+  # TẮT mặc định: endpoint rỗng = telemetry.Setup() trả no-op, app chạy bình
+  # thường. Bật sau khi chart observability (anmates-infra) đã có Alloy Service.
+  otel:
+    enabled: false
+    # Trỏ vào ALLOY (agent tier), KHÔNG phải gateway. Service Alloy đặt
+    # internalTrafficPolicy: Local nên telemetry ở lại node của pod gửi VÀ
+    # giữ nguyên source IP để k8sattributes nhận diện đúng pod.
+    # Scheme http:// = plaintext gRPC (exporter tự suy ra từ scheme).
+    endpoint: http://observability-alloy.monitoring.svc.cluster.local:4317
+    protocol: grpc
+    serviceName: anmates-api
+    serviceNamespace: anmates
+    environment: onprem
+    # parentbased_always_on, KHÔNG phải traceidratio: tail sampling nằm ở
+    # collector gateway (baseline 20% + giữ toàn bộ error/slow). SDK head-sample
+    # trước nghĩa là gateway chỉ thấy phần còn sót và error bị vứt ngẫu nhiên.
+    sampler: parentbased_always_on
   probe:
     path: /health # đã tự ping DB — dùng chung cho liveness lẫn readiness
     initialDelaySeconds: 5

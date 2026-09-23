@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var reqCounter atomic.Uint64
@@ -59,6 +60,20 @@ func RequestLogger(log *slog.Logger) fiber.Handler {
 
 		if err != nil {
 			attrs = append(attrs, slog.String("handler_error", err.Error()))
+		}
+
+		// trace_id/span_id vào MỖI dòng log. Đây là thứ làm trace -> log và
+		// log -> trace jump chạy được:
+		//   - log đi qua OTLP: trace_id thành structured metadata của Loki,
+		//     khớp derivedFields matcher `label`
+		//   - log scrape từ /var/log/pods: trace_id nằm trong text JSON,
+		//     khớp derivedFields matcher `regex`
+		// Cả hai matcher đều được cấu hình ở chart observability (anmates-infra).
+		if sc := trace.SpanContextFromContext(c.UserContext()); sc.IsValid() {
+			attrs = append(attrs,
+				slog.String("trace_id", sc.TraceID().String()),
+				slog.String("span_id", sc.SpanID().String()),
+			)
 		}
 
 		switch {
