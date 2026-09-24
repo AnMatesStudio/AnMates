@@ -16,6 +16,10 @@ services:
     # the API server 10.10.10.11:6443 get REJECTed. From the host netns they are
     # plain local OUTPUT traffic and go through.
     network_mode: host
+    # The runner (uid 1001) reads ./kubeconfig through the primary group of the
+    # host user who ran scripts/make-deployer-kubeconfig.sh (it writes this to .env).
+    group_add:
+      - "${KUBECONFIG_GID:?run ./scripts/make-deployer-kubeconfig.sh first}"
     environment:
       RUNNER_TOKEN: ${RUNNER_TOKEN:-}
     cpus: 1

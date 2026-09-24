@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Run ON devops-pc with an ADMIN kubeconfig. Creates the ci-deployer identity
-# in ns ci-cd, allowed to deploy only into ns anmates (../rbac-deployer.yaml),
-# and writes its kubeconfig to ../kubeconfig, which docker-compose.yml mounts
-# read-only into the runner.
+# Run ON devops-pc as your normal user (not sudo) with an ADMIN kubeconfig.
+# Creates the ci-deployer identity in ns ci-cd, allowed to deploy only into
+# ns anmates (../rbac-deployer.yaml), and writes its kubeconfig to ../kubeconfig,
+# which docker-compose.yml mounts read-only into the runner.
 #
 #   KUBECONFIG=~/.kube/config ./scripts/make-deployer-kubeconfig.sh
 #
@@ -14,7 +14,12 @@ cd "$(dirname "$0")/.."
 SA_NS=ci-cd     # where the identity + its token live
 APP_NS=anmates  # the only namespace it may deploy into
 OUT=./kubeconfig # docker-compose.yml mounts exactly this path
-RUNNER_UID=1001 # `runner` user inside ghcr.io/actions/actions-runner
+
+# sudo would pick up root's kubeconfig and make the file root-owned.
+if [[ "$(id -u)" == 0 ]]; then
+  echo "run as your normal user, not root/sudo" >&2
+  exit 1
+fi
 
 ctx="$(kubectl config current-context)"
 server="$(kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}')"
@@ -59,7 +64,16 @@ for check in "list nodes" "list secrets"; do
   fi
 done
 
-# Owned by the runner container's uid (read through a read-only bind mount).
-SUDO=; [[ "$(id -u)" == 0 ]] || SUDO=sudo
-$SUDO install -m 0600 -o "$RUNNER_UID" -g "$RUNNER_UID" "$new" "$OUT"
-echo "wrote $(realpath "$OUT") (owner uid ${RUNNER_UID}, mode 600)"
+# Owned by you, readable by your primary group (on Ubuntu: a group of just you).
+# The runner container (uid 1001) joins that group via group_add, reading
+# KUBECONFIG_GID from .env. rm first: an older file may belong to another user.
+rm -f "$OUT"
+install -m 0640 "$new" "$OUT"
+gid="$(id -g)"
+touch .env && chmod 600 .env
+if grep -q '^KUBECONFIG_GID=' .env; then
+  sed -i "s/^KUBECONFIG_GID=.*/KUBECONFIG_GID=${gid}/" .env
+else
+  echo "KUBECONFIG_GID=${gid}" >>.env
+fi
+echo "wrote $(realpath "$OUT") ($(id -un):$(id -gn), mode 640) and KUBECONFIG_GID=${gid} to .env"

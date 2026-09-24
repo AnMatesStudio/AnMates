@@ -88,3 +88,13 @@ Lý do: giảm tải cho devops-pc (host đồng thời chạy các VM KVM của
   thêm `list secrets -A`; prompt nhận `y`/`yes`, trả lời khác thì in "aborted" thay vì thoát im lặng.
   Verify trên OrbStack k8s v1.35: chạy lần đầu trên cluster sạch → ghi file; chạy lần 2 idempotent; trả lời `n` → aborted;
   kubeconfig ghi ra: get secret trong anmates OK, get nodes / secrets trong ci-cd → Forbidden.
+- Quyền file kubeconfig: user `runner` của image có uid 1001 cố định, nhưng trên devops-pc uid 1001 = tài khoản `huy`
+  → `huy` từng sở hữu + đọc được credential deploy. Đổi sang cấp quyền qua GROUP: file `root:10001` mode 640,
+  compose `group_add: ["10001"]`, script `KUBECONFIG_GID=10001` + dừng nếu gid đó đã có group trên host
+  (`getent group`). Không build lại image với UID khác (phải `chown -R /home/runner` → image phình thêm một layer).
+  Verify bằng container alpine: uid 1001 có group 10001 → đọc được; uid 1001 không có group → Permission denied.
+- (thay dòng trên) User không muốn tạo gid 10001. Bản cuối: chạy script bằng user thường (từ chối root/sudo), file
+  `kubeconfig` thuộc user đó, mode 640; script ghi `KUBECONFIG_GID=$(id -g)` vào `.env`; compose
+  `group_add: ["${KUBECONFIG_GID:?...}"]`. Primary group trên Ubuntu chỉ có user đó → user khác (vd `huy` uid 1001 trên host)
+  không đọc được. `rm -f` trước `install` vì file cũ có thể thuộc user khác. Verify trong ubuntu:24.04: ghi file + .env
+  (chạy 2 lần vẫn 1 dòng), uid 1001 + group → đọc được, uid 1002 → denied; compose thiếu biến → báo lỗi chỉ tới script.

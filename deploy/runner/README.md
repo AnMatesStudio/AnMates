@@ -42,21 +42,34 @@ với `--replace` nên chiếm luôn slot cũ.
 
 ## 3. Kubeconfig
 
+Chạy bằng user thường của bạn, **không `sudo`**, với context admin của cluster:
+
 ```bash
 cd deploy/runner
+cp .env.example .env && chmod 600 .env
 ./scripts/make-deployer-kubeconfig.sh
 ```
 
-Script tạo ns `ci-cd` + SA/token ở đó và Role/RoleBinding ở `anmates`. Sau đó nó ghi
-`./kubeconfig` (gitignored, mode 600, uid 1001 = user `runner`) và tự kiểm tra: **được** patch deployment trong `anmates`, **không được** list nodes.
-Compose sẽ không start nếu thiếu file này.
+Script làm các việc sau:
+1. Tạo ns `ci-cd` + SA/token ở đó, và Role/RoleBinding ở `anmates`.
+2. Tự kiểm tra: **được** patch deployment trong `anmates`, **không được** list nodes/secrets toàn cluster.
+3. Ghi `./kubeconfig` (gitignored). File thuộc về chính bạn, mode 640.
+4. Ghi `KUBECONFIG_GID=$(id -g)` vào `.env`.
+
+Container (user `runner`, uid 1001) đọc file qua primary group của bạn nhờ `group_add`.
+Trên Ubuntu primary group chỉ có mình bạn, nên các user khác trên host không đọc được.
+Compose sẽ không start nếu thiếu file hoặc thiếu `KUBECONFIG_GID`.
+
+`ps` trên host có thể hiện process runner dưới tên của user nào đang có uid 1001 trên host.
+Đó chỉ là tên hiển thị, process vẫn nằm trong container.
 
 ## 4. Chạy
 
+Điền `RUNNER_TOKEN` vào `.env` (Settings → Actions → Runners → New self-hosted runner), rồi:
+
 ```bash
-cp .env.example .env && chmod 600 .env   # điền RUNNER_TOKEN: Settings → Actions → Runners → New self-hosted runner
 docker compose up -d --build
-docker compose logs -f                   # chờ "Listening for Jobs"
+docker compose logs -f          # chờ "Listening for Jobs"
 ```
 
 Khi `devops-pc` hiện **Idle** trên GitHub thì xoá `RUNNER_TOKEN` khỏi `.env`.
