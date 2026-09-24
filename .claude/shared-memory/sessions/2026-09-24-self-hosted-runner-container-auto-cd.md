@@ -81,3 +81,10 @@ Lý do: giảm tải cho devops-pc (host đồng thời chạy các VM KVM của
 - Rev 3b: SA `ci-deployer` + token Secret chuyển sang ns **`ci-cd`** (user muốn đặt tên rõ ràng hơn; `rbac-deployer.yaml` tạo luôn Namespace).
   Role + RoleBinding **vẫn ở `anmates`** (Role chỉ cấp quyền trong namespace chứa nó; RoleBinding trỏ tới SA ở ns khác được).
   Script dùng `SA_NS=ci-cd` / `APP_NS=anmates`; muốn xoay token thì `kubectl -n ci-cd delete secret ci-deployer-token`.
+- Bug (user gặp trên devops-pc): script không ghi `./kubeconfig`. Nguyên nhân: bước tự kiểm tra
+  `kubectl auth can-i list nodes` chạy với context `namespace: anmates` → hỏi TRONG ns anmates, Role
+  `resources: ["*"]` (core group) trả `yes` cho cả resource cluster-scoped → báo sai "RBAC quá rộng" → `exit 1`
+  ngay trước `install`. Thực tế `get nodes` bị Forbidden. Sửa: `auth can-i ... -A` (cluster scope), kiểm tra
+  thêm `list secrets -A`; prompt nhận `y`/`yes`, trả lời khác thì in "aborted" thay vì thoát im lặng.
+  Verify trên OrbStack k8s v1.35: chạy lần đầu trên cluster sạch → ghi file; chạy lần 2 idempotent; trả lời `n` → aborted;
+  kubeconfig ghi ra: get secret trong anmates OK, get nodes / secrets trong ci-cd → Forbidden.
