@@ -89,13 +89,13 @@ Khi `devops-pc` hiện **Idle** trên GitHub thì xoá `RUNNER_TOKEN` khỏi `.e
 | Rollback | `helm -n anmates history anmates` → `helm -n anmates rollback anmates <REV>` |
 | Nâng Helm/kubectl | sửa `ARG` trong `Dockerfile` → `docker compose build --pull && docker compose up -d` |
 | Pin kubectl theo cụm | `KUBECTL_VERSION=v1.xx.y` cùng minor với server (lệch tối đa ±1) |
-| Đăng ký lại runner | `docker compose down && docker volume rm anmates-runner_state` → điền `RUNNER_TOKEN` → `docker compose up -d` |
+| Đăng ký lại runner | Lấy token mới (New self-hosted runner) → dán vào `RUNNER_TOKEN` trong `.env` → `docker compose up -d`. Có token thì entrypoint đăng ký lại, ghi đè state cũ |
 | Xoay token deployer | `kubectl -n ci-cd delete secret ci-deployer-token && ./scripts/make-deployer-kubeconfig.sh` |
 
 ## Troubleshooting
 
 - **CD không chạy sau khi CI xanh:** `workflow_run` chỉ kích hoạt khi `cd.yml` **đã có trên `main`**. CD cũng bỏ qua các run của PR.
 - **CD "Queued" mãi:** runner offline. Kiểm tra `docker compose ps` / `docker compose logs`.
-- **Runner restart liên tục, log 404 / "registration deleted":** runner đã bị Remove trên GitHub. Làm bước "Đăng ký lại runner".
+- **Log `registration has been deleted from the server` / `Registration was not found`:** registration lưu trong volume `state` đã bị xoá phía GitHub (bị Remove, hoặc offline quá lâu). Làm bước "Đăng ký lại runner". Nếu vẫn lỗi, token trong `.env` đã hết hạn 1 giờ, lấy token mới.
 - **`dial tcp 10.10.10.11:6443` refused/timeout:** thử `curl -k https://10.10.10.11:6443/version` từ host. Host gọi được mà container không thì container đang không chạy `network_mode: host`. Host network là bắt buộc vì libvirt NAT `virbr1` REJECT traffic đi từ `docker0`.
 - **`helm upgrade` fail và tự rollback:** xem step `Diagnostics`. Thường gặp `ImagePullBackOff` (secret `ghcr-pull`) hoặc `CrashLoopBackOff` (thiếu key trong secret `anmates-api`).

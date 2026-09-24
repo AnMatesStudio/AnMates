@@ -98,3 +98,10 @@ Lý do: giảm tải cho devops-pc (host đồng thời chạy các VM KVM của
   `group_add: ["${KUBECONFIG_GID:?...}"]`. Primary group trên Ubuntu chỉ có user đó → user khác (vd `huy` uid 1001 trên host)
   không đọc được. `rm -f` trước `install` vì file cũ có thể thuộc user khác. Verify trong ubuntu:24.04: ghi file + .env
   (chạy 2 lần vẫn 1 dòng), uid 1001 + group → đọc được, uid 1002 → denied; compose thiếu biến → báo lỗi chỉ tới script.
+- Bug: user tạo lại runner trên GitHub + dán RUNNER_TOKEN mới → vẫn lỗi `Registration was not found` /
+  `runner registration has been deleted from the server`. Nguyên nhân: entrypoint thấy volume `state` có `.runner` là
+  khôi phục luôn, bỏ qua token mới. Sửa: có RUNNER_TOKEN thì đăng ký trước (`rm` state local rồi `config.sh --replace`),
+  config.sh fail (token quá 1h) mà volume có state → dùng state; không token + không state → exit 1 kèm hướng dẫn.
+  Verify 6 nhánh bằng image thật + stub config.sh/run.sh. Cũng xác nhận log `TaskCanceledException` ở BrokerServer
+  sau mỗi job là bình thường (runner tự huỷ long-poll status=Busy khi job xong, poll lại với Online); job deploy đầu
+  tiên trên devops-pc đã Succeeded (Code 100). Block `logging` (rotation) mình thêm vào compose đã bị gỡ trên đĩa.
