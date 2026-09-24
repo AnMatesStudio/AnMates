@@ -17,7 +17,7 @@ push main ─► CI (ubuntu-latest): api + web → ghcr.io/anmatesstudio/anmates
 | [`Dockerfile`](Dockerfile) | `ghcr.io/actions/actions-runner` + Helm v4 + kubectl |
 | [`docker-compose.yml`](docker-compose.yml) | 1 runner, `restart: unless-stopped`, `network_mode: host`, 1 CPU / 1g |
 | [`entrypoint.sh`](entrypoint.sh) | Chỉ đăng ký `devops-pc` (label `pc-runner`) ở lần chạy đầu. Credential lưu trong volume `state` nên reboot không cần token |
-| [`rbac-deployer.yaml`](rbac-deployer.yaml) + [`scripts/make-deployer-kubeconfig.sh`](scripts/make-deployer-kubeconfig.sh) | ServiceAccount `ci-deployer`, chỉ có quyền trong ns `anmates` |
+| [`rbac-deployer.yaml`](rbac-deployer.yaml) + [`scripts/make-deployer-kubeconfig.sh`](scripts/make-deployer-kubeconfig.sh) | ServiceAccount `ci-deployer` nằm ở ns `ci-cd`, chỉ có quyền deploy vào ns `anmates` (Role/RoleBinding đặt trong `anmates`) |
 
 ## 0. Tiền đề
 
@@ -47,8 +47,8 @@ cd deploy/runner
 ./scripts/make-deployer-kubeconfig.sh
 ```
 
-Script apply RBAC rồi ghi `./kubeconfig` (gitignored, mode 600, uid 1001 = user `runner`),
-sau đó tự kiểm tra: **được** patch deployment trong `anmates`, **không được** list nodes.
+Script tạo ns `ci-cd` + SA/token ở đó và Role/RoleBinding ở `anmates`. Sau đó nó ghi
+`./kubeconfig` (gitignored, mode 600, uid 1001 = user `runner`) và tự kiểm tra: **được** patch deployment trong `anmates`, **không được** list nodes.
 Compose sẽ không start nếu thiếu file này.
 
 ## 4. Chạy
@@ -77,7 +77,7 @@ Khi `devops-pc` hiện **Idle** trên GitHub thì xoá `RUNNER_TOKEN` khỏi `.e
 | Nâng Helm/kubectl | sửa `ARG` trong `Dockerfile` → `docker compose build --pull && docker compose up -d` |
 | Pin kubectl theo cụm | `KUBECTL_VERSION=v1.xx.y` cùng minor với server (lệch tối đa ±1) |
 | Đăng ký lại runner | `docker compose down && docker volume rm anmates-runner_state` → điền `RUNNER_TOKEN` → `docker compose up -d` |
-| Xoay token deployer | `kubectl -n anmates delete secret ci-deployer-token && ./scripts/make-deployer-kubeconfig.sh` |
+| Xoay token deployer | `kubectl -n ci-cd delete secret ci-deployer-token && ./scripts/make-deployer-kubeconfig.sh` |
 
 ## Troubleshooting
 

@@ -78,3 +78,6 @@ Lý do: giảm tải cho devops-pc (host đồng thời chạy các VM KVM của
   URL/tên/label hardcode: repo AnMatesStudio/AnMates, `devops-pc`, label `pc-runner`); compose bỏ các
   biến override; Dockerfile bỏ jq; `.env.example` chỉ còn RUNNER_TOKEN; README viết gọn lại.
 - Verify: actionlint (ci+cd) sạch, compose config OK, build image amd64 OK, entrypoint thiếu token → exit 1 kèm thông báo rõ.
+- Rev 3b: SA `ci-deployer` + token Secret chuyển sang ns **`ci-cd`** (user muốn đặt tên rõ ràng hơn; `rbac-deployer.yaml` tạo luôn Namespace).
+  Role + RoleBinding **vẫn ở `anmates`** (Role chỉ cấp quyền trong namespace chứa nó; RoleBinding trỏ tới SA ở ns khác được).
+  Script dùng `SA_NS=ci-cd` / `APP_NS=anmates`; muốn xoay token thì `kubectl -n ci-cd delete secret ci-deployer-token`.

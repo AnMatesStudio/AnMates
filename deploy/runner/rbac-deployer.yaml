@@ -1,21 +1,30 @@
-# Identity the CI deploy job uses: `helm upgrade` of release `anmates` in ns
+# Identity the CD workflow uses: `helm upgrade` of release `anmates` in ns
 # `anmates`, nothing else. Applied by scripts/make-deployer-kubeconfig.sh.
+#
+# The identity (ServiceAccount + token) lives in ns `ci-cd`, apart from the app.
+# The Role/RoleBinding must stay in `anmates`: a Role only grants access inside
+# its own namespace, and a RoleBinding may name a ServiceAccount from another one.
 #
 # Namespace-scoped on purpose — the runner container is reachable by workflow
 # code, so its kubeconfig must not be cluster-admin. It CAN read Secrets in
 # `anmates` (Helm stores release state in Secrets; the pre-flight checks that
 # ghcr-pull / anmates-api exist).
 apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci-cd
+---
+apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ci-deployer
-  namespace: anmates
+  namespace: ci-cd
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: ci-deployer-token
-  namespace: anmates
+  namespace: ci-cd
   annotations:
     kubernetes.io/service-account.name: ci-deployer
 type: kubernetes.io/service-account-token
@@ -44,4 +53,4 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: ci-deployer
-    namespace: anmates
+    namespace: ci-cd
