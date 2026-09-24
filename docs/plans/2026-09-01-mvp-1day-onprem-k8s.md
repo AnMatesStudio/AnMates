@@ -47,7 +47,9 @@ GHA cloud runner: go vet/test -> flutter analyze/test/build web
    |                docker build+push -> ghcr.io/<owner>/anmates-{api,web}:<sha>
    |                (auth: GITHUB_TOKEN co san, khong can secret rieng)
    v
-[thu cong] ssh host -> helm upgrade --install --set image.tag=<sha>
+[tu dong tu 2026-09-24] cd.yml (CI xanh) tren self-hosted runner (devops-pc)
+   |                -> helm upgrade --install --set image.{api,web}.tag=<sha>
+   |                (deploy/runner/README.md; truoc do: ssh host chay tay)
    |
    v
 k8s on-prem (1 CP + 2 worker, da dung san)
@@ -288,6 +290,10 @@ kubectl -n anmates get secret anmates-api -o jsonpath='{.data}' | tr ',' '\n'
 (2026-09-02). Cấu trúc: 2 lane chạy song song (`api`, `web`), mỗi lane
 test → build image; PR thì build không push, push `main` thì push GHCR; job cuối
 in lệnh `helm upgrade` để chạy tay trên host.
+**Cập nhật 2026-09-24:** job in lệnh đã bỏ. CI xanh trên `main` kích hoạt
+`.github/workflows/cd.yml` (`workflow_run`), workflow này tự `helm upgrade --rollback-on-failure` + smoke
+`/health` trên self-hosted runner container ở devops-pc. Test/build vẫn chạy trên GitHub-hosted
+— xem [`deploy/runner/README.md`](../../deploy/runner/README.md).
 
 Hai điểm khác so với bản phác thảo ban đầu:
 - **Không còn `API_BASE_URL` / biến `ANMATES_DOMAIN`.** Bundle web tự resolve

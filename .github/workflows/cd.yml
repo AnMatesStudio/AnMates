@@ -1,0 +1,81 @@
+name: CD
+
+# Deploys to k8s on-prem after a GREEN CI run on main (push or manual dispatch).
+# Runs on the self-hosted runner on devops-pc (deploy/runner/) — the only
+# machine that can reach the API server (10.10.10.11:6443). It only runs helm;
+# the cluster pulls the images from GHCR itself.
+#
+# workflow_run always executes this file from the default branch, so a PR can't
+# change what the deploy does. It also sets github.sha to main's HEAD, NOT the
+# commit CI built — always use workflow_run.head_sha for images and chart.
+# Redeploy the same commit: "Re-run jobs" on its CD run.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy → k8s on-prem
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: [self-hosted, pc-runner]
+    timeout-minutes: 15
+    environment: production
+    env:
+      NAMESPACE: anmates
+      RELEASE: anmates
+      SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      # Chart + values-prod.yaml from the commit the images were built from.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          sparse-checkout: deploy/charts/anmates
+
+      - name: Image owner (GHCR requires lowercase)
+        run: echo "IMAGE_OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      # Fail with a pointer to the runbook instead of a half-applied release.
+      - name: Pre-flight — cluster reachable, secrets present
+        run: |
+          if [ ! -s "$HOME/.kube/config" ]; then
+            echo "::error::No kubeconfig in the runner container — see deploy/runner/README.md §3"
+            exit 1
+          fi
+          kubectl version
+          kubectl -n "$NAMESPACE" get secret ghcr-pull anmates-api
+
+      # --rollback-on-failure (Helm 4's name for --atomic): pods not Ready within
+      # the timeout → Helm rolls back to the previous revision by itself.
+      - name: helm upgrade
+        run: |
+          helm upgrade --install "$RELEASE" ./deploy/charts/anmates \
+            -n "$NAMESPACE" -f deploy/charts/anmates/values-prod.yaml \
+            --set image.owner="$IMAGE_OWNER" \
+            --set image.api.tag="$SHA" \
+            --set image.web.tag="$SHA" \
+            --rollback-on-failure --wait=watcher --timeout 10m
+
+      # Same path a browser takes: web pod's nginx `location = /health` → Service
+      # anmates-api. Proves the new web + api pair can talk, not just that pods run.
+      - name: Smoke — web → api through nginx
+        run: kubectl -n "$NAMESPACE" exec deploy/anmates-web -- wget -qO- -T 10 http://127.0.0.1/health
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          helm -n "$NAMESPACE" history "$RELEASE" --max 5 || true
+          kubectl -n "$NAMESPACE" get pods -o wide || true
+          kubectl -n "$NAMESPACE" get events --sort-by=.lastTimestamp | tail -30 || true

@@ -1,5 +1,12 @@
 # Current Task
 
+**Status (2026-09-24) — Self-hosted runner container + auto CD helm: code DONE + verify image, chờ user dựng trên devops-pc:**
+Rev 3: CI (`ci.yml`) trên GitHub-hosted; CI main xanh → `cd.yml` (workflow_run) helm upgrade theo `head_sha` trên runner container `devops-pc` (`deploy/runner/`).
+User cần chạy README §0–§5 trên devops-pc (approval fork PR, tắt svc runner cũ, kubeconfig, compose up, reboot test).
+Xem `sessions/2026-09-24-self-hosted-runner-container-auto-cd.md`.
+
+---
+
 **Status (2026-09-23) — Venue carousel + "Xem tất cả" paged list: DONE local, chờ user test UI:**
 Carousel ảnh detail + viewer full-screen, favicon AM, màn danh sách tất cả quán (10/lần, lazy load),
 API `/venues?offset=` + `total`/`has_more`. Chạy local qua `./start.sh`. Chưa commit, chưa deploy k8s.

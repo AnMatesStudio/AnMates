@@ -3,7 +3,8 @@
 > ⚠️ **TÀI LIỆU CŨ.** Lộ trình mô tả ở đây (tách nhiều workflow + `workflow_call`
 > reusable, deploy Cloud Run/Firebase theo environment `dev`) **không còn áp dụng**.
 > Từ 2026-09-02 CI đã gộp về **một file** [`workflows/ci.yml`](workflows/ci.yml)
-> (2 lane song song, push image GHCR, deploy thủ công bằng helm trên host on-prem).
+> (2 lane song song, push image GHCR) + [`workflows/cd.yml`](workflows/cd.yml) (CI `main` xanh →
+> helm deploy qua self-hosted runner trên devops-pc, xem [`deploy/runner/`](../deploy/runner/README.md)).
 > Nguồn đúng: [`docs/plans/2026-09-01-mvp-1day-onprem-k8s.md`](../docs/plans/2026-09-01-mvp-1day-onprem-k8s.md).
 
 **Author role:** Principal DevOps Engineer + Solutions Architect

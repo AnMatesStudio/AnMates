@@ -1,0 +1,36 @@
+# Self-hosted GitHub Actions runner for .github/workflows/cd.yml, on devops-pc.
+# Runbook: README.md in this folder.
+#
+# Auto-start after reboot = `restart: unless-stopped` + the docker service being
+# enabled (`sudo systemctl enable --now docker`).
+name: anmates-runner
+
+services:
+  runner:
+    build: .
+    image: anmates-gha-runner:local
+    restart: unless-stopped
+    # HOST network, not the default bridge: k8s nodes are KVM guests on libvirt's
+    # NAT network (virbr1, 10.10.10.0/24). libvirt's FORWARD rules only accept
+    # traffic INTO virbr1 that is already ESTABLISHED, so packets from docker0 to
+    # the API server 10.10.10.11:6443 get REJECTed. From the host netns they are
+    # plain local OUTPUT traffic and go through.
+    network_mode: host
+    environment:
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+    cpus: 1
+    mem_limit: 1g
+    volumes:
+      - type: bind
+        source: ./kubeconfig
+        target: /home/runner/.kube/config
+        read_only: true
+        # Without this, a missing file makes Docker create an empty DIRECTORY
+        # there and the deploy fails much later with a confusing error.
+        bind: { create_host_path: false }
+      - state:/runner-state
+      - work:/home/runner/_work
+
+volumes:
+  state: # registration — delete it and the runner must re-register
+  work:

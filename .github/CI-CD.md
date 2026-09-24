@@ -4,8 +4,9 @@
 > thực tế: các workflow `cd.*.yml`, `ci.go-api.yml`, `ci.flutter-web.yml`,
 > `ci-build-push.yml` mô tả bên dưới **đã bị xoá**. Từ 2026-09-02 toàn bộ CI nằm
 > trong **một file duy nhất** [`workflows/ci.yml`](workflows/ci.yml): 2 lane song
-> song (api/web), PR thì build không push, push `main` thì push image lên **GHCR**,
-> deploy là bước **thủ công** bằng `helm upgrade` trên host.
+> song (api/web), PR thì build không push, push `main` thì push image lên **GHCR**
+> (GitHub-hosted). Từ 2026-09-24, CI xanh trên `main` kích hoạt [`workflows/cd.yml`](workflows/cd.yml):
+> `helm upgrade` vào k8s on-prem, chạy trên self-hosted runner ở devops-pc ([`deploy/runner/`](../deploy/runner/README.md)).
 > Nguồn đúng: [`docs/plans/2026-09-01-mvp-1day-onprem-k8s.md`](../docs/plans/2026-09-01-mvp-1day-onprem-k8s.md).
 > Giữ file này làm tham chiếu lịch sử cho đường lùi GCP.
 
