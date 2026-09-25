@@ -42,17 +42,18 @@ class DetailScreen extends StatelessWidget {
             child: Stack(children: [
               _PhotoCarousel(place: place),
               Positioned(
-                top: 104, left: 18,
+                // Level with the language toggle, which sits at safeTop + 8.
+                top: MediaQuery.paddingOf(context).top + 8, left: 18,
                 child: V2BackButton(size: 40, onTap: () => s.go(s.detailBack)),
               ),
             ]),
           ),
           Transform.translate(
-            offset: const Offset(0, -96),
+            offset: Offset.zero,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
               child: Column(children: [
-                const SizedBox(height: 104),
+                const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
@@ -139,7 +140,7 @@ class _AiSummary extends StatelessWidget {
               // claiming something the content doesn't do.
               child: Text(
                 s.t('THÔNG TIN QUÁN', 'VENUE DETAILS'),
-                style: AppTextV2.name(color: Colors.white, size: 9.5)
+                style: AppTextV2.name(color: Colors.white, size: 11)
                     .copyWith(letterSpacing: 0.76),
               ),
             ),

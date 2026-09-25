@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/aurora_background.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
@@ -67,8 +68,11 @@ class _Welcome extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final side = V2Layout.widthClass(context) == V2Width.xs ? 22.0 : 34.0;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 60),
+      padding: EdgeInsets.fromLTRB(
+        side, V2Layout.contentTop(context), side, 26 + MediaQuery.paddingOf(context).bottom,
+      ),
       child: Center(
         child: SingleChildScrollView(
           child: Column(
@@ -180,7 +184,9 @@ class _Hero extends StatelessWidget {
     return Stack(children: [
       const _BlobBackground(),
       Padding(
-        padding: const EdgeInsets.fromLTRB(24, 100, 24, 26),
+        padding: EdgeInsets.fromLTRB(
+          24, V2Layout.contentTop(context), 24, 26 + MediaQuery.paddingOf(context).bottom,
+        ),
         child: Column(children: [
           Expanded(
             child: Center(
@@ -222,7 +228,7 @@ class _Hero extends StatelessWidget {
             onTap: s.nextStep,
           ),
           const SizedBox(height: 12),
-          GestureDetector(
+          V2TapTarget(
             onTap: () => s.go(V2Screen.home),
             child: RichText(
               text: TextSpan(children: [
@@ -253,7 +259,9 @@ class _SocialProof extends StatelessWidget {
     return Stack(children: [
       const _BlobBackground(),
       Padding(
-        padding: const EdgeInsets.fromLTRB(24, 100, 24, 26),
+        padding: EdgeInsets.fromLTRB(
+          24, V2Layout.contentTop(context), 24, 26 + MediaQuery.paddingOf(context).bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -460,10 +468,19 @@ class _BudgetStep extends StatelessWidget {
     return Stack(children: [
       const _BlobBackground(),
       Padding(
-        padding: const EdgeInsets.fromLTRB(24, 100, 24, 26),
+        padding: EdgeInsets.fromLTRB(
+          24, V2Layout.contentTop(context), 24, 26 + MediaQuery.paddingOf(context).bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Header and cards scroll together so a short screen (a phone in
+            // landscape) never pushes the pinned CTA off the bottom.
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
             Align(
               alignment: Alignment.centerLeft,
               child: V2BackButton(size: 44, radius: 16, onTap: s.backStep),
@@ -484,14 +501,12 @@ class _BudgetStep extends StatelessWidget {
                   .copyWith(height: 1.55),
             ),
             const SizedBox(height: 22),
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(children: [
-                  for (var i = 0; i < kBudgets.length; i++) ...[
-                    _BudgetCard(s: s, i: i),
-                    if (i != kBudgets.length - 1) const SizedBox(height: 11),
+            for (var i = 0; i < kBudgets.length; i++) ...[
+              _BudgetCard(s: s, i: i),
+              if (i != kBudgets.length - 1) const SizedBox(height: 11),
+            ],
                   ],
-                ]),
+                ),
               ),
             ),
             const SizedBox(height: 22),
@@ -571,10 +586,19 @@ class _TasteStep extends StatelessWidget {
     return Stack(children: [
       const _BlobBackground(),
       Padding(
-        padding: const EdgeInsets.only(top: 100, bottom: 26),
+        padding: EdgeInsets.only(
+          top: V2Layout.contentTop(context),
+          bottom: 26 + MediaQuery.paddingOf(context).bottom,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Header, chip grid and counter scroll together on short screens
+            // (iPhone SE, a phone in landscape) instead of pushing the CTA below
+            // the fold — the CTA stays pinned below.
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Column(
@@ -603,11 +627,6 @@ class _TasteStep extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 26),
-            // Scrolls the chip grid on short screens (e.g. iPhone SE) instead of
-            // letting it push the CTA below the fold — CTA stays pinned below.
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(children: [
                   for (var r = 0; r < 4; r++) ...[
                     _TasteRow(s: s, row: r),
                     if (r != 3) const SizedBox(height: 11),

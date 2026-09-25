@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -20,7 +21,10 @@ class SwipeScreen extends StatelessWidget {
     final s = context.watch<V2State>();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), navClearance(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -298,7 +302,7 @@ class _Overlap extends StatelessWidget {
         children: [
           Text(
             s.t('CÙNG THÍCH', 'BOTH LIKE'),
-            style: AppTextV2.eyebrow().copyWith(fontSize: 10),
+            style: AppTextV2.eyebrow(),
           ),
           const SizedBox(height: 5),
           Text(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../theme/app_theme_v2.dart';
+import '../../theme/v2_layout.dart';
 import '../../widgets/v2/aurora_background.dart';
 import '../../widgets/v2/design_frame.dart';
 import '../../widgets/v2/glass_nav_bar.dart';
@@ -80,7 +81,9 @@ class V2AppBody extends StatelessWidget {
               ),
             ),
 
-            if (s.showNav)
+            // The keyboard owns the bottom of the screen while it is up. Read the
+            // raw view: Scaffold consumes the inset before it reaches the body.
+            if (s.showNav && View.of(context).viewInsets.bottom == 0)
               Positioned(
                 left: 0, right: 0, bottom: 0,
                 child: SafeArea(
@@ -155,41 +158,63 @@ class _LangToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Each chip is drawn ~30pt tall but hit-tests over a full 48pt square; the
+    // white pill is painted behind the pair rather than wrapped around them so
+    // the larger hit areas don't make it visibly taller.
     Widget chip(String label, bool active, VoidCallback onTap) => GestureDetector(
           onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: active ? AppColorsV2.wisteria : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
+          behavior: HitTestBehavior.opaque,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: V2Layout.minTap, minHeight: V2Layout.minTap,
             ),
-            child: Text(
-              label,
-              style: AppTextV2.name(
-                color: active ? Colors.white : AppColorsV2.inkA(0.5),
-                size: 10.5,
+            child: Center(
+              widthFactor: 1,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: active ? AppColorsV2.wisteria : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  label,
+                  style: AppTextV2.name(
+                    color: active ? Colors.white : AppColorsV2.inkA(0.5),
+                    size: 11,
+                  ),
+                ),
               ),
             ),
           ),
         );
 
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: AppColorsV2.whiteA(0.92),
-        borderRadius: BorderRadius.circular(999),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF10366E).withValues(alpha: 0.16),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          top: 9, bottom: 9,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColorsV2.whiteA(0.92),
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF10366E).withValues(alpha: 0.16),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        chip('VI', !s.en, () => s.setLang(false)),
-        chip('EN', s.en, () => s.setLang(true)),
-      ]),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            chip('VI', !s.en, () => s.setLang(false)),
+            chip('EN', s.en, () => s.setLang(true)),
+          ]),
+        ),
+      ],
     );
   }
 }

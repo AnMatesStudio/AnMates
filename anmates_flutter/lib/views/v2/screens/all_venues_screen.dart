@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../services/venue_catalog_service.dart';
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -75,7 +76,9 @@ class _AllVenuesScreenState extends State<AllVenuesScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 104, 18, 6),
+          padding: EdgeInsets.fromLTRB(
+            V2Layout.hPad(context), V2Layout.contentTop(context), V2Layout.hPad(context), 6,
+          ),
           child: Row(children: [
             V2BackButton(size: 40, onTap: () => s.go(V2Screen.home)),
             const SizedBox(width: 12),
@@ -176,7 +179,7 @@ class _VenueRow extends StatelessWidget {
                       const Icon(Icons.photo_library_outlined, size: 10, color: Colors.white),
                       const SizedBox(width: 3),
                       Text('$photos',
-                          style: AppTextV2.name(color: Colors.white, size: 9)),
+                          style: AppTextV2.name(color: Colors.white, size: 11)),
                     ]),
                   ),
                 ),

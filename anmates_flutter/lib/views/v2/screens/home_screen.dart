@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
+import '../v2_kit.dart';
 import '../v2_state.dart';
 
 /// **B1 · Explore — hero 3D collage.** The design's single home surface:
@@ -26,13 +28,16 @@ class HomeScreen extends StatelessWidget {
     return Stack(
       children: [
         // White radial wash lifting the feed off the aurora.
-        const Positioned(
-          left: -58, right: -58, top: 104, bottom: 104,
-          child: RepaintBoundary(child: CustomPaint(painter: FeedWashPainter())),
+        Positioned(
+          left: -58, right: -58, top: V2Layout.contentTop(context) + 8, bottom: 104,
+          child: const RepaintBoundary(child: CustomPaint(painter: FeedWashPainter())),
         ),
         Positioned.fill(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.only(top: 96, bottom: 96),
+            padding: EdgeInsets.only(
+              top: V2Layout.contentTop(context),
+              bottom: navClearance(context),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -59,7 +64,8 @@ class HomeScreen extends StatelessWidget {
                   child: Column(children: [
                     _Cta(s: s),
                     const SizedBox(height: 12),
-                    Row(children: [
+                    // Same height whichever label wraps to two lines.
+                    IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                       Expanded(child: _StatCard(
                         value: s.openTables,
                         valueColor: AppColorsV2.wisteria,
@@ -77,7 +83,7 @@ class HomeScreen extends StatelessWidget {
                         label: s.t('mates hợp gu', 'matching mates'),
                         onTap: () => s.go(V2Screen.swipe),
                       )),
-                    ]),
+                    ])),
                   ]),
                 ),
                 Padding(
@@ -89,16 +95,28 @@ class HomeScreen extends StatelessWidget {
                       Expanded(child: Text(s.sectionTitle, style: AppTextV2.section())),
                       GestureDetector(
                         onTap: s.openAllVenues,
-                        child: Text(
-                          s.t('Xem tất cả', 'See all'),
-                          style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11.5),
+                        behavior: HitTestBehavior.opaque,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minWidth: V2Layout.minTap, minHeight: V2Layout.minTap,
+                          ),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            widthFactor: 1,
+                            heightFactor: 1,
+                            child: Text(
+                              s.t('Xem tất cả', 'See all'),
+                              style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11.5),
+                            ),
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
                 SizedBox(
-                  height: 198,
+                  // The two text lines under each tile grow with the user's text size.
+                  height: 198 + V2Layout.textGrowth(context, 48),
                   child: tiles.isEmpty
                       ? _FeedPlaceholder(s: s)
                       : _TileRow(tiles: tiles, s: s),
@@ -111,7 +129,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 SizedBox(
-                  height: 194,
+                  height: 194 + V2Layout.textGrowth(context, 48),
                   child: cards.isEmpty
                       ? _FeedPlaceholder(s: s)
                       : _CardRow(cards: cards, s: s),
@@ -152,7 +170,7 @@ class _ProfilePill extends StatelessWidget {
               children: [
                 Text(
                   s.t('Chào buổi tối', 'Good evening'),
-                  style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 9.5),
+                  style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 11),
                 ),
                 Text(s.profileName.isEmpty ? '—' : s.profileName, style: AppTextV2.name()),
               ],
@@ -445,7 +463,7 @@ class _TileRow extends StatelessWidget {
                           color: AppColorsV2.whiteA(0.94),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: Text('★ ${v.rating}', style: AppTextV2.name(size: 9)),
+                        child: Text('★ ${v.rating}', style: AppTextV2.name(size: 11)),
                       ),
                     ),
                   ]),
@@ -482,7 +500,7 @@ class _CardRow extends StatelessWidget {
         return GestureDetector(
           onTap: () => s.openVenueNamed(v.name),
           child: Container(
-            width: 138, height: 172,
+            width: 138, height: 172 + V2Layout.textGrowth(context, 48),
             decoration: BoxDecoration(
               color: AppColorsV2.cardBeds[i % AppColorsV2.cardBeds.length],
               borderRadius: BorderRadius.circular(22),

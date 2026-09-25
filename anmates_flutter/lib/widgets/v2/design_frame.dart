@@ -1,27 +1,33 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-import '../../views/v2/v2_data.dart';
+import '../../theme/v2_layout.dart';
 
-/// Lays the app out in the canvas's coordinate space, then scales the result to
-/// fit the real viewport.
+/// Hosts the v2 app at the real viewport's size, and on wide windows narrows it
+/// to a centered phone-width column.
 ///
-/// Every v2 screen is a port of a design frame that is 402 × 874, and it is a
-/// *pixel* port: fixed art sizes, fixed row heights, collages of absolutely
-/// positioned food art. None of that reflows. On a phone shorter than the frame
-/// — an iPhone SE is 667pt, a quarter short — the screens do not shrink, they
-/// collide: art lands on top of headlines and the bottom controls fall off the
-/// screen.
+/// The rule every v2 screen follows:
 ///
-/// The arithmetic leaves no third option. To show an 874pt composition on a
-/// 667pt screen without redrawing it, it has to be scaled by 0.76, so this
-/// scales the whole frame at once — art, type and buttons together, in the
-/// proportions the design was drawn in.
+/// * **Text never scales.** Type is set in fixed points; the only multiplier is
+///   the user's own text scale.
+/// * **Vertical overflow scrolls.** A phone shorter than the 402 × 874 design
+///   frame gets the same layout with less of it on screen at once.
+/// * **Wide windows get a [V2Layout.maxContentWidth] column.** A tablet, a phone
+///   in landscape or a desktop browser renders the app centered at 480 wide
+///   instead of stretching phone layouts across the window. The column also
+///   rewrites [MediaQueryData.size] to its own width, so every
+///   `MediaQuery.sizeOf` below it (the chat bubble's `width * 0.74`, for one)
+///   measures the column and not the window around it.
 ///
-/// It only ever shrinks. A screen at least as tall as the frame renders 1:1 and
-/// keeps the extra room, which the screens already absorb with `Expanded` and
-/// `Spacer`.
+/// This used to scale the whole frame by `min(1, height / 874)`. Looking only
+/// at height, it shrank every mobile browser, because the browser's toolbar
+/// eats the height: an iPhone 15 in Safari (393 × 668) rendered at 0.754, an
+/// iPhone SE (375 × 553) at 0.627. The 9pt nav labels came out at 6.8pt and
+/// 5.6pt, 48pt buttons at 36pt, and the layout believed it was 521–598pt
+/// wide, wider than any phone. Safari also resizes its toolbar while
+/// scrolling, which changed the scale mid-scroll. With the scale forced to 1,
+/// all 12 screens and the 5 onboarding steps lay out without overflow from
+/// 320 × 568 to 440 × 956, because they already scroll
+/// (docs/plans/2026-09-25-responsive-mobile/README.md §1, §1.1).
 class DesignFrame extends StatelessWidget {
   const DesignFrame({super.key, required this.child});
 
@@ -31,34 +37,15 @@ class DesignFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final w = constraints.maxWidth;
-        final h = constraints.maxHeight;
-        if (!w.isFinite || !h.isFinite) return child;
+        if (constraints.maxWidth <= V2Layout.maxContentWidth) return child;
 
-        final k = math.min(1.0, h / kDesignFrameHeight);
-        if (k >= 1) return child;
-
-        // What the child gets to believe it has: the same viewport, measured in
-        // frame units. Its height is the frame's by construction, so a screen
-        // that fits the canvas fits here.
-        final size = Size(w / k, h / k);
         final media = MediaQuery.of(context);
-
-        return FittedBox(
-          // `size` is the viewport divided by the scale, so it carries the
-          // viewport's exact aspect ratio and `fill` is a uniform scale.
-          fit: BoxFit.fill,
-          child: SizedBox.fromSize(
-            size: size,
+        return Center(
+          child: SizedBox(
+            width: V2Layout.maxContentWidth,
             child: MediaQuery(
-              // The device's own insets are physical, so they have to be
-              // restated in frame units too — otherwise a notch or home
-              // indicator shrinks along with the art it is meant to clear.
               data: media.copyWith(
-                size: size,
-                padding: media.padding / k,
-                viewPadding: media.viewPadding / k,
-                viewInsets: media.viewInsets / k,
+                size: Size(V2Layout.maxContentWidth, media.size.height),
               ),
               child: child,
             ),

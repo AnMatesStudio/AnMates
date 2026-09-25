@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -15,7 +16,10 @@ class PayScreen extends StatelessWidget {
     final s = context.watch<V2State>();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 104, 18, 40),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), 40 + MediaQuery.paddingOf(context).bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

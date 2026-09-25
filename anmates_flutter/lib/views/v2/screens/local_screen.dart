@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
@@ -20,7 +21,10 @@ class LocalScreen extends StatelessWidget {
     final s = context.watch<V2State>();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), navClearance(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

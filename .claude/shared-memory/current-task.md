@@ -1,5 +1,12 @@
 # Current Task
 
+**Status (2026-09-25) — Responsive mobile Flutter UI v2: CODE DONE + push main, chờ verify prod / user test:**
+Nguyên nhân gốc đã đo: `DesignFrame` scale cả app theo chiều cao → trên web mobile chữ/nút nhỏ 16–37 %.
+Plan + 31 task (26 file spec): `docs/plans/2026-09-25-responsive-mobile/README.md`. Chờ user chốt D1–D3 (§5)
+Đã thực thi rev 2 (bỏ scale theo chiều cao, sàn chữ 11pt, vùng bấm 48, xoay ngang); 1110/1110 test. Xem `sessions/2026-09-25-responsive-mobile-plan.md` §Thực thi.
+
+---
+
 **Status (2026-09-24) — Self-hosted runner container + auto CD helm: code DONE + verify image, chờ user dựng trên devops-pc:**
 Rev 3: CI (`ci.yml`) trên GitHub-hosted; CI main xanh → `cd.yml` (workflow_run) helm upgrade theo `head_sha` trên runner container `devops-pc` (`deploy/runner/`).
 User cần chạy README §0–§5 trên devops-pc (approval fork PR, tắt svc runner cũ, kubeconfig, compose up, reboot test).

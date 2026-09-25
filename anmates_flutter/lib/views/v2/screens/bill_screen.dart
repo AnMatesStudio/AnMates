@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../services/booking_service.dart';
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
@@ -22,7 +23,10 @@ class BillScreen extends StatelessWidget {
     final booking = s.booking;
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), navClearance(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -106,7 +110,7 @@ class _BookingCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(statusLabel.toUpperCase(),
-                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 9.5)
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11)
                     .copyWith(letterSpacing: 0.76)),
           ),
           const SizedBox(height: 12),

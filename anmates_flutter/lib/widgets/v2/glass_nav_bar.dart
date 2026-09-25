@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme_v2.dart';
+import '../../theme/v2_layout.dart';
 import '../../views/v2/v2_data.dart';
 
 enum NavTab { discover, swipe, tables, me }
@@ -32,8 +33,9 @@ class GlassNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final side = V2Layout.widthClass(context) == V2Width.xs ? 8.0 : 14.0;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 22),
+      padding: EdgeInsets.fromLTRB(side, 0, side, 22),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),
         child: BackdropFilter(
@@ -127,7 +129,13 @@ class _NavItem extends StatelessWidget {
               painter: _NavIconPainter(tab: tab, color: color, stroke: active ? 1.9 : 1.7),
             ),
             const SizedBox(height: 5),
-            Text(label, style: AppTextV2.navLabel(color: color)),
+            Text(
+              label,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextV2.navLabel(color: color),
+            ),
           ],
         ),
       ),

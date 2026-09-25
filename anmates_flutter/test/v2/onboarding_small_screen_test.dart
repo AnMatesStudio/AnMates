@@ -1,22 +1,19 @@
 import 'package:anmates/views/v2/v2_app.dart';
-import 'package:anmates/views/v2/v2_data.dart';
 import 'package:anmates/views/v2/v2_state.dart';
-import 'package:anmates/widgets/v2/food_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-/// Every v2 screen is a pixel port of a 402 × 874 canvas frame. An iPhone SE is
-/// 375 × 667 — a quarter shorter — and nothing in those screens reflows, so
-/// without [DesignFrame] the art lands on the headlines and the bottom controls
-/// fall off the screen.
+/// Every v2 screen is a port of a 402 × 874 canvas frame. An iPhone SE is
+/// 375 × 667 — a quarter shorter. Nothing is scaled to fit any more (see
+/// [DesignFrame]): the screens scroll, and the bottom-pinned CTAs must still
+/// land on screen.
 ///
 /// A RenderFlex that overflows reports through the binding, so these fail on
 /// their own if a screen stops fitting; the geometry assertions cover the case
 /// where content is merely pushed out of view rather than overflowing.
 void main() {
   const iPhoneSE = Size(375, 667);
-  const designFrame = Size(402, 874);
 
   Future<V2State> pumpAt(
     WidgetTester tester,
@@ -88,33 +85,6 @@ void main() {
   });
 
   group('design frame', () {
-    testWidgets('scales the whole frame down on a short screen',
-        (tester) async {
-      // The hotpot art is 238pt in the canvas frame. It keeps that size at the
-      // frame's own height and has to render smaller on a shorter phone.
-      await pumpAt(tester, designFrame, step: 1);
-      final atFrame = tester.getRect(find.byType(FloatingArt).first);
-      expect(atFrame.height, closeTo(238, 0.5));
-
-      await pumpAt(tester, iPhoneSE, step: 1);
-      final onSE = tester.getRect(find.byType(FloatingArt).first);
-
-      expect(onSE.height, lessThan(atFrame.height));
-      // Uniformly, by the height ratio — not squashed on one axis.
-      final k = iPhoneSE.height / kDesignFrameHeight;
-      expect(onSE.height, closeTo(238 * k, 1));
-      expect(onSE.width / onSE.height, closeTo(1, 0.01));
-    });
-
-    testWidgets('leaves a screen at least as tall as the frame untouched',
-        (tester) async {
-      await pumpAt(tester, const Size(402, 900), step: 1);
-      expect(
-        tester.getRect(find.byType(FloatingArt).first).height,
-        closeTo(238, 0.5),
-      );
-    });
-
     testWidgets('every screen lays out at iPhone SE size', (tester) async {
       for (final screen in V2Screen.values) {
         await pumpAt(tester, iPhoneSE, screen: screen);

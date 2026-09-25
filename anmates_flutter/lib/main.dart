@@ -44,18 +44,25 @@ class AnMatesApp extends StatelessWidget {
         ),
       ),
       home: const V2App(),
-      builder: _webFrameBuilder,
+      builder: (context, child) => _webFrameBuilder(
+        context,
+        // Respect the user's text size, up to the point the pill controls can hold it.
+        MediaQuery.withClampedTextScaling(maxScaleFactor: 1.3, child: child!),
+      ),
     );
   }
 }
 
 /// On a desktop browser, crop the app into a phone frame instead of stretching
 /// the mobile layout across the whole window, sized to the design's own
-/// 402 × 874 artboard. Below 600px wide (a real phone) it renders edge to edge.
+/// 402 × 874 artboard. Below 600px wide or 700px tall (a phone, in either
+/// orientation) it renders edge to edge.
 Widget _webFrameBuilder(BuildContext context, Widget? child) {
   if (!kIsWeb) return child!;
   final mq = MediaQuery.of(context);
-  if (mq.size.width <= 600) return child!;
+  // Only a real desktop window gets the phone frame. A phone held sideways is
+  // also wider than 600, but far too short for a frame at least 600 tall.
+  if (mq.size.width <= 600 || mq.size.height < 700) return child!;
 
   const frameW = 402.0;
   final frameH = (mq.size.height - 48).clamp(600.0, 874.0);

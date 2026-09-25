@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -17,14 +18,17 @@ class FiltersScreen extends StatelessWidget {
     final s = context.watch<V2State>();
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), navClearance(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           V2ScreenTitle(
             title: s.t('Lọc bể match', 'Match filters'),
             size: 26,
-            trailing: GestureDetector(
+            trailing: V2TapTarget(
               onTap: s.resetFilters,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
@@ -110,7 +114,7 @@ class _PriceTrack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return V2TapTarget(
       onTap: s.cyclePrice,
       child: SizedBox(
         height: 22,

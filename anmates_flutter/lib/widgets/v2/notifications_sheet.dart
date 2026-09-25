@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme_v2.dart';
+import '../../views/v2/v2_kit.dart';
 
 /// Liquid-glass notification sheet (canvas frame B1.2). Sits inset from every
 /// edge — `left:10 right:10 top:88 bottom:86` — so the aurora shows around it.
@@ -30,8 +31,10 @@ class NotificationsSheet extends StatelessWidget {
         Positioned(
           left: 10,
           right: 10,
-          top: 88,
-          bottom: 86,
+          // 26pt under the status bar, as in the design frame (62 + 26 = 88).
+          top: MediaQuery.paddingOf(context).top + 26,
+          // Just above the glass nav (navClearance is 96 + inset; the design used 86).
+          bottom: navClearance(context) - 10,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(34),
             child: BackdropFilter(
@@ -48,9 +51,8 @@ class NotificationsSheet extends StatelessWidget {
                 ),
                 child: Column(
                   children: [
-                    GestureDetector(
+                    V2TapTarget(
                       onTap: onClose,
-                      behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 11, bottom: 3),
                         child: Center(

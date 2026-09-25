@@ -29,9 +29,25 @@ enum SplitMode { item, equal }
 /// a labelled demo: nothing here is gated, and nothing here is a made-up
 /// number. See sessions/2026-09-03-real-data-sweep.md for the full audit.
 class V2State extends ChangeNotifier {
-  V2Screen _screen = V2Screen.onb;
+  V2Screen _screen = _initialScreen();
   bool _en = false;
-  int _step = 0;
+  int _step = _initialStep();
+
+  /// Debug-only deep link for layout screenshots: `?v2screen=home&v2step=2`.
+  /// Compiled in only with `--dart-define=V2_DEBUG_NAV=true`; every other build
+  /// starts on onboarding exactly as before.
+  static const _debugNav = bool.fromEnvironment('V2_DEBUG_NAV');
+
+  static V2Screen _initialScreen() {
+    if (!_debugNav) return V2Screen.onb;
+    final name = Uri.base.queryParameters['v2screen'];
+    return V2Screen.values.firstWhere((s) => s.name == name, orElse: () => V2Screen.onb);
+  }
+
+  static int _initialStep() {
+    if (!_debugNav) return 0;
+    return (int.tryParse(Uri.base.queryParameters['v2step'] ?? '') ?? 0).clamp(0, 4);
+  }
 
   int _budget = 2;
   Set<int> _tastes = {0, 3};
@@ -568,6 +584,33 @@ class V2State extends ChangeNotifier {
 
   void setSearchOpen(bool v) {
     _searchOpen = v;
+    notifyListeners();
+  }
+
+  // ── Test seeding ──────────────────────────────────────────────────────────
+
+  /// Fills the home feed and the "see all" list as a finished [loadVenues] /
+  /// [loadMoreAllVenues] would, without the network. With an empty feed the
+  /// card rows never render, so layout tests would only ever see the empty state.
+  @visibleForTesting
+  void seedVenues(List<CatalogVenue> rows) {
+    _catalog = rows;
+    _venues = rows.map(venueFromCatalog).toList();
+    _places = rows.map(placeFromCatalog).toList();
+    _placeIdx = 0;
+    _venuesError = null;
+    _allVenues = rows;
+    _allTotal = rows.length;
+    _allHasMore = false;
+    notifyListeners();
+  }
+
+  /// Fills the swipe deck as a finished [loadCandidates] would.
+  @visibleForTesting
+  void seedCandidates(List<MatchCandidate> candidates) {
+    _candidates = candidates;
+    _mateIdx = 0;
+    _candidatesError = null;
     notifyListeners();
   }
 

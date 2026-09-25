@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
@@ -19,30 +20,34 @@ class MeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
+    // The header was drawn with its content starting at 104; move all of it by
+    // however far the real content top is from that. Stickers also scale by width.
+    final dy = V2Layout.contentTop(context) - 104;
+    final u = V2Layout.unit(context);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.only(bottom: 96),
+      padding: EdgeInsets.only(bottom: navClearance(context)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            height: 268,
+            height: 268 + dy,
             child: Stack(clipBehavior: Clip.none, children: [
               for (final st in kMeStickers)
                 Positioned(
-                  left: st.left, top: st.top, width: st.size, height: st.size,
+                  left: st.left * u, top: st.top + dy, width: st.size * u, height: st.size * u,
                   child: Transform.rotate(
                     angle: st.rot * 0.017453,
                     child: FoodArt(asset: st.img, shadowOpacity: 0.26, shadowBlur: 14),
                   ),
                 ),
               Positioned(
-                top: 104, left: 16, right: 16,
+                top: 104 + dy, left: 16, right: 16,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     V2BackButton(size: 40, onTap: () => s.go(V2Screen.home)),
-                    GestureDetector(
+                    V2TapTarget(
                       onTap: () => s.go(V2Screen.pay),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
@@ -209,7 +214,7 @@ class _MiniStat extends StatelessWidget {
           Text(value, style: AppTextV2.stat().copyWith(fontSize: 19)),
           const SizedBox(height: 3),
           Text(label, style: AppTextV2.meta().copyWith(
-            fontSize: 10, fontWeight: FontWeight.w600,
+            fontSize: 11, fontWeight: FontWeight.w600,
           )),
         ],
       ),

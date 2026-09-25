@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -62,13 +63,13 @@ class _Header extends StatelessWidget {
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 96, 14, 10),
+          padding: EdgeInsets.fromLTRB(14, V2Layout.contentTop(context), 14, 10),
           decoration: BoxDecoration(
             color: AppColorsV2.whiteA(0.55),
             border: Border(bottom: BorderSide(color: AppColorsV2.inkA(0.06))),
           ),
           child: Row(children: [
-            GestureDetector(
+            V2TapTarget(
               onTap: () => s.go(V2Screen.swipe),
               child: SizedBox(
                 width: 34, height: 34,
@@ -197,10 +198,15 @@ class _Composer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // With the keyboard up the nav is hidden (see V2AppBody), so the composer
+    // sits just above the keyboard instead of above a nav that isn't there.
+    // Otherwise it clears the glass nav entirely: the design tucked the field
+    // 12pt under the glass, where the nav covered half of it.
+    final keyboardUp = View.of(context).viewInsets.bottom > 0;
     return Padding(
-      padding: EdgeInsets.fromLTRB(14, 0, 14, navClearance(context) - 12),
+      padding: EdgeInsets.fromLTRB(14, 0, 14, keyboardUp ? 10 : navClearance(context) + 6),
       child: Column(children: [
-        GestureDetector(
+        V2TapTarget(
           onTap: () => s.go(V2Screen.bill),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
@@ -229,15 +235,20 @@ class _Composer extends StatelessWidget {
         Row(children: [
           Expanded(
             child: Container(
-              height: 42,
+              // 48pt of field inside the 1pt border.
+              height: V2Layout.minTap + 2,
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
                 border: Border.all(color: AppColorsV2.inkA(0.07)),
                 borderRadius: BorderRadius.circular(999),
               ),
+              // Fills the pill so the whole pill, not just the text line, takes the tap.
               child: TextField(
                 controller: controller,
+                expands: true,
+                maxLines: null,
+                textAlignVertical: TextAlignVertical.center,
                 onSubmitted: (_) => onSend(),
                 textInputAction: TextInputAction.send,
                 decoration: InputDecoration(
@@ -251,7 +262,7 @@ class _Composer extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
+          V2TapTarget(
             onTap: onSend,
             child: Container(
               width: 38, height: 38,

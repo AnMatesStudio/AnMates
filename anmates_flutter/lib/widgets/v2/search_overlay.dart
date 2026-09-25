@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import '../../services/venue_catalog_service.dart';
 import '../../theme/app_theme_v2.dart';
+import '../../theme/v2_layout.dart';
 import '../../views/v2/v2_data.dart';
+import '../../views/v2/v2_kit.dart';
 import '../../views/v2/v2_venue_mapper.dart';
 import 'food_art.dart';
 
@@ -128,13 +130,14 @@ class _SearchOverlayState extends State<SearchOverlay> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 46, 18, 0),
+                padding: EdgeInsets.fromLTRB(
+                  V2Layout.hPad(context), 46, V2Layout.hPad(context), 0,
+                ),
                 child: Row(
                   children: [
                     Expanded(child: _field(hasText)),
-                    GestureDetector(
+                    V2TapTarget(
                       onTap: widget.onClose,
-                      behavior: HitTestBehavior.opaque,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
                         child: Text(
@@ -158,7 +161,8 @@ class _SearchOverlayState extends State<SearchOverlay> {
 
   Widget _field(bool hasText) {
     return Container(
-      height: 50,
+      // 48pt of field inside the 2pt border, so the whole pill takes the tap.
+      height: V2Layout.minTap + 4,
       padding: const EdgeInsets.symmetric(horizontal: 17),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -181,6 +185,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
               controller: _controller,
               focusNode: _focus,
               autofocus: true,
+              expands: true,
+              maxLines: null,
+              textAlignVertical: TextAlignVertical.center,
               cursorColor: AppColorsV2.wisteria,
               style: AppTextV2.body(color: AppColorsV2.ink, size: 14)
                   .copyWith(fontWeight: FontWeight.w500),
@@ -221,7 +228,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
     if (kRecentSearches.isEmpty) return const SizedBox.shrink();
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), 18, V2Layout.hPad(context), 12,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -297,7 +306,9 @@ class _SearchOverlayState extends State<SearchOverlay> {
 
   Widget _list(List<Venue> results, {required String label}) {
     return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(18, 18, 18, 12),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), 18, V2Layout.hPad(context), 12,
+      ),
       itemCount: results.length + 1,
       separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, i) {

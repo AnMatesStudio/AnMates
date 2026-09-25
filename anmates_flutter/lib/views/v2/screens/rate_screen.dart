@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
+import '../../../theme/v2_layout.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
@@ -19,7 +20,10 @@ class RateScreen extends StatelessWidget {
     final s = context.watch<V2State>();
 
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(18, 104, 18, navClearance(context)),
+      padding: EdgeInsets.fromLTRB(
+        V2Layout.hPad(context), V2Layout.contentTop(context),
+        V2Layout.hPad(context), navClearance(context),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -35,7 +39,8 @@ class RateScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           V2Sheet(
-            padding: const EdgeInsets.all(18),
+            // Narrowest phones: five 48pt stars with 8pt gaps need 272pt inside.
+            padding: EdgeInsets.all(V2Layout.widthClass(context) == V2Width.xs ? 10 : 18),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -181,7 +186,7 @@ class _EatAgainCard extends StatelessWidget {
             Expanded(
               child: V2Cta(
                 label: s.t('Có, thêm vào bàn quen', 'Yes, add to my table'),
-                height: 44, radius: 15, fontSize: 13,
+                height: V2Layout.minTap, radius: 15, fontSize: 13,
                 onTap: () => s.go(V2Screen.swipe),
               ),
             ),
@@ -189,7 +194,7 @@ class _EatAgainCard extends StatelessWidget {
             GestureDetector(
               onTap: () => s.go(V2Screen.home),
               child: Container(
-                height: 44,
+                height: V2Layout.minTap,
                 padding: const EdgeInsets.symmetric(horizontal: 18),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(

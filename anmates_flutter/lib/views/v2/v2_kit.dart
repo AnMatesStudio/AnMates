@@ -1,6 +1,9 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme_v2.dart';
+import '../../theme/v2_layout.dart';
 
 /// Small building blocks repeated across the v2 screens — pill chips, the
 /// gradient CTA, the circular back button, the white sheet card. Keeping them
@@ -13,7 +16,10 @@ import '../../theme/app_theme_v2.dart';
 /// is what the blur is for. Screens whose own controls sit at the bottom pad by
 /// this instead, so nothing ends up unreachable behind the bar.
 double navClearance(BuildContext context) =>
-    96 + MediaQuery.paddingOf(context).bottom;
+    96 +
+    // The nav's label grows with the user's text size (about 14pt of label line).
+    V2Layout.textGrowth(context, 14) +
+    MediaQuery.paddingOf(context).bottom;
 
 /// The design's `chip(on)` helper: Wisteria when selected, hairline when not.
 class V2Chip extends StatelessWidget {
@@ -32,7 +38,13 @@ class V2Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      behavior: HitTestBehavior.opaque,
+      // The chip is drawn ~37pt tall; the hit area is padded out to 48.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: V2Layout.minTap),
+        child: Center(
+          widthFactor: 1,
+          child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
           color: selected ? AppColorsV2.wisteria : Colors.white,
@@ -48,6 +60,8 @@ class V2Chip extends StatelessWidget {
             color: selected ? Colors.white : AppColorsV2.inkA(0.6),
             size: 12.5,
           ).copyWith(fontWeight: FontWeight.w600),
+        ),
+          ),
         ),
       ),
     );
@@ -108,7 +122,12 @@ class V2BackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      behavior: HitTestBehavior.opaque,
+      // Drawn at [size]; the hit area never goes under 48.
+      child: SizedBox.square(
+        dimension: math.max(size, V2Layout.minTap),
+        child: Center(
+          child: Container(
         width: size,
         height: size,
         alignment: Alignment.center,
@@ -129,6 +148,39 @@ class V2BackButton extends StatelessWidget {
           style: AppTextV2.name(size: size > 40 ? 19 : 16)
               .copyWith(height: 1, fontWeight: FontWeight.w600),
         ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A tap handler whose hit area is padded out to [V2Layout.minTap] on both axes,
+/// for links and small pills that are drawn smaller than a finger. The child is
+/// drawn exactly as before; the extra room around it is transparent but still
+/// takes the tap.
+class V2TapTarget extends StatelessWidget {
+  const V2TapTarget({
+    super.key,
+    required this.onTap,
+    required this.child,
+    this.alignment = Alignment.center,
+  });
+
+  final VoidCallback? onTap;
+  final Widget child;
+  final AlignmentGeometry alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: V2Layout.minTap, minHeight: V2Layout.minTap,
+        ),
+        child: Align(alignment: alignment, widthFactor: 1, heightFactor: 1, child: child),
       ),
     );
   }

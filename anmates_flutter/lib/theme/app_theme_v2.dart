@@ -85,6 +85,9 @@ class AppShadowsV2 {
 
 /// Be Vietnam Pro across the whole v2 surface — the design sets one family and
 /// separates roles by weight/size, so there is no display/body split here.
+///
+/// Nothing readable goes below 11pt: the design's 9–10.5pt labels were raised
+/// to that floor (docs/plans/2026-09-25-responsive-mobile, decision D2).
 class AppTextV2 {
   static TextStyle _f({
     required double size,
@@ -118,7 +121,7 @@ class AppTextV2 {
       _f(size: 12.5, weight: FontWeight.w700, height: 1.3, color: color);
 
   static TextStyle meta({Color? color}) =>
-      _f(size: 10.5, weight: FontWeight.w500, color: color ?? AppColorsV2.inkA(0.45));
+      _f(size: 11.5, weight: FontWeight.w500, color: color ?? AppColorsV2.inkA(0.45));
 
   static TextStyle body({Color? color, double size = 12}) =>
       _f(size: size, weight: FontWeight.w500, height: 1.5, color: color ?? AppColorsV2.inkA(0.58));
@@ -127,10 +130,10 @@ class AppTextV2 {
       _f(size: size, weight: FontWeight.w700, color: color);
 
   static TextStyle eyebrow({Color? color}) =>
-      _f(size: 10.5, weight: FontWeight.w600, color: color ?? AppColorsV2.inkA(0.45), letterSpacing: 1.05);
+      _f(size: 11, weight: FontWeight.w600, color: color ?? AppColorsV2.inkA(0.45), letterSpacing: 1.05);
 
   static TextStyle navLabel({required Color color}) =>
-      _f(size: 9, weight: FontWeight.w700, color: color);
+      _f(size: 11, weight: FontWeight.w700, color: color);
 
   static TextStyle stat({Color color = AppColorsV2.ink}) =>
       _f(size: 17, weight: FontWeight.w800, color: color);

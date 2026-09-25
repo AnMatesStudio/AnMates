@@ -124,3 +124,5 @@ __pycache__/
 .dev-e2e/
 /videos/
 .claude/scheduled_tasks.lock
+# Responsive screenshot grid (scripts/responsive-shots.mjs) — regenerated, never committed
+screenshots/responsive/
