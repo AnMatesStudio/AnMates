@@ -34,8 +34,9 @@ class CatalogVenue {
   final double? rating;
 
   /// Absolute URLs of this venue's stored photos (`ApiClient.venuePhotoUrl`),
-  /// built here from the API's `photo_count` — the API never sends a raw URL
-  /// for a photo, only how many slots it has. Empty means no photo on file,
+  /// built here from the API's `photo_versions` (or `photo_count` on an older
+  /// API) — the API never sends a raw URL for a photo, only its slots. Slot 0
+  /// is the cover the reviewer picked in Data-Pipeline. Empty means no photo on file,
   /// not a fetch failure; callers should fall back to placeholder art, never
   /// retry or show a broken-image icon.
   final List<String> photoUrls;
@@ -56,7 +57,11 @@ class CatalogVenue {
     }
 
     final id = (json['id'] ?? '').toString();
-    final photoCount = (json['photo_count'] as num?)?.toInt() ?? 0;
+    // One content hash per slot; an older API without it sends only the count,
+    // and those URLs simply go unversioned.
+    final versions =
+        (json['photo_versions'] as List?)?.map((e) => e?.toString()).toList();
+    final photoCount = versions?.length ?? (json['photo_count'] as num?)?.toInt() ?? 0;
 
     return CatalogVenue(
       id: id,
@@ -71,7 +76,10 @@ class CatalogVenue {
       rating: (json['rating'] as num?)?.toDouble(),
       photoUrls: id.isEmpty
           ? const []
-          : [for (var i = 0; i < photoCount; i++) ApiClient.venuePhotoUrl(id, i)],
+          : [
+              for (var i = 0; i < photoCount; i++)
+                ApiClient.venuePhotoUrl(id, i, version: versions?[i]),
+            ],
       source: str('source') ?? 'seed',
       distanceM: (json['distance_m'] as num?)?.toInt(),
       wantCount: (json['want_count'] as num?)?.toInt() ?? 0,

@@ -35,6 +35,13 @@ type CatalogVenue struct {
 	// here: it recorded where an image came from, and every value it has ever
 	// held pointed at the data pipeline's own ngrok tunnel, which is gone.
 	PhotoCount int      `json:"photo_count"`
+	// PhotoVersions is one short content hash per slot, in slot order
+	// (len == PhotoCount). The photo endpoint is served `immutable`, so a
+	// client that fetched /photos/0 once never asks again — when the reviewer
+	// in Data-Pipeline picks a different cover, the bytes at slot 0 change but
+	// the URL would not. Clients append `?v=<version>` so a new image is a new
+	// URL.
+	PhotoVersions []string `json:"photo_versions"`
 	Source     string   `json:"source"`
 	DistanceM *int      `json:"distance_m,omitempty"`
 	// WantCount is the number of distinct users whose wishlist holds a food
@@ -80,8 +87,9 @@ func (e *VenueEngine) ListVenuesPage(ctx context.Context, q CatalogQuery) ([]Cat
 	              r.price_min, r.price_max, r.rating, r.source,
 	              (SELECT count(DISTINCT w.user_id) FROM wishlists w
 	                WHERE w.food_category = ANY(r.cuisine_tags)) AS want_count,
-	              (SELECT count(*) FROM venue_photos p
-	                WHERE p.restaurant_id = r.id) AS photo_count`
+	              COALESCE((SELECT array_agg(left(p.sha256, 12) ORDER BY p.position)
+	                FROM venue_photos p
+	                WHERE p.restaurant_id = r.id), '{}') AS photo_versions`
 
 	var (
 		sql  string
@@ -119,9 +127,10 @@ func (e *VenueEngine) ListVenuesPage(ctx context.Context, q CatalogQuery) ([]Cat
 		var v CatalogVenue
 		if err := rows.Scan(&v.ID, &v.Name, &v.Address, &v.District, &v.Lat, &v.Lng,
 			&v.Cuisine, &v.PriceMin, &v.PriceMax, &v.Rating, &v.Source,
-			&v.WantCount, &v.PhotoCount); err != nil {
+			&v.WantCount, &v.PhotoVersions); err != nil {
 			return nil, 0, err
 		}
+		v.PhotoCount = len(v.PhotoVersions)
 		if cuisine != "" && !hasCuisineTag(v.Cuisine, cuisine) {
 			continue
 		}

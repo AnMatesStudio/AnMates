@@ -49,9 +49,11 @@ func (h *VenuePhoto) Serve(c *fiber.Ctx) error {
 
 	// Content-addressed (sha256 of the decoded bytes), so a strong ETag is
 	// exactly correct, not just a heuristic — the same digest can only ever
-	// mean the same bytes. immutable is safe for the same reason: a re-publish
-	// that changes the image lands at the same URL but a different ETag, which
-	// correctly invalidates any cache keyed on it.
+	// mean the same bytes. immutable, though, means a browser never
+	// revalidates, and a re-publish that changes the image lands at the SAME
+	// path — so clients must put the slot's version (photo_versions in
+	// GET /venues, a sha256 prefix) in the query string. A new image is then
+	// a new URL, and the old cache entry is simply never asked for again.
 	etag := `"` + photo.SHA256 + `"`
 	if c.Get("If-None-Match") == etag {
 		return c.SendStatus(fiber.StatusNotModified)

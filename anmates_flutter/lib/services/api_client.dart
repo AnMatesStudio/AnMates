@@ -110,10 +110,17 @@ class ApiClient {
   /// Absolute URL of one of AnMates' own stored venue photos — bytes held in
   /// Postgres (see `venue_photos` / db/migrations/014_venue_photo_blobs.sql),
   /// not a link to an external host. [venueId] is the catalogue row's id,
-  /// [position] its gallery slot (0 = hero). Content-addressed server-side, so
-  /// this URL is safe to cache forever once loaded.
-  static String venuePhotoUrl(String venueId, int position) =>
-      '$_baseUrl/api/v1/venues/$venueId/photos/$position';
+  /// [position] its gallery slot (0 = hero). Served `immutable`, so the URL
+  /// must change when the image does: [version] (the slot's entry in the API's
+  /// `photo_versions`, a content hash) goes in the query string. Without it a
+  /// cover the reviewer swapped in Data-Pipeline would never replace the one
+  /// already in the browser cache.
+  static String venuePhotoUrl(String venueId, int position, {String? version}) {
+    final url = '$_baseUrl/api/v1/venues/$venueId/photos/$position';
+    return (version == null || version.isEmpty)
+        ? url
+        : '$url?v=${Uri.encodeQueryComponent(version)}';
+  }
 
   // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {

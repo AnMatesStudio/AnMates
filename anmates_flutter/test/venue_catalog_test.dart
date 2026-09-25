@@ -90,6 +90,15 @@ void main() {
       ]);
     });
 
+    test('photo_versions version each slot URL so a swapped cover is refetched', () {
+      final row = _row(photoCount: 2)..['photo_versions'] = ['a1b2c3d4e5f6', '0f9e8d7c6b5a'];
+      final v = CatalogVenue.fromJson(row);
+      expect(v.photoUrls, [
+        'http://localhost:8080/api/v1/venues/f8d90d1f-ab3f-4861-985e-0e4653ced42e/photos/0?v=a1b2c3d4e5f6',
+        'http://localhost:8080/api/v1/venues/f8d90d1f-ab3f-4861-985e-0e4653ced42e/photos/1?v=0f9e8d7c6b5a',
+      ]);
+    });
+
     test('photo_count 0 means no photo on file, not a fetch failure', () {
       final v = CatalogVenue.fromJson(_row(photoCount: 0));
       expect(v.photoUrls, isEmpty);
