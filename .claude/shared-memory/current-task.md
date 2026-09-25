@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-25) — Responsive mobile Flutter UI v2: CODE DONE + push main, chờ verify prod / user test:**
+**Status (2026-09-25) — Responsive mobile Flutter UI v2: CODE DONE + deploy prod + verify Playwright trên prod; chờ user test máy thật:**
 Nguyên nhân gốc đã đo: `DesignFrame` scale cả app theo chiều cao → trên web mobile chữ/nút nhỏ 16–37 %.
 Plan + 31 task (26 file spec): `docs/plans/2026-09-25-responsive-mobile/README.md`. Chờ user chốt D1–D3 (§5)
 Đã thực thi rev 2 (bỏ scale theo chiều cao, sàn chữ 11pt, vùng bấm 48, xoay ngang); 1110/1110 test. Xem `sessions/2026-09-25-responsive-mobile-plan.md` §Thực thi.

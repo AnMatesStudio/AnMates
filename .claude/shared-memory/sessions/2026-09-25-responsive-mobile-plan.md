@@ -51,3 +51,22 @@ Chỉ là plan. Chưa có gì để verify trên UI.
   1110/1110. Ảnh local (`screenshots/responsive/phaseB`) đã xem.
 - Còn nợ: Phase D (art co giãn) chưa cần; T92 máy thật; Firebase `identitytoolkit` trả 403 "api key suspended"
   (sub agent thấy trong network log, không liên quan đợt này).
+
+## Verify trên prod (https://app.anmates.site, commit 8a55075)
+
+CI xanh → CD `helm upgrade` + smoke xanh (53s). Playwright (WebKit cho iPhone, Chromium cho Android/ngang), đi
+onboarding → Home → các tab, đo bằng semantics tree của Flutter:
+
+| Phần tử | iPhone 15 Safari trước → sau | SE Safari trước → sau |
+|---|---|---|
+| VI/EN | 24×19 → 48×48 | 20×16 → 48×48 |
+| CTA "Gom kèo tối nay" | cao 43 → 56 | 35 → 56 |
+| Ô tìm kiếm | cao 37 → 48 | 30 → 48 |
+| Link "Đăng nhập" | cao 15 → 48 | 12 → 48 |
+
+**Bẫy cache CDN (có từ trước, CHƯA sửa):** `main.dart.js` / `flutter_bootstrap.js` được phục vụ
+`Cache-Control: public, max-age=7200` và Cloudflare cache chúng (cf-cache-status HIT), trong khi `index.html`
+là no-store. Sau deploy, lần đo đầu tiên trả **y hệt bản cũ** (Age 7153s) — người dùng có thể chạy code cũ tới
+2 tiếng sau mỗi deploy. Hướng sửa: nginx `no-cache` cho 2 file đó (hoặc tên file có hash), hoặc purge CF trong CD.
+
+Chưa làm: nav chỉ-icon khi màn rất thấp (T17 phần 2; ngang 844×390 nav vẫn cao ~72pt); T92 máy thật; Phase D.
