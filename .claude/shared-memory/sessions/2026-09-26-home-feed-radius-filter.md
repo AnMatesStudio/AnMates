@@ -95,3 +95,16 @@ reload). Không page error.
 - Playwright trên prod sau đó: nút hiện đủ icon place + mũi tên; luồng 20 km → 0, 100 km → 22 vẫn đúng.
 - Từ nay đổi icon / thêm asset hiện ngay ở lần tải kế tiếp (mỗi lần tải tốn vài 304). Browser nào tải font
   cũ trước 05:21Z vẫn có thể giữ bản đó tới hết max-age=7200 của lần tải đó.
+
+## Nâng max slider 100 → 200 km (user chốt "150–200 km", chọn 200)
+- Lý do: từ các thành phố miền Tây, quán gần nhất (cụm TP.HCM) cách ~124–135 km → mọi bán kính
+  5–100 km đều trống, chỉ còn "Xem tất cả quán". 200 km phủ thêm các nơi cách TP.HCM 150–200 km.
+- `kRadiusMaxKm = 200` (bước 5 km giữ nguyên → slider 39 nấc; mặc định 20 km). Empty state ở mức
+  tối đa tự đổi theo hằng số ("Không có quán nào trong 200 km" + "Xem tất cả quán").
+- TDD: 4 test cập nhật lên 200 (kẹp 500 → 200, pref 250 → 200 km, kéo slider hết → `radius_m=200000`,
+  empty ở 200 km → "Xem tất cả quán") RED → GREEN; full suite 1242/1242 (matrix sheet hiện nhãn 200 km).
+- Verify build local với vị trí thật của trình duyệt (không ghim): 20 km → 0 + "Mở rộng bán kính" →
+  slider dừng 200 km → Áp dụng → `radius_m=200000` → 31 quán (Ốc Hẻm, Khoai Xiên…), không page error.
+- Ghi chú chẩn đoán cùng ngày: screenshot "Trong 10 km" mà vẫn ra An Nam Quán/BOKGO/Ba-Bát là chế độ
+  không có vị trí (request chỉ `?limit=60`) — tab đó không cấp quyền vị trí; geo-IP của mạng 4G không
+  phản ánh vị trí thật (app dùng Geolocation của trình duyệt, không dùng IP).

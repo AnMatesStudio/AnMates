@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-26, chiều) — Filter bán kính 5–100 km trên Home: DEPLOYED prod (4302d65, CI+CD xanh) + verify trên app.anmates.site; chờ user xác nhận. Font icon/manifest bị Cloudflare cache bản cũ → ĐÃ SỬA `6ccc69f` (nginx `private, no-cache`), CI+CD xanh, prod hiện đủ icon từ 05:21Z:**
+**Status (2026-09-26, chiều) — Max bán kính nâng lên 200 km: code + test xong (local, chưa commit/deploy). Trước đó — Filter bán kính 5–100 km trên Home: DEPLOYED prod (4302d65, CI+CD xanh) + verify trên app.anmates.site; chờ user xác nhận. Font icon/manifest bị Cloudflare cache bản cũ → ĐÃ SỬA `6ccc69f` (nginx `private, no-cache`), CI+CD xanh, prod hiện đủ icon từ 05:21Z:**
 Nút "Trong 20 km ▾" → sheet slider (bước 5 km) → Áp dụng; lưu qua phiên. Tôn trọng tuyệt đối: trống → "Mở rộng bán kính" (100 km → "Xem tất cả quán").
 Thay thế fallback của bản sửa sáng. Follow-up mở: tên khu vực trên hero sai sẵn.
 Xem `sessions/2026-09-26-home-feed-radius-filter.md`.
