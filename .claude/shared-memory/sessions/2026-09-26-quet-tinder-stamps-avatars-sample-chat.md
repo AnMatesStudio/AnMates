@@ -46,5 +46,11 @@ profile/matches/venues lúc tải, không có /messages hay /ws; không page err
 - `flutter build web` lỗi `Couldn't resolve the package 'url_launcher_web'`: `.dart_tool/flutter_build`
   còn web_plugin_registrant cũ (url_launcher không có trong pubspec) → xoá `.dart_tool/flutter_build` rồi build lại.
 
+## Deploy prod
+`82176ec` + `267e417` → CI `36239299601` + CD `36239443216` xanh (11:39:05Z). Prod qua onboarding → Quẹt: `GET /matches`
+401 → deck mẫu có avatar Minh Anh; mời → popup "HỒ SƠ MẪU · Hợp gu rồi!" có "Nhắn tin chốt kèo" + "Quẹt tiếp" →
+chat mẫu (banner "Hồ sơ mẫu", "Cùng thích: Lẩu, Ốc", không hàng đặt bàn), gửi tin hiện bong bóng. Request: chỉ
+`/matches` 401 + `avatars/sample-1,2.png` 200 — không /swipes, /messages, /ws; không page error.
+
 ## Open
-- Chưa commit/deploy (chờ user).
+- Chưa thử chat thật end-to-end (cần 2 tài khoản cùng mời nhau).
