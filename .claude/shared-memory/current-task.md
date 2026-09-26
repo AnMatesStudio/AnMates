@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-26, chiều) — Home thiết kế lại theo layout tham chiếu: code + 1250/1250 test + verify local; đang push/deploy, chờ user xác nhận trên prod:**
+**Status (2026-09-26, chiều) — Home thiết kế lại theo layout tham chiếu: DEPLOYED prod (f622340, CI+CD xanh 09:15Z), verify trên app.anmates.site; chờ user xác nhận:**
 Header bán kính/vị trí, lời chào theo giờ, search, ô danh mục lọc thật, 2 hàng card kiểu tham chiếu, glass nav giữ nguyên.
 Xem `sessions/2026-09-26-home-redesign-reference-layout.md`.
 

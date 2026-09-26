@@ -46,3 +46,10 @@ Chrome headless: feed đầy (ghim trung tâm TP.HCM) → header "Trong 20 km", 
 card "Quận 1 · 420 m"; bấm Lẩu → "Quán lẩu gần bạn" chỉ còn quán lẩu; không quyền vị trí → "Chưa bật
 vị trí", card không km; 320 px: sau khi rút chữ header không còn bị cắt ("Quanh bạn · trong…" cũ bị cắt
 mất số km). Không page error.
+
+## Deploy prod
+- `f622340` feat(ui) + `c1d6a77` docs → CI `36232056424` + CD `36232185327` xanh (helm + smoke), 09:15:52Z.
+- Prod qua onboarding ("CÙNG ĂN THÔI" → "Đăng nhập"), ghim trung tâm TP.HCM: `radius_m=20000` → 29 quán; header,
+  lời chào, danh mục, 2 section, pill "Xem tất cả" đều có; không page error.
+- Font icon mới (9688 B, thêm tune/restaurant_menu/near_me/arrow_forward/location_off/star) phục vụ
+  `private, no-cache` BYPASS ngay sau deploy → icon hiện liền (bản sửa nginx `6ccc69f` phát huy).
