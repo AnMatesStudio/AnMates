@@ -1,5 +1,11 @@
 # Current Task
 
+**Status (2026-09-26, tối) — Màn Quẹt theo mockup: code + 1433/1433 test + verify local; đang push/deploy, chờ user xác nhận trên prod:**
+Deck kéo được, popup hợp gu, hoàn tác; dữ liệu thật, không có ứng viên (hoặc chưa đăng nhập) → 10 hồ sơ mẫu gắn nhãn.
+Xem `sessions/2026-09-26-swipe-deck-redesign.md`.
+
+---
+
 **Status (2026-09-26, chiều) — Home thiết kế lại theo layout tham chiếu: DEPLOYED prod (f622340, CI+CD xanh 09:15Z), verify trên app.anmates.site; chờ user xác nhận:**
 Header bán kính/vị trí, lời chào theo giờ, search, ô danh mục lọc thật, 2 hàng card kiểu tham chiếu, glass nav giữ nguyên.
 Xem `sessions/2026-09-26-home-redesign-reference-layout.md`.
