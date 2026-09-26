@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_client.dart';
 import '../../services/booking_service.dart';
@@ -16,6 +17,19 @@ enum V2Screen { onb, home, filters, detail, swipe, chat, bill, rate, me, trust, 
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
+
+/// The home feed's radius slider, in km. The feed holds only venues inside the
+/// picked radius — none in range stays an empty feed that offers to widen it,
+/// never a quiet reach further out.
+const int kRadiusMinKm = 5;
+const int kRadiusMaxKm = 100;
+const int kRadiusStepKm = 5;
+const int kRadiusDefaultKm = 20;
+
+/// [km] kept to the slider's range and snapped to its steps — a saved value
+/// from another build may be neither.
+int _keepRadiusKm(int km) =>
+    ((km / kRadiusStepKm).round() * kRadiusStepKm).clamp(kRadiusMinKm, kRadiusMaxKm);
 
 enum SplitMode { item, equal }
 
@@ -92,6 +106,20 @@ class V2State extends ChangeNotifier {
   ({double lat, double lng})? _deviceLocation;
   bool _locationResolved = false;
 
+  // ── Feed radius — picked in the radius sheet, remembered across sessions.
+  static const _radiusPrefKey = 'venue_radius_km';
+  int _radiusKm = kRadiusDefaultKm;
+  bool _radiusRestored = false;
+  bool _radiusSheetOpen = false;
+
+  /// The radius the feed on screen was filtered by; null when it was fetched
+  /// without a location (the whole catalogue).
+  int? _feedRadiusKm;
+
+  /// Bumped by every [loadVenues]. A response that lands after a newer load
+  /// started — the radius changed mid-flight — is dropped.
+  int _venuesSeq = 0;
+
   /// Scroll position of the list, kept here because the screen widget is
   /// rebuilt from scratch when coming back from a venue's detail.
   double allVenuesScrollOffset = 0;
@@ -150,6 +178,14 @@ class V2State extends ChangeNotifier {
   bool get venuesLoading => _venuesLoading;
   String? get venuesError => _venuesError;
   bool get hasVenues => _venues.isNotEmpty;
+
+  int get radiusKm => _radiusKm;
+  int? get feedRadiusKm => _feedRadiusKm;
+  bool get radiusSheetOpen => _radiusSheetOpen;
+
+  /// The device location was asked for and isn't available (denied, or
+  /// location services off), so no radius can apply. False while unknown.
+  bool get locationUnavailable => _locationResolved && _deviceLocation == null;
 
   List<CatalogVenue> get allVenues => _allVenues;
   int? get allTotal => _allTotal;
@@ -235,7 +271,11 @@ class V2State extends ChangeNotifier {
     final area = names.isEmpty
         ? (_en ? 'Nearby' : 'Quanh đây')
         : names[_district.clamp(0, names.length - 1)];
-    return '$area${_en ? ' · within 3 km' : ' · trong 3 km'}';
+    // The radius the feed below was actually filtered by — none without a
+    // location, when the feed is the whole catalogue.
+    final r = _feedRadiusKm;
+    if (r == null) return area;
+    return '$area${_en ? ' · within $r km' : ' · trong $r km'}';
   }
 
   String get cravingCount => '${_catalog.length}';
@@ -305,6 +345,7 @@ class V2State extends ChangeNotifier {
     _screen = s;
     _notifsOpen = false;
     _searchOpen = false;
+    _radiusSheetOpen = false;
     notifyListeners();
 
     // Re-establish the live socket when coming back to chat (e.g. from the
@@ -587,18 +628,40 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setRadiusSheetOpen(bool v) {
+    _radiusSheetOpen = v;
+    notifyListeners();
+  }
+
+  /// Applies a feed radius picked in the sheet: remembered for next time, and
+  /// the feed refetched with it straight away.
+  Future<void> setRadiusKm(int km) async {
+    _radiusKm = _keepRadiusKm(km);
+    // A pick made this session beats whatever a previous one saved.
+    _radiusRestored = true;
+    notifyListeners();
+    try {
+      await (await SharedPreferences.getInstance()).setInt(_radiusPrefKey, _radiusKm);
+    } catch (_) {
+      // Not remembered next time; the feed below still uses it now.
+    }
+    await loadVenues(force: true);
+  }
+
   // ── Test seeding ──────────────────────────────────────────────────────────
 
   /// Fills the home feed and the "see all" list as a finished [loadVenues] /
   /// [loadMoreAllVenues] would, without the network. With an empty feed the
   /// card rows never render, so layout tests would only ever see the empty state.
+  /// [radiusKm] is the radius that load was filtered by (null: no location).
   @visibleForTesting
-  void seedVenues(List<CatalogVenue> rows) {
+  void seedVenues(List<CatalogVenue> rows, {int? radiusKm}) {
     _catalog = rows;
     _venues = rows.map(venueFromCatalog).toList();
     _places = rows.map(placeFromCatalog).toList();
     _placeIdx = 0;
-    _venuesError = null;
+    _feedRadiusKm = radiusKm;
+    _venuesError = rows.isEmpty ? 'empty' : null;
     _allVenues = rows;
     _allTotal = rows.length;
     _allHasMore = false;
@@ -636,38 +699,59 @@ class V2State extends ChangeNotifier {
     return _deviceLocation;
   }
 
-  /// Loads the venue catalogue from the API. Uses the device location when it
-  /// is available so the feed is distance-sorted; otherwise falls back to the
-  /// whole active table, name-sorted. Safe to call repeatedly.
-  Future<void> loadVenues({bool force = false}) async {
-    if (_venuesLoading) return;
-    if (_venues.isNotEmpty && !force) return;
+  /// Reads the radius a previous session saved, once.
+  Future<void> _restoreRadius() async {
+    if (_radiusRestored) return;
+    try {
+      final saved = (await SharedPreferences.getInstance()).getInt(_radiusPrefKey);
+      // Re-checked after the await: a pick made meanwhile wins.
+      if (saved != null && !_radiusRestored) _radiusKm = _keepRadiusKm(saved);
+    } catch (_) {
+      // Keep the default.
+    }
+    _radiusRestored = true;
+  }
 
+  /// Loads the venue catalogue from the API. With the device location the feed
+  /// is the venues within [radiusKm], nearest first — none in range stays an
+  /// empty feed; without a location it is the whole active table, name-sorted.
+  /// Safe to call repeatedly; a forced call (e.g. the radius changed)
+  /// supersedes one still in flight.
+  Future<void> loadVenues({bool force = false}) async {
+    if (!force && (_venuesLoading || _venues.isNotEmpty)) return;
+
+    final seq = ++_venuesSeq;
     _venuesLoading = true;
     _venuesError = null;
     notifyListeners();
 
     try {
       final loc = await _resolveDeviceLocation();
+      await _restoreRadius();
+      final radiusKm = loc != null ? _radiusKm : null;
 
       final rows = await VenueCatalogService().list(
         lat: loc?.lat,
         lng: loc?.lng,
-        radiusM: loc != null ? 20000 : null,
+        radiusM: radiusKm == null ? null : radiusKm * 1000,
       );
+      if (seq != _venuesSeq) return;
 
       _catalog = rows;
       _venues = rows.map(venueFromCatalog).toList();
       _places = rows.map(placeFromCatalog).toList();
       if (_placeIdx >= _places.length) _placeIdx = 0;
+      _feedRadiusKm = radiusKm;
       _venuesError = _venues.isEmpty ? 'empty' : null;
     } on ApiException catch (e) {
-      _venuesError = 'HTTP ${e.statusCode}';
+      if (seq == _venuesSeq) _venuesError = 'HTTP ${e.statusCode}';
     } catch (e) {
-      _venuesError = e.toString();
+      if (seq == _venuesSeq) _venuesError = e.toString();
     } finally {
-      _venuesLoading = false;
-      notifyListeners();
+      if (seq == _venuesSeq) {
+        _venuesLoading = false;
+        notifyListeners();
+      }
     }
   }
 

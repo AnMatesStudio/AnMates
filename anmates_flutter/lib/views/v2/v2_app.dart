@@ -7,6 +7,7 @@ import '../../widgets/v2/aurora_background.dart';
 import '../../widgets/v2/design_frame.dart';
 import '../../widgets/v2/glass_nav_bar.dart';
 import '../../widgets/v2/notifications_sheet.dart';
+import '../../widgets/v2/radius_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
 import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
@@ -24,8 +25,8 @@ import 'screens/trust_screen.dart';
 import 'v2_state.dart';
 
 /// The phone shell every v2 screen sits inside: the aurora wash, the language
-/// toggle pinned top-right, the current screen, the glass nav, and the two
-/// overlays that float above everything.
+/// toggle pinned top-right, the current screen, the glass nav, and the
+/// overlays that float above everything (search, notifications, feed radius).
 ///
 /// Port of the Claude Design project *Mobile app design planning* — all 19
 /// canvas frames across its five flows.
@@ -118,6 +119,23 @@ class V2AppBody extends StatelessWidget {
                 child: NotificationsSheet(
                   en: s.en,
                   onClose: () => s.setNotifsOpen(false),
+                ),
+              ),
+
+            if (s.radiusSheetOpen)
+              Positioned.fill(
+                child: RadiusSheet(
+                  en: s.en,
+                  radiusKm: s.radiusKm,
+                  minKm: kRadiusMinKm,
+                  maxKm: kRadiusMaxKm,
+                  stepKm: kRadiusStepKm,
+                  locationOff: s.locationUnavailable,
+                  onClose: () => s.setRadiusSheetOpen(false),
+                  onApply: (km) {
+                    s.setRadiusSheetOpen(false);
+                    s.setRadiusKm(km);
+                  },
                 ),
               ),
           ],

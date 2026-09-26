@@ -114,6 +114,10 @@ class HomeScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Align(alignment: Alignment.centerLeft, child: _RadiusPill(s: s)),
+                ),
                 SizedBox(
                   // The two text lines under each tile grow with the user's text size.
                   height: 198 + V2Layout.textGrowth(context, 48),
@@ -635,9 +639,41 @@ class FeedWashPainter extends CustomPainter {
   bool shouldRepaint(FeedWashPainter oldDelegate) => false;
 }
 
+/// The "Trong 20 km" pill under the feed title — opens the radius sheet.
+class _RadiusPill extends StatelessWidget {
+  const _RadiusPill({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    return V2TapTarget(
+      onTap: () => s.setRadiusSheetOpen(true),
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(9, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: AppShadowsV2.pill,
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.place_rounded, size: 15, color: AppColorsV2.wisteria),
+          const SizedBox(width: 4),
+          Text(
+            s.t('Trong ${s.radiusKm} km', 'Within ${s.radiusKm} km'),
+            style: AppTextV2.name(size: 12),
+          ),
+          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColorsV2.inkA(0.45)),
+        ]),
+      ),
+    );
+  }
+}
+
 /// Shown in place of a venue row while the catalogue is loading, when the
-/// fetch failed, or when the DB simply holds no active venues. The feed never
-/// falls back to sample rows — an empty catalogue reads as empty.
+/// fetch failed, or when nothing matched. The feed never falls back to sample
+/// rows, nor to venues outside the picked radius — empty reads as empty, with
+/// the one action that can change it.
 class _FeedPlaceholder extends StatelessWidget {
   const _FeedPlaceholder({required this.s});
   final V2State s;
@@ -654,27 +690,42 @@ class _FeedPlaceholder extends StatelessWidget {
     }
 
     final failed = s.venuesError != null && s.venuesError != 'empty';
+    final (message, action, onAction) = switch (s.feedRadiusKm) {
+      _ when failed => (
+          s.t('Không tải được danh sách quán', "Couldn't load venues"),
+          s.t('Thử lại', 'Retry'),
+          () => s.loadVenues(force: true),
+        ),
+      // No location, so this was the whole catalogue.
+      null => (
+          s.t('Chưa có quán nào', 'No venues in the catalogue yet'),
+          s.t('Thử lại', 'Retry'),
+          () => s.loadVenues(force: true),
+        ),
+      final r when r < kRadiusMaxKm => (
+          s.t('Không có quán nào trong $r km', 'No venues within $r km'),
+          s.t('Mở rộng bán kính', 'Widen the radius'),
+          () => s.setRadiusSheetOpen(true),
+        ),
+      // Already as wide as the slider goes.
+      final r => (
+          s.t('Không có quán nào trong $r km', 'No venues within $r km'),
+          s.t('Xem tất cả quán', 'See all venues'),
+          s.openAllVenues,
+        ),
+    };
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              failed
-                  ? s.t('Không tải được danh sách quán', "Couldn't load venues")
-                  : s.t('Chưa có quán nào trong khu vực này',
-                      'No venues in the catalogue yet'),
-              textAlign: TextAlign.center,
-              style: AppTextV2.name(size: 13),
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () => s.loadVenues(force: true),
-              child: Text(
-                s.t('Thử lại', 'Retry'),
-                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12),
-              ),
+            Text(message, textAlign: TextAlign.center, style: AppTextV2.name(size: 13)),
+            const SizedBox(height: 2),
+            V2TapTarget(
+              onTap: onAction,
+              child: Text(action, style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12)),
             ),
           ],
         ),

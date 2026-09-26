@@ -159,6 +159,13 @@ final List<_Screen> _screens = [
       ),
   _Screen('search', (s) => s..go(V2Screen.home)..setSearchOpen(true)),
   _Screen('notifs', (s) => s..go(V2Screen.home)..setNotifsOpen(true)),
+  _Screen(
+    'radius',
+    (s) => s..go(V2Screen.home)..setRadiusSheetOpen(true),
+    pinned: () => find.text('Áp dụng'),
+  ),
+  // Nothing inside the radius: both rows show the "widen it" placeholder.
+  _Screen('home-empty', (s) => s..seedVenues(const [], radiusKm: 20)..go(V2Screen.home)),
 ];
 
 // ── Pumping ─────────────────────────────────────────────────────────────────
