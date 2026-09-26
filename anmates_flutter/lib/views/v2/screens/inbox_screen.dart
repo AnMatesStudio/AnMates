@@ -66,7 +66,7 @@ class InboxScreen extends StatelessWidget {
           title: s.t('Đăng nhập để nhắn tin', 'Sign in to chat'),
           body: s.t('Tin nhắn gắn với tài khoản của bạn.', 'Chats belong to your account.'),
           action: s.t('Đăng nhập', 'Sign in'),
-          onAction: () => s.go(V2Screen.onb),
+          onAction: () => s.openAuth(then: V2Screen.inbox),
         ),
       ];
     }

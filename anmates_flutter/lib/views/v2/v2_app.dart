@@ -12,6 +12,7 @@ import '../../widgets/v2/radius_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
 import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
+import 'screens/auth_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/detail_screen.dart';
@@ -160,6 +161,7 @@ class V2AppBody extends StatelessWidget {
 
   static Widget _screenFor(V2Screen screen) => switch (screen) {
         V2Screen.onb => const OnboardingScreen(),
+        V2Screen.auth => const AuthScreen(),
         V2Screen.home => const HomeScreen(),
         V2Screen.filters => const FiltersScreen(),
         V2Screen.detail => const DetailScreen(),

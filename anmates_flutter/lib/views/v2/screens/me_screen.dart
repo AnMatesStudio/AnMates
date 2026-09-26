@@ -104,6 +104,31 @@ class MeScreen extends StatelessWidget {
                       style: AppTextV2.body(color: AppColorsV2.inkA(0.5), size: 12)),
                 ),
                 const SizedBox(height: 9),
+                if (s.signedIn)
+                  V2TapTarget(
+                    onTap: s.signOut,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      child: Text(s.t('Đăng xuất', 'Sign out'),
+                          key: const Key('me-sign-out'),
+                          style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 12.5)),
+                    ),
+                  )
+                else
+                  V2TapTarget(
+                    onTap: () => s.openAuth(then: V2Screen.me),
+                    child: Container(
+                      key: const Key('me-sign-in'),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        gradient: AppGradientsV2.cta,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(s.t('Đăng nhập / Đăng ký', 'Sign in / Sign up'),
+                          style: AppTextV2.cta().copyWith(fontSize: 13.5)),
+                    ),
+                  ),
+                const SizedBox(height: 9),
                 Wrap(
                   spacing: 7, runSpacing: 7, alignment: WrapAlignment.center,
                   children: [

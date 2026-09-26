@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_client.dart';
+import '../../services/auth_service.dart';
 import '../../services/booking_service.dart';
 import '../../services/chat_socket.dart';
 import '../../services/location_service.dart';
@@ -16,7 +17,7 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues }
+enum V2Screen { onb, auth, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues }
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
@@ -202,6 +203,16 @@ class V2State extends ChangeNotifier {
   /// Index in [_messages] up to which the partner has read; -1 for nothing.
   int _seenThrough = -1;
 
+  // ── Account (POST /auth/login, /auth/register) ────────────────────────────
+  bool _authRegister = false;
+  bool _authBusy = false;
+  String? _authError;
+  V2Screen _authThen = V2Screen.home;
+  V2Screen _authBack = V2Screen.onb;
+
+  /// Minimum password length the API accepts (handlers/auth.go Register).
+  static const int minPasswordLength = 10;
+
   // ── Inbox (GET /api/v1/conversations) ─────────────────────────────────────
   List<ApiMatch> _conversations = const [];
   bool _conversationsLoading = false;
@@ -286,6 +297,12 @@ class V2State extends ChangeNotifier {
   String get inboxQuery => _inboxQuery;
   String? get myUserId => _myUserId;
   bool get isBotChat => _activeIsBot && !_sampleChat;
+
+  /// Signed in: the profile loaded, so the token is good.
+  bool get signedIn => _myUserId != null;
+  bool get authRegister => _authRegister;
+  bool get authBusy => _authBusy;
+  String? get authError => _authError;
   bool get partnerTyping => _partnerTyping;
   bool get messagesLoading => _messagesLoading;
 
@@ -504,6 +521,101 @@ class V2State extends ChangeNotifier {
     if (s == V2Screen.inbox) loadConversations();
   }
 
+  /// Opens the sign-in screen (or sign-up with [register]); after success the
+  /// app goes to [then], and the back arrow returns to the screen it came from.
+  /// Already signed in (the app always opens on onboarding): straight to [then].
+  void openAuth({V2Screen then = V2Screen.home, bool register = false}) {
+    if (signedIn) {
+      go(then);
+      return;
+    }
+    _authThen = then;
+    _authBack = _screen == V2Screen.auth ? _authBack : _screen;
+    _authRegister = register;
+    _authError = null;
+    go(V2Screen.auth);
+  }
+
+  void authCancel() => go(_authBack);
+
+  void setAuthRegister(bool register) {
+    _authRegister = register;
+    _authError = null;
+    notifyListeners();
+  }
+
+  /// Signs in, or signs up in register mode. Checks what the API would reject
+  /// first, so the common mistakes get a message without a round trip.
+  Future<void> submitAuth({required String email, required String password, String name = ''}) async {
+    if (_authBusy) return;
+    final e = email.trim();
+    String? problem;
+    if (_authRegister && name.trim().isEmpty) {
+      problem = t('Nhập tên của bạn nhé.', 'Please enter your name.');
+    } else if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(e)) {
+      problem = t('Email chưa đúng.', "That email doesn't look right.");
+    } else if (_authRegister && password.length < minPasswordLength) {
+      problem = t('Mật khẩu cần ít nhất $minPasswordLength ký tự.',
+          'Password needs at least $minPasswordLength characters.');
+    } else if (password.isEmpty) {
+      problem = t('Nhập mật khẩu nhé.', 'Please enter your password.');
+    }
+    if (problem != null) {
+      _authError = problem;
+      notifyListeners();
+      return;
+    }
+
+    _authBusy = true;
+    _authError = null;
+    notifyListeners();
+    try {
+      if (_authRegister) {
+        await AuthService().register(e, password, name.trim());
+      } else {
+        await AuthService().login(e, password);
+      }
+      _myUserId = null;
+      await loadProfile();
+      _authBusy = false;
+      go(_authThen);
+      unawaited(loadCandidates());
+      return;
+    } on AuthException catch (err) {
+      _authError = switch (err.statusCode) {
+        401 => t('Sai email hoặc mật khẩu.', 'Wrong email or password.'),
+        409 => t('Email này đã có tài khoản — đăng nhập nhé.', 'That email already has an account — sign in instead.'),
+        400 => t('Cần tên, email hợp lệ và mật khẩu từ $minPasswordLength ký tự.',
+            'Name, a valid email and a $minPasswordLength+ character password are required.'),
+        _ => t('Máy chủ lỗi (HTTP ${err.statusCode}), thử lại nhé.', 'Server error (HTTP ${err.statusCode}) — try again.'),
+      };
+    } catch (_) {
+      _authError = t('Không kết nối được, thử lại nhé.', "Couldn't connect — try again.");
+    }
+    _authBusy = false;
+    notifyListeners();
+  }
+
+  /// Signs out on the server and forgets everything tied to the account.
+  Future<void> signOut() async {
+    try {
+      await AuthService().logout();
+    } catch (_) {
+      await AuthService().clearSession();
+    }
+    _disconnectChat();
+    _myUserId = null;
+    _profileName = null;
+    _conversations = const [];
+    _conversationsLoaded = false;
+    _activeMatchId = null;
+    _activeMate = null;
+    _messages = const [];
+    _booking = null;
+    go(V2Screen.home);
+    unawaited(loadCandidates());
+  }
+
   /// The chat's back arrow: a sample chat came from Quẹt, a real one from the inbox.
   void chatBack() => go(_sampleChat ? V2Screen.swipe : V2Screen.inbox);
 
@@ -519,6 +631,7 @@ class V2State extends ChangeNotifier {
     } on ApiException catch (e) {
       if (e.statusCode == 401) {
         _inboxSignedOut = true;
+        _myUserId = null;
         _conversations = const [];
       } else {
         _conversationsError = 'HTTP ${e.statusCode}';

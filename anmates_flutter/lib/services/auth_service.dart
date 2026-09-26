@@ -29,6 +29,24 @@ String get apiBaseUrl {
 
 String get _baseUrl => apiBaseUrl;
 
+/// A refused sign-in or sign-up: the HTTP status (401 wrong password, 409 email
+/// taken, 400 invalid input) and the server's message.
+class AuthException implements Exception {
+  const AuthException(this.statusCode, this.message);
+  final int statusCode;
+  final String message;
+  @override
+  String toString() => 'AuthException($statusCode): $message';
+}
+
+AuthException _authError(http.Response res, String fallback) {
+  String msg = fallback;
+  try {
+    msg = (jsonDecode(res.body)['error']?['message'] as String?) ?? fallback;
+  } catch (_) {}
+  return AuthException(res.statusCode, msg);
+}
+
 class AuthService {
   static final AuthService _instance = AuthService._();
   AuthService._();
@@ -85,15 +103,12 @@ class AuthService {
   }
 
   Future<Map<String, dynamic>> login(String email, String password) async {
-    final res = await http.post(
+    final res = await _client.post(
       Uri.parse('$_baseUrl/api/v1/auth/login'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );
-    if (res.statusCode != 200) {
-      final msg = jsonDecode(res.body)['error']?['message'] ?? 'login failed';
-      throw Exception(msg);
-    }
+    if (res.statusCode != 200) throw _authError(res, 'login failed');
     final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
     await _saveTokens(data);
     return data;
@@ -104,16 +119,12 @@ class AuthService {
     String password,
     String name,
   ) async {
-    final res = await http.post(
+    final res = await _client.post(
       Uri.parse('$_baseUrl/api/v1/auth/register'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password, 'name': name}),
     );
-    if (res.statusCode != 201) {
-      final msg =
-          jsonDecode(res.body)['error']?['message'] ?? 'register failed';
-      throw Exception(msg);
-    }
+    if (res.statusCode != 201) throw _authError(res, 'register failed');
     final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;
     await _saveTokens(data);
     return data;

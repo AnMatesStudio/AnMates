@@ -229,7 +229,7 @@ class _Hero extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           V2TapTarget(
-            onTap: () => s.go(V2Screen.home),
+            onTap: s.openAuth,
             child: RichText(
               text: TextSpan(children: [
                 TextSpan(
