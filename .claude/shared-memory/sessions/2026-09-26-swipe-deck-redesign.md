@@ -40,3 +40,8 @@ Build web, chưa đăng nhập → 401 → deck mẫu + banner đăng nhập; k�
 
 ## Open
 - Chưa thử luồng match thật end-to-end trên prod (cần 2 tài khoản đã onboarding cùng mời nhau).
+
+## Deploy prod
+`43cf3df` + `802e91b` → CI `36236434022` + CD `36236580328` xanh (10:42:57Z). Prod qua onboarding → tab Quẹt:
+`GET /matches` 401 → deck 10 hồ sơ mẫu + banner đăng nhập + "1 / 10"; mời → popup "HỒ SƠ MẪU · Hợp gu rồi!";
+không có request /swipes nào; không page error.
