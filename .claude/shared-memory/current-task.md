@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-26, chiều) — Filter bán kính 5–100 km trên Home: CODE DONE + 1242/1242 test + verify app thật (Chrome headless ghim vị trí xa mọi quán); chưa commit/deploy, chờ user xác nhận:**
+**Status (2026-09-26, chiều) — Filter bán kính 5–100 km trên Home: DEPLOYED prod (4302d65, CI+CD xanh) + verify trên app.anmates.site; chờ user xác nhận. Mở: font icon MaterialIcons bị Cloudflare cache bản cũ (icon nút bán kính trống tới khi edge hết TTL) — đề xuất no-cache cho font/manifest, chờ user chốt:**
 Nút "Trong 20 km ▾" → sheet slider (bước 5 km) → Áp dụng; lưu qua phiên. Tôn trọng tuyệt đối: trống → "Mở rộng bán kính" (100 km → "Xem tất cả quán").
 Thay thế fallback của bản sửa sáng. Follow-up mở: tên khu vực trên hero sai sẵn.
 Xem `sessions/2026-09-26-home-feed-radius-filter.md`.

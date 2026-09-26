@@ -46,7 +46,7 @@ Build web release (`V2_DEBUG_NAV=true`), proxy local chỉ forward GET `/api/v1/
 prod, Chrome headless ghim geolocation đúng điểm trong bug: 20 km → total 0 (feed trống + Mở rộng bán kính)
 → slider 100 km (`aria-valuetext` "100 km") → Áp dụng → `radius_m=100000` → total 22, tile Ốc Hẻm
 83,6 km… → reload trang → request đầu `radius_m=100000`, nút "Trong 100 km" (pref sống qua
-reload). Không page error. **Chưa commit/deploy, chưa user xác nhận.**
+reload). Không page error.
 
 ## Gotchas (driver)
 - Flutter web: bấm `flt-semantics-placeholder` để có DOM semantics; cuộn bằng wheel TRƯỚC khi
@@ -59,3 +59,24 @@ reload). Không page error. **Chưa commit/deploy, chưa user xác nhận.**
 - Tên khu vực trên hero vẫn sai sẵn ("Chưa rõ"/"Bình Dương" = quận đầu bảng chữ cái của list).
 - Ở 390×844, nút "Mở rộng bán kính" của hàng thứ 2 nằm dưới nav cho tới khi cuộn (feed vốn
   cuộn dưới nav kính — đúng thiết kế).
+
+## Deploy prod (cùng ngày)
+- Commit `4302d65` feat(web) + `d3da776` docs, push main. CI `36217992114` xanh (Go API + Flutter
+  Web) → CD `36218141377` xanh (helm upgrade + smoke web → api), xong 04:33:39Z.
+- Prod `main.dart.js` last-modified 04:32:09Z, chứa `venue_radius_km`, `cf-cache-status: BYPASS`.
+- Chạy thật trên app.anmates.site (onboarding "CÙNG ĂN THÔI" → "Đăng nhập" vào Explore, Chrome
+  headless ghim đúng điểm trong bug): 20 km → total 0, hiện "Không có quán nào trong 20 km" +
+  "Mở rộng bán kính"; kéo 100 km → Áp dụng → total 22, tile Ốc Hẻm / Khoai Xiên Nướng. Không page error.
+- Test fixture dùng điểm bịa `farLat/farLng` (10.0, 105.5): repo PUBLIC, toạ độ trong bug là vị trí
+  thiết bị của user — không commit toạ độ đó ở bất kỳ đâu.
+
+## Phát hiện khi verify prod: font icon bị Cloudflare cache bản cũ (CHƯA sửa, chờ user)
+- Nút "Trong X km" trên prod mất icon place + mũi tên. `MaterialIcons-Regular.otf` (tên cố định,
+  nội dung là subset tree-shake theo icon đang dùng) được nginx gắn `public, max-age=7200`
+  (regex static asset). Edge: HIT, age 5725, last-modified 25/09 10:06, 8800 B; origin (cache-bust
+  `?cb=`, MISS): 9144 B, 04:32:11 = đúng bản build mới. Tự hết khi edge hết TTL (≤2h sau lần cache),
+  nhưng browser đã tải font cũ còn giữ thêm tới 2h.
+- Cùng họ R-010 / bản sửa 2026-09-25 (entry JS `private, no-cache`) — font/manifest chưa được bao.
+- Đề xuất: thêm `assets/fonts/*.otf`, `assets/packages/**.ttf`, `assets/FontManifest.json`,
+  `assets/AssetManifest.*` vào nhóm `private, no-cache` (304 rẻ nhờ ETag); hoặc purge Cloudflare
+  trong CD sau helm upgrade (cần API token làm secret).
