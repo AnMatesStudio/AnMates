@@ -1,4 +1,5 @@
 import 'package:anmates/views/v2/v2_data.dart';
+import 'package:flutter/services.dart';
 import 'package:anmates/views/v2/v2_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -87,6 +88,54 @@ void main() {
 
       expect(s.matchReveal?.name, first.name);
       expect(s.matchRevealIsSample, isTrue);
+    });
+  });
+
+  group('sample profiles, after the match sheet', () {
+    test('every sample has an illustrated avatar that ships in the bundle', () async {
+      for (final m in kSampleMates) {
+        final asset = m.avatarAsset;
+        expect(asset, isNotNull, reason: m.name);
+        expect((await rootBundle.load(asset!)).lengthInBytes, greaterThan(1000), reason: asset);
+      }
+    });
+
+    test('Nhắn tin opens a local-only chat with the sample: nothing is sent', () async {
+      final calls = serveMatchApi(candidates: const []);
+      final s = V2State()..go(V2Screen.swipe);
+      await s.loadCandidates();
+      await s.inviteMate(); // the first sample invites back
+      final partner = s.matchReveal!;
+
+      await s.openMatchChat();
+      s.sendRealMessage('Tối nay đi lẩu không?');
+
+      expect(s.screen, V2Screen.chat);
+      expect(s.isSampleChat, isTrue);
+      expect(s.chatPartner.name, partner.name);
+      expect(s.messages, [(text: 'Tối nay đi lẩu không?', mine: true)]);
+      expect(calls, ['GET /api/v1/matches']);
+    });
+
+    test('a real match after a sample chat opens a real chat, not the sample one', () async {
+      serveMatchApi(candidates: const []);
+      final s = V2State()..go(V2Screen.swipe);
+      await s.loadCandidates();
+      await s.inviteMate();
+      await s.openMatchChat();
+      s.sendRealMessage('Chào');
+
+      // Signed in later: a real candidate who invites back.
+      serveMatchApi(candidates: [candidate('u1', 'Hạnh')], invitesBack: {'u1'});
+      await s.loadCandidates();
+      s.go(V2Screen.swipe);
+      await s.inviteMate();
+      s.dismissMatch(); // "Quẹt tiếp"
+      s.go(V2Screen.chat); // then the Tin nhắn tab
+
+      expect(s.chatPartner.name, 'Hạnh');
+      expect(s.isSampleChat, isFalse);
+      expect(s.messages, isEmpty);
     });
   });
 

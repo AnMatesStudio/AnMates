@@ -473,19 +473,22 @@ class _Card extends StatelessWidget {
                       ink: Colors.white,
                     ),
                   ),
-                ...[
-                  Positioned(
-                    top: 56, left: 18,
-                    child: _Stamp(text: s.t('MỜI ĂN', 'INVITE'), color: AppColorsV2.wisteria, angle: -0.2, opacity: invite),
-                  ),
-                  Positioned(
-                    top: 56, right: 18,
-                    child: _Stamp(text: s.t('BỎ QUA', 'PASS'), color: AppColorsV2.ink, angle: 0.2, opacity: pass),
-                  ),
-                ],
+                // Tinder's stamps, in English whatever the app language:
+                // LIKE tilts in from the top left, NOPE from the top right.
+                Positioned(
+                  top: 60, left: 22,
+                  child: _Stamp(text: 'LIKE', color: const Color(0xFF1FCB6E), angle: -0.34, opacity: invite),
+                ),
+                Positioned(
+                  top: 60, right: 22,
+                  child: _Stamp(text: 'NOPE', color: const Color(0xFFFF4458), angle: 0.34, opacity: pass),
+                ),
                 Positioned(
                   left: 18, bottom: -28,
-                  child: MateAvatar(name: mate.name, userId: mate.userId, url: mate.avatarUrl, size: 62),
+                  child: MateAvatar(
+                    name: mate.name, userId: mate.userId,
+                    url: mate.avatarUrl, asset: mate.avatarAsset, size: 62,
+                  ),
                 ),
               ],
             ),
@@ -588,15 +591,15 @@ class _Stamp extends StatelessWidget {
         child: Transform.rotate(
           angle: angle,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            padding: const EdgeInsets.fromLTRB(12, 2, 10, 2),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.88),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: color, width: 3),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color, width: 5),
             ),
             child: Text(
               text,
-              style: AppTextV2.section(color: color).copyWith(fontSize: 20, letterSpacing: 1),
+              style: AppTextV2.section(color: color)
+                  .copyWith(fontSize: 38, letterSpacing: 3, height: 1.15, fontWeight: FontWeight.w900),
             ),
           ),
         ),

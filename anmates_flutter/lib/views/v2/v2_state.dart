@@ -162,6 +162,11 @@ class V2State extends ChangeNotifier {
   /// leaves the match it created.
   ({MatchCandidate? candidate, Mate? sample})? _lastSwipe;
 
+  /// The chat is with a sample profile: messages stay on this device, nothing
+  /// is sent and nobody answers.
+  bool _sampleChat = false;
+  List<({String text, bool mine})> _sampleMessages = const [];
+
   /// Set after a swipe that didn't reciprocate, so the swipe screen can show
   /// an honest "sent, waiting on them" line instead of silently doing nothing.
   String? _pendingNotice;
@@ -278,6 +283,7 @@ class V2State extends ChangeNotifier {
   bool get canUndo => _lastSwipe != null && !_inviteLoading;
   Mate? get matchReveal => _matchReveal;
   bool get matchRevealIsSample => _matchRevealSample;
+  bool get isSampleChat => _sampleChat;
 
   /// Who chat/bill/rate are about. Captured at match time (before the
   /// candidate is dropped from the swipe deck), so the chat header still
@@ -349,14 +355,15 @@ class V2State extends ChangeNotifier {
   /// Real transcript of the active match, oldest first — [ApiMessage] rows
   /// from `/matches/:id/messages` plus anything the live socket has appended.
   /// Empty means genuinely no messages yet, not a loading placeholder.
-  List<({String text, bool mine})> get messages => [
-        for (final m in _messages) (text: m.content, mine: m.senderId == _myUserId),
-      ];
+  List<({String text, bool mine})> get messages => _sampleChat
+      ? _sampleMessages
+      : [for (final m in _messages) (text: m.content, mine: m.senderId == _myUserId)];
 
   String get chatSub {
     final foods = chatPartner.overlapFoods;
     if (foods.isEmpty) return t('Match mới', 'New match');
-    return t('Cùng thích: ${foods.take(3).join(", ")}', 'Both like: ${foods.take(3).join(", ")}');
+    final names = foods.take(3).map(tasteLabel).join(', ');
+    return t('Cùng thích: $names', 'Both like: $names');
   }
 
   String get billSub {
@@ -530,6 +537,9 @@ class V2State extends ChangeNotifier {
         _activeMate = mateFromCandidate(target);
         _matchReveal = _activeMate;
         _matchRevealSample = false;
+        // The chat now belongs to this real match, whatever sample came before.
+        _sampleChat = false;
+        _sampleMessages = const [];
       } else {
         _lastSwipe = (candidate: target, sample: null);
         _pendingNotice = t(
@@ -569,13 +579,29 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// The match sheet's "Nhắn tin": on to the real chat with the new match.
+  /// The match sheet's "Nhắn tin": on to the real chat with the new match —
+  /// or, for a sample profile, a chat that keeps messages on this device only.
   Future<void> openMatchChat() async {
+    final partner = _matchReveal;
+    if (partner != null && _matchRevealSample) {
+      _disconnectChat();
+      _activeMate = partner;
+      _activeMatchId = null;
+      _messages = const [];
+      _booking = null;
+      _sampleChat = true;
+      _sampleMessages = const [];
+      _matchReveal = null;
+      _screen = V2Screen.chat;
+      notifyListeners();
+      return;
+    }
     final matchId = _activeMatchId;
-    if (_matchRevealSample || matchId == null) {
+    if (matchId == null) {
       dismissMatch();
       return;
     }
+    _sampleChat = false;
     _matchReveal = null;
     _screen = V2Screen.chat;
     notifyListeners();
@@ -662,6 +688,12 @@ class V2State extends ChangeNotifier {
   /// message you just sent would never appear in your own transcript.
   void sendRealMessage(String text) {
     final content = text.trim();
+    if (_sampleChat) {
+      if (content.isEmpty) return;
+      _sampleMessages = [..._sampleMessages, (text: content, mine: true)];
+      notifyListeners();
+      return;
+    }
     if (content.isEmpty || _activeMatchId == null || _myUserId == null) return;
     _chatSocket?.sendText(content);
     _messages = [

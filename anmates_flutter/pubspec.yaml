@@ -69,6 +69,7 @@ flutter:
 
   assets:
     - assets/v2/
+    - assets/v2/avatars/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

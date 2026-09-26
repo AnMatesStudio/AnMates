@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
-import '../../../widgets/v2/food_art.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
@@ -47,6 +46,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     return Column(children: [
       _Header(s: s),
+      if (s.isSampleChat) _SampleNote(s: s),
       Expanded(child: _Transcript(s: s)),
       _Composer(s: s, controller: _controller, onSend: () => _send(s)),
     ]);
@@ -83,27 +83,27 @@ class _Header extends StatelessWidget {
             SizedBox(
               width: 40, height: 40,
               child: Stack(clipBehavior: Clip.none, children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: AppShadowsV2.pill,
-                  ),
-                  child: FoodArt(
-                    asset: s.chatPartner.img, fillFraction: 0.74, shadowOpacity: 0,
-                  ),
+                MateAvatar(
+                  name: s.chatPartner.name,
+                  userId: s.chatPartner.userId,
+                  url: s.chatPartner.avatarUrl,
+                  asset: s.chatPartner.avatarAsset,
+                  size: 40,
+                  ring: 2,
                 ),
-                Positioned(
-                  right: 0, bottom: 0,
-                  child: Container(
-                    width: 11, height: 11,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF34C759),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                if (!s.isSampleChat)
+                  Positioned(
+                    right: 0, bottom: 0,
+                    child: Container(
+                      key: const Key('chat-online-dot'),
+                      width: 11, height: 11,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF34C759),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
                     ),
                   ),
-                ),
               ]),
             ),
             const SizedBox(width: 10),
@@ -119,6 +119,32 @@ class _Header extends StatelessWidget {
               ),
             ),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// A sample profile is not a person: say so where the messages would go.
+class _SampleNote extends StatelessWidget {
+  const _SampleNote({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColorsV2.wisteriaTint,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          s.t('Hồ sơ mẫu: tin nhắn chỉ nằm trên máy bạn, không được gửi đi và không ai trả lời.',
+              'Sample profile: messages stay on your device — nothing is sent and nobody replies.'),
+          style: AppTextV2.name(color: const Color(0xFF6D28D9), size: 12),
         ),
       ),
     );
@@ -206,32 +232,35 @@ class _Composer extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(14, 0, 14, keyboardUp ? 10 : navClearance(context) + 6),
       child: Column(children: [
-        V2TapTarget(
-          onTap: () => s.go(V2Screen.bill),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: AppColorsV2.whiteA(0.7),
-              border: Border.all(color: AppColorsV2.inkA(0.06)),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(children: [
-              Icon(Icons.calendar_month_rounded, size: 15, color: AppColorsV2.wisteria),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  s.booking == null
-                      ? s.t('Đặt bàn cho bữa ăn này', 'Schedule this meal')
-                      : s.billSub,
-                  style: AppTextV2.name(color: AppColorsV2.inkA(0.65), size: 11.5)
-                      .copyWith(fontWeight: FontWeight.w600),
-                ),
+        // Booking talks to the API about a real match; a sample chat has none.
+        if (!s.isSampleChat) ...[
+          V2TapTarget(
+            onTap: () => s.go(V2Screen.bill),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: AppColorsV2.whiteA(0.7),
+                border: Border.all(color: AppColorsV2.inkA(0.06)),
+                borderRadius: BorderRadius.circular(999),
               ),
-              Text('›', style: AppTextV2.name(color: AppColorsV2.wisteria, size: 15)),
-            ]),
+              child: Row(children: [
+                Icon(Icons.calendar_month_rounded, size: 15, color: AppColorsV2.wisteria),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    s.booking == null
+                        ? s.t('Đặt bàn cho bữa ăn này', 'Schedule this meal')
+                        : s.billSub,
+                    style: AppTextV2.name(color: AppColorsV2.inkA(0.65), size: 11.5)
+                        .copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Text('›', style: AppTextV2.name(color: AppColorsV2.wisteria, size: 15)),
+              ]),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
+          const SizedBox(height: 8),
+        ],
         Row(children: [
           Expanded(
             child: Container(

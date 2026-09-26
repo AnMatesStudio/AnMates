@@ -51,6 +51,25 @@ void main() {
     expect(find.text('Hoàng Nam'), findsOneWidget);
   });
 
+  testWidgets('a sample match can be messaged, in a chat that says nothing is sent', (tester) async {
+    serveMatchApi(candidates: const []);
+    await pumpSwipe(tester);
+    await tester.tap(find.text('Gửi lời mời đi ăn'));
+    await settle(tester);
+
+    await tester.tap(find.text('Nhắn tin chốt kèo'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Minh Anh'), findsWidgets);
+    expect(find.textContaining('Hồ sơ mẫu'), findsOneWidget);
+    expect(find.text('Đặt bàn cho bữa ăn này'), findsNothing);
+    expect(find.byKey(const Key('chat-online-dot')), findsNothing); // nobody is there
+    await tester.enterText(find.byType(TextField), 'Chào Minh Anh');
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(find.text('Chào Minh Anh'), findsOneWidget);
+  });
+
   testWidgets('signed out, the sample deck says to sign in for real mates', (tester) async {
     serveMatchApi(listStatus: 401);
     await pumpSwipe(tester);

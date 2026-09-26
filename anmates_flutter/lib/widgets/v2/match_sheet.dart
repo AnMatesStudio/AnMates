@@ -8,8 +8,8 @@ import '../../views/v2/v2_kit.dart';
 import '../../views/v2/v2_mate_mapper.dart';
 
 /// "Hợp gu rồi!" — shown after an invite the other person had already
-/// returned. For a real match, "Nhắn tin chốt kèo" opens the chat; a sample
-/// profile says plainly that no conversation exists behind it.
+/// returned. "Nhắn tin chốt kèo" opens the chat: the real one for a real match,
+/// a device-only one for a sample profile (which says so here and there).
 class MatchSheet extends StatelessWidget {
   const MatchSheet({
     super.key,
@@ -90,6 +90,7 @@ class MatchSheet extends StatelessWidget {
                               name: partner.name,
                               userId: partner.userId,
                               url: partner.avatarUrl,
+                              asset: partner.avatarAsset,
                               size: 74,
                             ),
                           ),
@@ -107,42 +108,38 @@ class MatchSheet extends StatelessWidget {
                         if (sample) ...[
                           const SizedBox(height: 8),
                           Text(
-                            _t('Đây là hồ sơ mẫu nên không có cuộc trò chuyện thật.',
-                                "This is a sample profile, so there's no real chat."),
+                            _t('Hồ sơ mẫu: tin nhắn chỉ nằm trên máy bạn, không được gửi đi.',
+                                'Sample profile: messages stay on your device and are not sent.'),
                             textAlign: TextAlign.center,
                             style: AppTextV2.meta(color: AppColorsV2.inkA(0.5)),
                           ),
                         ],
                         const SizedBox(height: 16),
-                        if (!sample) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            child: V2Cta(
-                              label: _t('Nhắn tin chốt kèo', 'Message to set it up'),
-                              height: 52,
-                              fontSize: 15,
-                              onTap: onChat,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
                         SizedBox(
                           width: double.infinity,
-                          child: sample
-                              ? V2Cta(label: _t('Quẹt tiếp', 'Keep swiping'), height: 52, fontSize: 15, onTap: onClose)
-                              : GestureDetector(
-                                  onTap: onClose,
-                                  child: Container(
-                                    height: 50,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: AppColorsV2.wisteriaTint,
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(_t('Quẹt tiếp', 'Keep swiping'),
-                                        style: AppTextV2.name(color: const Color(0xFF6D28D9), size: 14.5)),
-                                  ),
-                                ),
+                          child: V2Cta(
+                            label: _t('Nhắn tin chốt kèo', 'Message to set it up'),
+                            height: 52,
+                            fontSize: 15,
+                            onTap: onChat,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: GestureDetector(
+                            onTap: onClose,
+                            child: Container(
+                              height: 50,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColorsV2.wisteriaTint,
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(_t('Quẹt tiếp', 'Keep swiping'),
+                                  style: AppTextV2.name(color: const Color(0xFF6D28D9), size: 14.5)),
+                            ),
+                          ),
                         ),
                       ],
                     ),

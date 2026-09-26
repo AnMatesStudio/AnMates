@@ -262,6 +262,7 @@ class MateAvatar extends StatelessWidget {
     required this.name,
     required this.userId,
     this.url,
+    this.asset,
     this.size = 64,
     this.ring = 4,
   });
@@ -269,6 +270,9 @@ class MateAvatar extends StatelessWidget {
   final String name;
   final String userId;
   final String? url;
+
+  /// A bundled illustration; used when there is no [url].
+  final String? asset;
   final double size;
   final double ring;
 
@@ -297,12 +301,17 @@ class MateAvatar extends StatelessWidget {
           ),
         ],
       ),
-      child: photo == null || photo.isEmpty
-          ? initials
-          : ClipOval(
+      child: photo != null && photo.isNotEmpty
+          ? ClipOval(
               child: Image.network(photo, fit: BoxFit.cover,
                   errorBuilder: (context, error, stack) => initials),
-            ),
+            )
+          : asset != null
+              ? ClipOval(
+                  child: Image.asset(asset!, fit: BoxFit.cover,
+                      errorBuilder: (context, error, stack) => initials),
+                )
+              : initials,
     );
   }
 }

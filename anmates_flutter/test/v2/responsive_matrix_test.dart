@@ -174,6 +174,20 @@ final List<_Screen> _screens = [
     pinned: () => find.text('Gửi lời mời đi ăn'),
   ),
   _Screen('swipe-match', (s) => s..go(V2Screen.swipe)..seedMatchReveal(kSampleMates.first)),
+  _Screen(
+    'swipe-match-sample',
+    (s) => s..go(V2Screen.swipe)..seedMatchReveal(kSampleMates.first, sample: true),
+  ),
+  // "Nhắn tin" on a sample: the device-only chat, with its note and no booking row.
+  _Screen(
+    'chat-sample',
+    (s) => s
+      ..go(V2Screen.swipe)
+      ..seedMatchReveal(kSampleMates.first, sample: true)
+      ..openMatchChat()
+      ..sendRealMessage('Tối nay đi lẩu không?'),
+    pinned: () => find.byType(TextField),
+  ),
   _Screen('swipe-done', (s) => s..seedCandidates(const [])..go(V2Screen.swipe)),
 ];
 
