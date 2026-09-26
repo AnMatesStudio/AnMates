@@ -70,7 +70,7 @@ reload). Không page error.
 - Test fixture dùng điểm bịa `farLat/farLng` (10.0, 105.5): repo PUBLIC, toạ độ trong bug là vị trí
   thiết bị của user — không commit toạ độ đó ở bất kỳ đâu.
 
-## Phát hiện khi verify prod: font icon bị Cloudflare cache bản cũ (CHƯA sửa, chờ user)
+## Phát hiện khi verify prod: font icon bị Cloudflare cache bản cũ (ĐÃ SỬA — `6ccc69f`)
 - Nút "Trong X km" trên prod mất icon place + mũi tên. `MaterialIcons-Regular.otf` (tên cố định,
   nội dung là subset tree-shake theo icon đang dùng) được nginx gắn `public, max-age=7200`
   (regex static asset). Edge: HIT, age 5725, last-modified 25/09 10:06, 8800 B; origin (cache-bust
@@ -80,3 +80,18 @@ reload). Không page error.
 - Đề xuất: thêm `assets/fonts/*.otf`, `assets/packages/**.ttf`, `assets/FontManifest.json`,
   `assets/AssetManifest.*` vào nhóm `private, no-cache` (304 rẻ nhờ ETag); hoặc purge Cloudflare
   trong CD sau helm upgrade (cần API token làm secret).
+
+### Fix (user duyệt "ok hãy fix và push code")
+- `nginx.conf`: block mới `location ~ ^/assets/(?:.+\.(?:otf|ttf)|FontManifest\.json|AssetManifest\.[^/]+)$`
+  → `private, no-cache`, đặt trên regex static (first-match), neo dưới `/assets/` nên không bắt `/api/`.
+  Ảnh vẫn `public, max-age=7200`.
+- `tool/nginx_cache_test.sh` (mới): chạy `nginx:1.27-alpine` thật với nginx.conf làm template trên web
+  root giả, kiểm Cache-Control 10 đường dẫn. RED trước sửa (font `public, max-age=7200`, manifest không
+  có header) → GREEN. Kiểm thêm trên build thật: 5 đường dẫn asset khớp, `/api/v1/venues` vẫn proxy (502
+  với upstream giả). Cần Docker (OrbStack: `orb start`).
+- CI `36218740223` + CD `36218874640` xanh (04:48:24Z). Prod ngay sau deploy: manifest `private, no-cache`
+  DYNAMIC; font qua origin (`?cb=`) `private, no-cache` BYPASS 9144 B; URL font thường vẫn HIT bản cũ tới
+  **05:21:25Z** mới chuyển BYPASS 9144 B (muộn ~20' so với ước tính từ `age` — đừng hứa giờ chính xác từ age).
+- Playwright trên prod sau đó: nút hiện đủ icon place + mũi tên; luồng 20 km → 0, 100 km → 22 vẫn đúng.
+- Từ nay đổi icon / thêm asset hiện ngay ở lần tải kế tiếp (mỗi lần tải tốn vài 304). Browser nào tải font
+  cũ trước 05:21Z vẫn có thể giữ bản đó tới hết max-age=7200 của lần tải đó.
