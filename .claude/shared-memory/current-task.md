@@ -1,5 +1,10 @@
 # Current Task
 
+**Status (2026-09-27) — Tin nhắn kiểu Messenger + bot demo: code + test + E2E local xong, chưa commit/deploy; chờ user xác nhận:**
+Xem `sessions/2026-09-27-messenger-inbox-chat-bots.md`.
+
+---
+
 **Status (2026-09-26, tối) — Quẹt: dấu LIKE/NOPE kiểu Tinder, 10 avatar minh hoạ cho hồ sơ mẫu, "Nhắn tin chốt kèo" cho cả hồ sơ mẫu (chat chỉ trên máy): DEPLOYED prod (82176ec, CI+CD xanh 11:39Z), verify trên app.anmates.site; chờ user xác nhận:**
 Xem `sessions/2026-09-26-quet-tinder-stamps-avatars-sample-chat.md`.
 
