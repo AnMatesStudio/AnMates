@@ -28,6 +28,14 @@ const int kRadiusMaxKm = 200;
 const int kRadiusStepKm = 5;
 const int kRadiusDefaultKm = 20;
 
+/// "Chào buổi sáng" … "Chào buổi tối" for [hour] (0–23) on the device clock.
+String greetingFor(int hour, {required bool en}) {
+  if (hour >= 5 && hour < 11) return en ? 'Good morning' : 'Chào buổi sáng';
+  if (hour >= 11 && hour < 13) return en ? 'Good afternoon' : 'Chào buổi trưa';
+  if (hour >= 13 && hour < 18) return en ? 'Good afternoon' : 'Chào buổi chiều';
+  return en ? 'Good evening' : 'Chào buổi tối';
+}
+
 /// [km] kept to the slider's range and snapped to its steps — a saved value
 /// from another build may be neither.
 int _keepRadiusKm(int km) =>
@@ -81,8 +89,8 @@ class V2State extends ChangeNotifier {
   Set<int> _rateTags = {0};
   bool _rated = false;
 
-  final int _district = 0;
-  final int _dCat = 0;
+  /// Index into [kFeedCategories] of Explore's selected tile; 0 is "all".
+  int _feedCategory = 0;
 
   bool _notifsOpen = false;
   bool _searchOpen = false;
@@ -262,31 +270,36 @@ class V2State extends ChangeNotifier {
   double get washOpacity => softBackground ? 0.56 : 0.8;
   double get grainOpacity => softBackground ? 0.18 : 0.24;
 
-  String get sectionTitle => _en
-      ? 'Top ${kCategories[_dCat](true).toLowerCase()} near you'
-      : 'Quán ${kCategories[_dCat](false).toLowerCase()} gần bạn';
+  int get feedCategory => _feedCategory;
 
-  String get locationLabel {
-    final names = areaNames;
-    // Chưa có khu vực nào thì không đoán thành phố — dữ liệu trải khắp
-    // Hà Nội, Bình Dương, Đà Lạt chứ không riêng TP.HCM.
-    final area = names.isEmpty
-        ? (_en ? 'Nearby' : 'Quanh đây')
-        : names[_district.clamp(0, names.length - 1)];
-    // The radius the feed below was actually filtered by — none without a
-    // location, when the feed is the whole catalogue.
-    final r = _feedRadiusKm;
-    if (r == null) return area;
-    return '$area${_en ? ' · within $r km' : ' · trong $r km'}';
+  /// The feed under the selected category tile: the loaded catalogue (already
+  /// cut to the radius) narrowed to the tile's cuisine tags.
+  List<Venue> get homeVenues {
+    final tags = kFeedCategories[_feedCategory].tags;
+    if (tags.isEmpty) return _venues;
+    return [
+      for (var i = 0; i < _catalog.length && i < _venues.length; i++)
+        if (_catalog[i].cuisineTags.any((t) => tags.contains(t.toLowerCase()))) _venues[i],
+    ];
   }
 
-  String get cravingCount => '${_catalog.length}';
+  String get sectionTitle {
+    if (_feedCategory == 0) return t('Quán gần bạn', 'Spots near you');
+    final c = kFeedCategories[_feedCategory].label;
+    return _en ? '${c(true)} near you' : 'Quán ${c(false).toLowerCase()} gần bạn';
+  }
 
-  /// Sum of the API's `want_count` across the catalogue. Zero renders as an em
-  /// dash: nobody has wished for these cuisines yet.
-  String get openTables {
-    final total = _places.fold(0, (a, p) => a + p.wanting);
-    return total == 0 ? '—' : '$total';
+  /// The Explore header's first line: the radius the feed looks within, or
+  /// that there is no location to look around.
+  String get locationHeadline => locationUnavailable
+      ? t('Chưa bật vị trí', 'Location is off')
+      : t('Trong $_radiusKm km', 'Within $_radiusKm km');
+
+  /// "Chào buổi tối, Minh!" — the name from /profile, left out until it loads.
+  String get greetingLine {
+    final hello = greetingFor(DateTime.now().hour, en: _en);
+    final name = _profileName ?? '';
+    return name.isEmpty ? '$hello!' : '$hello, $name!';
   }
 
   String get wantingLabel {
@@ -635,6 +648,19 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setFeedCategory(int i) {
+    _feedCategory = i.clamp(0, kFeedCategories.length - 1);
+    notifyListeners();
+  }
+
+  /// The Explore header's tap: opens the radius sheet, and when the location
+  /// wasn't available asks for it again — the user may have allowed it in the
+  /// browser since, and the failed lookup would otherwise stick until a reload.
+  Future<void> openRadiusSheet() async {
+    setRadiusSheetOpen(true);
+    if (locationUnavailable) await loadVenues(force: true, retryLocation: true);
+  }
+
   /// Applies a feed radius picked in the sheet: remembered for next time, and
   /// the feed refetched with it straight away.
   Future<void> setRadiusKm(int km) async {
@@ -647,7 +673,7 @@ class V2State extends ChangeNotifier {
     } catch (_) {
       // Not remembered next time; the feed below still uses it now.
     }
-    await loadVenues(force: true);
+    await loadVenues(force: true, retryLocation: true);
   }
 
   // ── Test seeding ──────────────────────────────────────────────────────────
@@ -689,9 +715,11 @@ class V2State extends ChangeNotifier {
 
   /// Resolves the device's lat/lng once per session and caches it — a denied
   /// permission or a GPS timeout is remembered as "no location" rather than
-  /// retried by every subsequent loader.
-  Future<({double lat, double lng})?> _resolveDeviceLocation() async {
-    if (_locationResolved) return _deviceLocation;
+  /// retried by every subsequent loader. [retry] asks again after such a
+  /// failure; only explicit user actions pass it (applying a radius, the
+  /// Explore header). A location already known is never re-asked.
+  Future<({double lat, double lng})?> _resolveDeviceLocation({bool retry = false}) async {
+    if (_locationResolved && !(retry && _deviceLocation == null)) return _deviceLocation;
     try {
       _deviceLocation = await LocationService().currentLatLng();
     } catch (_) {
@@ -718,8 +746,9 @@ class V2State extends ChangeNotifier {
   /// is the venues within [radiusKm], nearest first — none in range stays an
   /// empty feed; without a location it is the whole active table, name-sorted.
   /// Safe to call repeatedly; a forced call (e.g. the radius changed)
-  /// supersedes one still in flight.
-  Future<void> loadVenues({bool force = false}) async {
+  /// supersedes one still in flight. [retryLocation] asks for the location
+  /// again if it wasn't available (see [_resolveDeviceLocation]).
+  Future<void> loadVenues({bool force = false, bool retryLocation = false}) async {
     if (!force && (_venuesLoading || _venues.isNotEmpty)) return;
 
     final seq = ++_venuesSeq;
@@ -728,7 +757,7 @@ class V2State extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final loc = await _resolveDeviceLocation();
+      final loc = await _resolveDeviceLocation(retry: retryLocation);
       await _restoreRadius();
       final radiusKm = loc != null ? _radiusKm : null;
 

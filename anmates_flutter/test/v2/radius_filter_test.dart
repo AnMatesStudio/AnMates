@@ -8,9 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'support/fake_venue_api.dart';
 
-/// The Explore radius control through the real shell: the pill under the feed
-/// title, the sheet and its slider, the hero line, and the empty feed's way
-/// out. Only the API server and the location plugin are faked; the device sits
+/// The Explore radius control through the real shell: the header that shows
+/// and opens it, the sheet and its slider, and the empty feed's way out. Only the API server and the location plugin are faked; the device sits
 /// far from every venue, 83.6 km from the nearest.
 void main() {
   setUp(() {
@@ -32,6 +31,15 @@ void main() {
     return s;
   }
 
+  /// Taps [finder] after scrolling it to the top of the feed. The glass nav
+  /// floats over the bottom of the screen, so a target left at the fold can be
+  /// under it and the tap lands on a tab instead.
+  Future<void> tapInFeed(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pump();
+    await tester.tap(finder);
+  }
+
   /// Lets a refetch finish and the screen repaint. Not pumpAndSettle: the
   /// hero's floating art animates forever.
   Future<void> settleFeed(WidgetTester tester) async {
@@ -39,11 +47,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('the pill opens the sheet; Áp dụng refetches with the picked radius', (tester) async {
+  testWidgets('the header opens the sheet; Áp dụng refetches with the picked radius', (tester) async {
     SharedPreferences.setMockInitialValues({'venue_radius_km': 20});
     final requests = serveCatalogue([ocHem, khoaiXien]);
     await pumpHome(tester);
-    expect(find.textContaining('· trong 20 km'), findsOneWidget); // hero line
     expect(find.text('Bán kính tìm quán'), findsNothing);
 
     await tester.tap(find.text('Trong 20 km'));
@@ -59,7 +66,6 @@ void main() {
     expect(requests.last['radius_m'], '200000');
     expect(find.text('Ốc Hẻm 239/29A Seafood Restaurant'), findsWidgets);
     expect(find.text('Trong 200 km'), findsOneWidget);
-    expect(find.textContaining('· trong 200 km'), findsOneWidget);
   });
 
   testWidgets('an empty feed names the radius and offers to widen it', (tester) async {
@@ -68,7 +74,7 @@ void main() {
     await pumpHome(tester);
 
     expect(find.text('Không có quán nào trong 50 km'), findsWidgets);
-    await tester.tap(find.text('Mở rộng bán kính').first);
+    await tapInFeed(tester, find.text('Mở rộng bán kính').first);
     await tester.pump();
 
     expect(find.text('Bán kính tìm quán'), findsOneWidget);
@@ -81,20 +87,20 @@ void main() {
 
     expect(find.text('Không có quán nào trong 200 km'), findsWidgets);
     expect(find.text('Mở rộng bán kính'), findsNothing);
-    await tester.tap(find.text('Xem tất cả quán').first);
+    await tapInFeed(tester, find.text('Xem tất cả quán').first);
     await tester.pump();
 
     expect(s.screen, V2Screen.allVenues);
   });
 
-  testWidgets('without a location the sheet says the radius needs one', (tester) async {
+  testWidgets('without a location the header says so; the sheet says what to do', (tester) async {
     GeolocatorPlatform.instance = NoLocation();
     SharedPreferences.setMockInitialValues({});
     serveCatalogue([ocHem]);
-    final s = await pumpHome(tester);
+    await pumpHome(tester);
 
-    s.setRadiusSheetOpen(true);
-    await tester.pump();
+    await tester.tap(find.text('Chưa bật vị trí'));
+    await settleFeed(tester);
 
     expect(find.text('Bật quyền vị trí để lọc quán theo khoảng cách'), findsOneWidget);
   });

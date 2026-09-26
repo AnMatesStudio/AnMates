@@ -42,10 +42,30 @@ const List<String> kAreaNames = [
   'Quận 1', 'Quận 3', 'Bình Thạnh', 'Phú Nhuận', 'Quận 7', 'Thảo Điền',
 ];
 
-const List<T> kCategories = [
-  T('Lẩu', 'Hotpot'), T('Nướng', 'BBQ'), T('Mì phở', 'Noodles'),
-  T('Hải sản', 'Seafood'), T('Cà phê', 'Coffee'), T('Bia hơi', 'Beer'),
-  T('Tráng miệng', 'Dessert'),
+/// One of Explore's category tiles. A venue belongs to it when one of its
+/// `cuisine_tags` is in [tags]; empty [tags] means every venue.
+class FeedCategory {
+  const FeedCategory(this.label, this.tags, {this.art});
+
+  final T label;
+  final Set<String> tags;
+
+  /// The tile's 3D render; null draws an icon instead (the "all" tile).
+  final String? art;
+}
+
+/// Tag groups follow `artForCuisine`. No beer tile: no venue in the catalogue
+/// carries a beer/bar tag, so it could only ever open onto an empty feed.
+const List<FeedCategory> kFeedCategories = [
+  FeedCategory(T('Tất cả', 'All'), {}),
+  FeedCategory(T('Lẩu', 'Hotpot'), {'lau', 'nam', 'de'}, art: A.hotpot),
+  FeedCategory(T('Nướng', 'BBQ'), {'bbq', 'nuong', 'korean'}, art: A.bbq),
+  FeedCategory(T('Mì phở', 'Noodles'),
+      {'pho', 'bun', 'bun_bo', 'bun_cha', 'bun_dau', 'mi', 'ramen', 'japanese', 'sushi'},
+      art: A.ramen),
+  FeedCategory(T('Hải sản', 'Seafood'), {'oc', 'seafood'}, art: A.beer),
+  FeedCategory(T('Cà phê', 'Coffee'), {'cafe'}, art: A.coffee),
+  FeedCategory(T('Tráng miệng', 'Dessert'), {'trang_mieng'}, art: A.coffee),
 ];
 
 /// ── Venues ──────────────────────────────────────────────────────────────────

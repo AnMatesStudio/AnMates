@@ -10,20 +10,24 @@ import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **B1 · Explore — hero 3D collage.** The design's single home surface:
-/// "Đã chốt Home C làm Explore duy nhất."
+/// **B1 · Explore.** Where the feed is looking, a greeting, search, the
+/// category tiles, then two rows of venue cards — laid out after the reference
+/// picked on 2026-09-26, in the v2 palette, under the same glass nav. Every
+/// card is a row from GET /api/v1/venues.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
-    // Straight from GET /api/v1/venues. The two rows show different slices of
-    // the same catalogue, and both shrink gracefully when the DB holds fewer
-    // venues than the design's six.
-    final all = s.venues;
-    final tiles = all.take(4).toList();
-    final cards = all.length > 1 ? all.skip(1).take(5).toList() : all;
+    final feed = s.homeVenues;
+    final nearby = feed.take(5).toList();
+    // The same slice of the catalogue from a different starting point, so a
+    // short feed still fills both rows.
+    final tonight = feed.length > 1 ? feed.skip(1).take(5).toList() : feed;
+    final pad = V2Layout.hPad(context);
+    // The row holds the card plus room for its shadow.
+    final rowHeight = _VenueCard.height(context) + 22;
 
     return Stack(
       children: [
@@ -42,101 +46,33 @@ class HomeScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Row(children: [
-                    Expanded(child: _ProfilePill(s: s)),
-                    const SizedBox(width: 10),
-                    _NotifButton(s: s),
-                  ]),
+                  padding: EdgeInsets.symmetric(horizontal: pad),
+                  child: _Header(s: s),
                 ),
+                const SizedBox(height: 16),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
-                  child: Row(children: [
-                    Expanded(child: _SearchPill(s: s)),
-                    const SizedBox(width: 9),
-                    _FilterButton(s: s),
-                  ]),
-                ),
-                const SizedBox(height: 2),
-                _Hero(s: s),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Column(children: [
-                    _Cta(s: s),
-                    const SizedBox(height: 12),
-                    // Same height whichever label wraps to two lines.
-                    IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                      Expanded(child: _StatCard(
-                        value: s.openTables,
-                        valueColor: AppColorsV2.wisteria,
-                        label: s.t('kèo đang mở gần bạn', 'open tables near you'),
-                        onTap: () => s.go(V2Screen.swipe),
-                      )),
-                      const SizedBox(width: 10),
-                      // The design's second stat was Trust Score — no
-                      // trust_score column exists anywhere in the schema, so
-                      // it's replaced with a real number: how many candidates
-                      // GET /api/v1/matches actually returned.
-                      Expanded(child: _StatCard(
-                        value: '${s.candidates.length}',
-                        valueColor: AppColorsV2.ink,
-                        label: s.t('mates hợp gu', 'matching mates'),
-                        onTap: () => s.go(V2Screen.swipe),
-                      )),
-                    ])),
-                  ]),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 26, 18, 0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Expanded(child: Text(s.sectionTitle, style: AppTextV2.section())),
-                      GestureDetector(
-                        onTap: s.openAllVenues,
-                        behavior: HitTestBehavior.opaque,
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(
-                            minWidth: V2Layout.minTap, minHeight: V2Layout.minTap,
-                          ),
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            widthFactor: 1,
-                            heightFactor: 1,
-                            child: Text(
-                              s.t('Xem tất cả', 'See all'),
-                              style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11.5),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Align(alignment: Alignment.centerLeft, child: _RadiusPill(s: s)),
-                ),
-                SizedBox(
-                  // The two text lines under each tile grow with the user's text size.
-                  height: 198 + V2Layout.textGrowth(context, 48),
-                  child: tiles.isEmpty
-                      ? _FeedPlaceholder(s: s)
-                      : _TileRow(tiles: tiles, s: s),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(18, 26, 18, 0),
+                  padding: EdgeInsets.symmetric(horizontal: pad),
                   child: Text(
-                    s.t('Kèo mở tối nay', 'Open tables tonight'),
-                    style: AppTextV2.section(),
+                    s.greetingLine,
+                    style: AppTextV2.section().copyWith(fontSize: 24, letterSpacing: -0.72),
                   ),
                 ),
+                const SizedBox(height: 14),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: pad),
+                  child: _SearchBar(s: s),
+                ),
+                const SizedBox(height: 14),
+                _CategoryTiles(s: s),
+                _SectionHeader(title: s.sectionTitle, s: s),
                 SizedBox(
-                  height: 194 + V2Layout.textGrowth(context, 48),
-                  child: cards.isEmpty
-                      ? _FeedPlaceholder(s: s)
-                      : _CardRow(cards: cards, s: s),
+                  height: rowHeight,
+                  child: nearby.isEmpty ? _FeedPlaceholder(s: s) : _VenueRow(venues: nearby, s: s),
+                ),
+                _SectionHeader(title: s.t('Kèo mở tối nay', 'Open tables tonight'), s: s),
+                SizedBox(
+                  height: rowHeight,
+                  child: tonight.isEmpty ? _FeedPlaceholder(s: s) : _VenueRow(venues: tonight, s: s),
                 ),
                 _LocalMatesCard(s: s),
               ],
@@ -148,41 +84,64 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _ProfilePill extends StatelessWidget {
-  const _ProfilePill({required this.s});
+/// Where the feed is looking — the search radius, or that location is off —
+/// which opens the radius sheet; then notifications and the profile avatar.
+class _Header extends StatelessWidget {
+  const _Header({required this.s});
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => s.go(V2Screen.me),
-      child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: AppShadowsV2.pill,
-        ),
-        child: Row(children: [
-          const CircleAvatar(radius: 19, backgroundImage: AssetImage(A.avatar)),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  s.t('Chào buổi tối', 'Good evening'),
-                  style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 11),
+    return Row(children: [
+      Expanded(
+        child: V2TapTarget(
+          onTap: s.openRadiusSheet,
+          alignment: Alignment.centerLeft,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(
+                  s.locationUnavailable ? Icons.location_off_rounded : Icons.place_rounded,
+                  size: 18,
+                  color: AppColorsV2.wisteria,
                 ),
-                Text(s.profileName.isEmpty ? '—' : s.profileName, style: AppTextV2.name()),
-              ],
-            ),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    s.locationHeadline,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextV2.name(size: 14.5),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_down_rounded, size: 20, color: AppColorsV2.inkA(0.55)),
+              ]),
+              const SizedBox(height: 3),
+              Text(
+                s.t('Tìm quán ngon quanh bạn', 'Good food around you'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextV2.meta(color: AppColorsV2.inkA(0.5)),
+              ),
+            ],
           ),
-        ]),
+        ),
       ),
-    );
+      const SizedBox(width: 6),
+      _NotifButton(s: s),
+      V2TapTarget(
+        onTap: () => s.go(V2Screen.me),
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
+          ),
+          child: const CircleAvatar(radius: 21, backgroundImage: AssetImage(A.avatar)),
+        ),
+      ),
+    ]);
   }
 }
 
@@ -192,19 +151,19 @@ class _NotifButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return V2TapTarget(
       onTap: () => s.setNotifsOpen(true),
       child: Container(
-        width: 52, height: 52,
+        width: 44, height: 44,
         decoration: BoxDecoration(
           color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
         ),
         child: Stack(alignment: Alignment.center, children: [
-          Icon(Icons.notifications_none_rounded, size: 22, color: AppColorsV2.inkA(0.62)),
+          Icon(Icons.notifications_none_rounded, size: 21, color: AppColorsV2.inkA(0.62)),
           Positioned(
-            top: 11, right: 12,
+            top: 9, right: 10,
             child: Container(
-              width: 9, height: 9,
+              width: 8, height: 8,
               decoration: BoxDecoration(
                 color: AppColorsV2.alert,
                 shape: BoxShape.circle,
@@ -218,329 +177,279 @@ class _NotifButton extends StatelessWidget {
   }
 }
 
-class _SearchPill extends StatelessWidget {
-  const _SearchPill({required this.s});
+/// Opens the search overlay; the tune icon at its end opens the mates filter
+/// (C1), which used to have a button of its own here.
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({required this.s});
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => s.setSearchOpen(true),
-      child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 17),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: AppShadowsV2.pill,
-        ),
-        child: Row(children: [
-          Icon(Icons.search_rounded, size: 17, color: AppColorsV2.inkA(0.4)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              s.t('Tìm quán, món, khu vực', 'Search a spot, a dish, a district'),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: AppTextV2.body(color: AppColorsV2.inkA(0.45), size: 12.5),
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: AppShadowsV2.pill,
+      ),
+      // Stretched, so the search half takes taps across the pill's whole
+      // height rather than just the 20pt line of text.
+      child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => s.setSearchOpen(true),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 18),
+              child: Row(children: [
+                Icon(Icons.search_rounded, size: 19, color: AppColorsV2.inkA(0.42)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    s.t('Tìm quán, món, khu vực', 'Search a spot, a dish, a district'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextV2.body(color: AppColorsV2.inkA(0.45), size: 13),
+                  ),
+                ),
+              ]),
             ),
           ),
-        ]),
-      ),
+        ),
+        V2TapTarget(
+          onTap: () => s.go(V2Screen.filters),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14),
+            child: Icon(Icons.tune_rounded, size: 20, color: AppColorsV2.wisteria),
+          ),
+        ),
+      ]),
     );
   }
 }
 
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({required this.s});
+/// The category tiles: a 3D render (an icon for "all") over the label, the
+/// selected one in Wisteria. Picking one narrows both rows below.
+class _CategoryTiles extends StatelessWidget {
+  const _CategoryTiles({required this.s});
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => s.go(V2Screen.filters),
-      child: Container(
-        width: 48, height: 48,
-        decoration: BoxDecoration(
-          color: AppColorsV2.wisteria,
-          shape: BoxShape.circle,
-          boxShadow: AppShadowsV2.ctaGlow(opacity: 0.36),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            for (final w in [17.0, 12.0, 7.0]) ...[
-              Container(
-                width: w, height: 2,
-                decoration: BoxDecoration(
-                  color: Colors.white, borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              if (w != 7.0) const SizedBox(height: 3.5),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
+    final u = V2Layout.unit(context);
+    final pad = V2Layout.hPad(context);
+    final tileHeight = 92 * u + V2Layout.textGrowth(context, 16);
 
-class _Hero extends StatelessWidget {
-  const _Hero({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
     return SizedBox(
-      height: 272,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Positioned(
-            top: 6, left: -14, width: 126, height: 126,
-            child: FloatingArt(
-              period: Duration(milliseconds: 6000),
-              child: FoodArt(asset: A.burger),
-            ),
-          ),
-          const Positioned(
-            top: 0, right: -10, width: 142, height: 130,
-            child: FloatingArt(
-              period: Duration(milliseconds: 6600),
-              delay: Duration(milliseconds: 500),
-              child: FoodArt(asset: A.ramen),
-            ),
-          ),
-          const Positioned(
-            bottom: 2, right: 8, width: 84, height: 96,
-            child: FloatingArt(
-              period: Duration(milliseconds: 7200),
-              delay: Duration(milliseconds: 1000),
-              child: FoodArt(asset: A.beer, shadowBlur: 16),
-            ),
-          ),
-          const Positioned(
-            bottom: 10, left: 10, width: 98, height: 90,
-            child: FloatingArt(
-              period: Duration(milliseconds: 6200),
-              delay: Duration(milliseconds: 800),
-              child: FoodArt(asset: A.coffee, shadowBlur: 16),
-            ),
-          ),
-          Positioned(
-            top: 82, left: 0, right: 0,
-            child: Column(children: [
-              Text(s.locationLabel, style: AppTextV2.body(color: AppColorsV2.inkA(0.5))),
-              const SizedBox(height: 5),
-              ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment(-1, -0.6), end: Alignment(1, 0.6),
-                  colors: [AppColorsV2.blue, AppColorsV2.wisteria],
-                ).createShader(rect),
-                child: Text(
-                  s.cravingCount,
-                  style: AppTextV2.heroNumber().copyWith(color: Colors.white),
-                ),
+      // Tile plus room for the selected tile's glow.
+      height: tileHeight + 18,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.fromLTRB(pad, 4, pad, 14),
+        itemCount: kFeedCategories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 10),
+        itemBuilder: (context, i) {
+          final c = kFeedCategories[i];
+          final on = s.feedCategory == i;
+          final ink = on ? Colors.white : AppColorsV2.inkA(0.72);
+          return GestureDetector(
+            onTap: () => s.setFeedCategory(i),
+            child: Container(
+              width: 80 * u,
+              decoration: BoxDecoration(
+                color: on ? AppColorsV2.wisteria : Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: on ? AppShadowsV2.ctaGlow(opacity: 0.3) : AppShadowsV2.pill,
               ),
-              const SizedBox(height: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox.square(
+                    dimension: 42 * u,
+                    child: c.art == null
+                        ? Icon(Icons.restaurant_menu_rounded, size: 26 * u,
+                            color: on ? Colors.white : AppColorsV2.wisteria)
+                        : FoodArt(asset: c.art!, shadowOpacity: 0.14, shadowBlur: 8),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    s.tr(c.label),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: AppTextV2.name(color: ink, size: 12).copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+/// A section title with the reference's "see all →" pill.
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.s});
+  final String title;
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    final pad = V2Layout.hPad(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(pad, 12, pad, 0),
+      child: Row(children: [
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextV2.section(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        V2TapTarget(
+          onTap: s.openAllVenues,
+          alignment: Alignment.centerRight,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 7, 9, 7),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: AppShadowsV2.pill,
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
               Text(
-                s.t('mates đang thèm ăn tối nay', 'mates are craving food tonight'),
-                style: AppTextV2.name(size: 12.5),
+                s.t('Xem tất cả', 'See all'),
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 12),
               ),
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_forward_rounded, size: 15, color: AppColorsV2.wisteria),
             ]),
           ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 }
 
-class _Cta extends StatelessWidget {
-  const _Cta({required this.s});
+class _VenueRow extends StatelessWidget {
+  const _VenueRow({required this.venues, required this.s});
+  final List<Venue> venues;
   final V2State s;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => s.go(V2Screen.swipe),
-      child: Container(
-        height: 56, alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: AppGradientsV2.cta,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: AppShadowsV2.ctaGlow(),
-        ),
-        child: Text(
-          s.t('Gom kèo tối nay', 'Gather a table tonight'),
-          style: AppTextV2.cta(),
-        ),
+    final pad = V2Layout.hPad(context);
+    return ListView.separated(
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.fromLTRB(pad, 8, pad, 14),
+      itemCount: venues.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      itemBuilder: (context, i) => _VenueCard(
+        venue: venues[i],
+        bed: i,
+        onTap: () => s.openVenueNamed(venues[i].name),
       ),
     );
   }
 }
 
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.value, required this.valueColor,
-    required this.label, required this.onTap,
-  });
-
-  final String value;
-  final Color valueColor;
-  final String label;
+/// A venue the way the reference draws it: the photo on top, then the name
+/// (and rating, when the DB has one), then where it is and how far.
+class _VenueCard extends StatelessWidget {
+  const _VenueCard({required this.venue, required this.bed, required this.onTap});
+  final Venue venue;
+  final int bed;
   final VoidCallback onTap;
+
+  static double width(BuildContext context) => 262 * V2Layout.unit(context);
+  static double photoHeight(BuildContext context) => 136 * V2Layout.unit(context);
+
+  /// Photo plus the two text lines, which grow with the user's text size.
+  static double height(BuildContext context) =>
+      photoHeight(context) + 66 + V2Layout.textGrowth(context, 34);
 
   @override
   Widget build(BuildContext context) {
+    final v = venue;
+    final meta = AppTextV2.meta(color: AppColorsV2.inkA(0.55));
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        width: width(context),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(22),
-          boxShadow: AppShadowsV2.pill,
+          boxShadow: AppShadowsV2.card,
         ),
+        clipBehavior: Clip.antiAlias,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(value, style: AppTextV2.stat(color: valueColor)),
-            const SizedBox(height: 5),
-            Text(label, style: AppTextV2.meta().copyWith(
-              height: 1.35, fontWeight: FontWeight.w600,
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TileRow extends StatelessWidget {
-  const _TileRow({required this.tiles, required this.s});
-  final List<Venue> tiles;
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 8),
-      itemCount: tiles.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 11),
-      itemBuilder: (context, i) {
-        final v = tiles[i];
-        return GestureDetector(
-          onTap: () => s.openVenueNamed(v.name),
-          child: SizedBox(
-            width: 132,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  height: 120,
-                  child: Stack(children: [
-                    Positioned.fill(
-                      // ClipRRect (not just BoxDecoration.borderRadius, which
-                      // doesn't clip a child) so a real cover-fit photo can't
-                      // spill past the rounded corners the color bed implies.
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: AppColorsV2.tileBeds[i % AppColorsV2.tileBeds.length],
-                          ),
-                          child: VenuePhotoOrFallback(
-                            photoUrl: v.photoUrl,
-                            fallback: FoodArt(
-                              asset: v.img, fillFraction: 0.76,
-                              shadowOpacity: 0.16, shadowBlur: 12,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 8, right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColorsV2.whiteA(0.94),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text('★ ${v.rating}', style: AppTextV2.name(size: 11)),
-                      ),
-                    ),
-                  ]),
+            SizedBox(
+              height: photoHeight(context),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColorsV2.tileBeds[bed % AppColorsV2.tileBeds.length],
                 ),
-                const SizedBox(height: 9),
-                Text(v.name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: AppTextV2.tileTitle()),
-                const SizedBox(height: 3),
-                Text(v.tileMeta, maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: AppTextV2.meta()),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _CardRow extends StatelessWidget {
-  const _CardRow({required this.cards, required this.s});
-  final List<Venue> cards;
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(18, 10, 18, 10),
-      itemCount: cards.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 12),
-      itemBuilder: (context, i) {
-        final v = cards[i];
-        return GestureDetector(
-          onTap: () => s.openVenueNamed(v.name),
-          child: Container(
-            width: 138, height: 172 + V2Layout.textGrowth(context, 48),
-            decoration: BoxDecoration(
-              color: AppColorsV2.cardBeds[i % AppColorsV2.cardBeds.length],
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: AppShadowsV2.card,
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(children: [
-              Positioned(
-                left: 0, right: 0, top: 14, height: 84,
                 child: VenuePhotoOrFallback(
                   photoUrl: v.photoUrl,
                   fallback: FoodArt(
-                    asset: v.img, fillFraction: 0.86,
-                    shadowOpacity: 0.18, shadowBlur: 12,
+                    asset: v.img, fillFraction: 0.7, shadowOpacity: 0.16, shadowBlur: 12,
                   ),
                 ),
               ),
-              Positioned(
-                left: 11, right: 11, bottom: 12,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(13, 9, 13, 9),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(v.name, maxLines: 2, overflow: TextOverflow.ellipsis,
-                        style: AppTextV2.cardTitle()),
-                    const SizedBox(height: 3),
-                    Text(v.cardWhere, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: AppTextV2.meta(color: AppColorsV2.inkA(0.5))
-                            .copyWith(fontWeight: FontWeight.w600)),
+                    Row(children: [
+                      Expanded(
+                        child: Text(
+                          v.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextV2.cardTitle().copyWith(fontSize: 14),
+                        ),
+                      ),
+                      // Most rows carry no rating yet; a dash would be noise.
+                      if (v.rating != '—') ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.star_rounded, size: 16, color: AppColorsV2.ink),
+                        const SizedBox(width: 2),
+                        Text(v.rating, style: AppTextV2.name(size: 12)),
+                      ],
+                    ]),
+                    const SizedBox(height: 6),
+                    Row(children: [
+                      const Icon(Icons.place_rounded, size: 14, color: AppColorsV2.wisteria),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(v.area, maxLines: 1, overflow: TextOverflow.ellipsis, style: meta),
+                      ),
+                      if (v.dist.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Icon(Icons.near_me_rounded, size: 13, color: AppColorsV2.inkA(0.45)),
+                        const SizedBox(width: 3),
+                        Text(v.dist, style: meta),
+                      ],
+                    ]),
                   ],
                 ),
               ),
-            ]),
-          ),
-        );
-      },
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -551,8 +460,9 @@ class _LocalMatesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pad = V2Layout.hPad(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 26, 18, 0),
+      padding: EdgeInsets.fromLTRB(pad, 18, pad, 0),
       child: GestureDetector(
         onTap: () => s.go(V2Screen.local),
         child: Container(
@@ -639,37 +549,6 @@ class FeedWashPainter extends CustomPainter {
   bool shouldRepaint(FeedWashPainter oldDelegate) => false;
 }
 
-/// The "Trong 20 km" pill under the feed title — opens the radius sheet.
-class _RadiusPill extends StatelessWidget {
-  const _RadiusPill({required this.s});
-  final V2State s;
-
-  @override
-  Widget build(BuildContext context) {
-    return V2TapTarget(
-      onTap: () => s.setRadiusSheetOpen(true),
-      alignment: Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(9, 6, 8, 6),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(999),
-          boxShadow: AppShadowsV2.pill,
-        ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.place_rounded, size: 15, color: AppColorsV2.wisteria),
-          const SizedBox(width: 4),
-          Text(
-            s.t('Trong ${s.radiusKm} km', 'Within ${s.radiusKm} km'),
-            style: AppTextV2.name(size: 12),
-          ),
-          Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: AppColorsV2.inkA(0.45)),
-        ]),
-      ),
-    );
-  }
-}
-
 /// Shown in place of a venue row while the catalogue is loading, when the
 /// fetch failed, or when nothing matched. The feed never falls back to sample
 /// rows, nor to venues outside the picked radius — empty reads as empty, with
@@ -690,11 +569,24 @@ class _FeedPlaceholder extends StatelessWidget {
     }
 
     final failed = s.venuesError != null && s.venuesError != 'empty';
+    // Venues in range, just none under the selected tile.
+    final cat = s.feedCategory != 0 && s.venues.isNotEmpty
+        ? kFeedCategories[s.feedCategory].label
+        : null;
     final (message, action, onAction) = switch (s.feedRadiusKm) {
       _ when failed => (
           s.t('Không tải được danh sách quán', "Couldn't load venues"),
           s.t('Thử lại', 'Retry'),
           () => s.loadVenues(force: true),
+        ),
+      final r when cat != null => (
+          r == null
+              ? s.t('Không có quán ${cat(false).toLowerCase()} nào',
+                  'No ${cat(true).toLowerCase()} spots yet')
+              : s.t('Không có quán ${cat(false).toLowerCase()} nào trong $r km',
+                  'No ${cat(true).toLowerCase()} within $r km'),
+          s.t('Xem tất cả món', 'Show every dish'),
+          () => s.setFeedCategory(0),
         ),
       // No location, so this was the whole catalogue.
       null => (
