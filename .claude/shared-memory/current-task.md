@@ -1,5 +1,18 @@
 # Current Task
 
+**Status (2026-09-26, chiều) — Filter bán kính 5–100 km trên Home: CODE DONE + 1242/1242 test + verify app thật (Chrome headless ghim vị trí xa mọi quán); chưa commit/deploy, chờ user xác nhận:**
+Nút "Trong 20 km ▾" → sheet slider (bước 5 km) → Áp dụng; lưu qua phiên. Tôn trọng tuyệt đối: trống → "Mở rộng bán kính" (100 km → "Xem tất cả quán").
+Thay thế fallback của bản sửa sáng. Follow-up mở: tên khu vực trên hero sai sẵn.
+Xem `sessions/2026-09-26-home-feed-radius-filter.md`.
+
+---
+
+**Status (2026-09-26, sáng) — Fix Home feed rỗng khi ở xa mọi quán > 20 km — SUPERSEDED bởi filter bán kính ở trên (fallback đã gỡ):**
+`loadVenues()` lọc cứng 20 km → một vị trí ở miền Tây (quán gần nhất 83,6 km) ra `venues: []`.
+Xem `sessions/2026-09-26-home-feed-empty-outside-catalogue-cities.md`.
+
+---
+
 **Status (2026-09-25) — Responsive mobile Flutter UI v2: CODE DONE + deploy prod + verify Playwright trên prod; chờ user test máy thật:**
 Nguyên nhân gốc đã đo: `DesignFrame` scale cả app theo chiều cao → trên web mobile chữ/nút nhỏ 16–37 %.
 Plan + 31 task (26 file spec): `docs/plans/2026-09-25-responsive-mobile/README.md`. Chờ user chốt D1–D3 (§5)
