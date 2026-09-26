@@ -22,7 +22,9 @@ const int kAllVenuesPageSize = 10;
 /// picked radius — none in range stays an empty feed that offers to widen it,
 /// never a quiet reach further out.
 const int kRadiusMinKm = 5;
-const int kRadiusMaxKm = 100;
+// 200, not 100: the catalogue sits in a few cities, and from the Mekong Delta's
+// own cities the nearest HCMC venues are some 125–160 km away.
+const int kRadiusMaxKm = 200;
 const int kRadiusStepKm = 5;
 const int kRadiusDefaultKm = 20;
 

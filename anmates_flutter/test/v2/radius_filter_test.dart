@@ -56,10 +56,10 @@ void main() {
     await settleFeed(tester);
 
     expect(find.text('Bán kính tìm quán'), findsNothing);
-    expect(requests.last['radius_m'], '100000');
+    expect(requests.last['radius_m'], '200000');
     expect(find.text('Ốc Hẻm 239/29A Seafood Restaurant'), findsWidgets);
-    expect(find.text('Trong 100 km'), findsOneWidget);
-    expect(find.textContaining('· trong 100 km'), findsOneWidget);
+    expect(find.text('Trong 200 km'), findsOneWidget);
+    expect(find.textContaining('· trong 200 km'), findsOneWidget);
   });
 
   testWidgets('an empty feed names the radius and offers to widen it', (tester) async {
@@ -75,11 +75,11 @@ void main() {
   });
 
   testWidgets('at the widest radius the empty feed points to the full list', (tester) async {
-    SharedPreferences.setMockInitialValues({'venue_radius_km': 100});
+    SharedPreferences.setMockInitialValues({'venue_radius_km': 200});
     serveCatalogue([baBat]);
     final s = await pumpHome(tester);
 
-    expect(find.text('Không có quán nào trong 100 km'), findsWidgets);
+    expect(find.text('Không có quán nào trong 200 km'), findsWidgets);
     expect(find.text('Mở rộng bán kính'), findsNothing);
     await tester.tap(find.text('Xem tất cả quán').first);
     await tester.pump();

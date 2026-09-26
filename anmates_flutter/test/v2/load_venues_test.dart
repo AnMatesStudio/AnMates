@@ -85,24 +85,24 @@ void main() {
       expect(requests.last['radius_m'], '35000');
     });
 
-    test('is kept to 5–100 km in 5 km steps', () async {
+    test('is kept to 5–200 km in 5 km steps', () async {
       serveCatalogue([ocHem]);
       final s = V2State();
 
-      for (final (picked, kept) in [(1, 5), (37, 35), (38, 40), (500, 100)]) {
+      for (final (picked, kept) in [(1, 5), (37, 35), (38, 40), (500, 200)]) {
         await s.setRadiusKm(picked);
         expect(s.radiusKm, kept, reason: 'picked $picked km');
       }
     });
 
-    test('a saved radius outside 5–100 km is kept inside it too', () async {
+    test('a saved radius outside 5–200 km is kept inside it too', () async {
       SharedPreferences.setMockInitialValues({'venue_radius_km': 250});
       final requests = serveCatalogue([ocHem]);
       final s = V2State();
 
       await s.loadVenues();
 
-      expect(requests.single['radius_m'], '100000');
+      expect(requests.single['radius_m'], '200000');
     });
 
     test('picked while the previous load is still in flight, it wins', () async {
