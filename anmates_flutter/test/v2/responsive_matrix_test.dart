@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:anmates/services/match_service.dart';
 import 'package:anmates/services/venue_catalog_service.dart';
 import 'package:anmates/views/v2/v2_app.dart';
+import 'package:anmates/views/v2/v2_data.dart';
 import 'package:anmates/views/v2/v2_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -166,6 +167,14 @@ final List<_Screen> _screens = [
   ),
   // Nothing inside the radius: both rows show the "widen it" placeholder.
   _Screen('home-empty', (s) => s..seedVenues(const [], radiusKm: 20)..go(V2Screen.home)),
+  // No real candidate: the labelled sample deck, signed-out banner included.
+  _Screen(
+    'swipe-samples',
+    (s) => s..go(V2Screen.swipe)..seedSampleDeck(signedOut: true),
+    pinned: () => find.text('Gửi lời mời đi ăn'),
+  ),
+  _Screen('swipe-match', (s) => s..go(V2Screen.swipe)..seedMatchReveal(kSampleMates.first)),
+  _Screen('swipe-done', (s) => s..seedCandidates(const [])..go(V2Screen.swipe)),
 ];
 
 // ── Pumping ─────────────────────────────────────────────────────────────────

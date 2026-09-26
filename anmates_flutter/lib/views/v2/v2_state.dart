@@ -77,7 +77,6 @@ class V2State extends ChangeNotifier {
   Set<int> _tastes = {0, 3};
 
   int _placeIdx = 0;
-  int _mateIdx = 0;
 
   SplitMode _split = SplitMode.item;
 
@@ -145,6 +144,24 @@ class V2State extends ChangeNotifier {
   String? _candidatesError;
   bool _inviteLoading = false;
 
+  // ── Sample deck: kSampleMates, used only when the API has no real candidate
+  // for this viewer (an empty list, or 401 when signed out). Swiped locally.
+  bool _sampleDeck = false;
+  bool _sampleSignedOut = false;
+  List<Mate> _samples = const [];
+
+  /// Cards the deck started with, for the "3 / 10" counter.
+  int _deckTotal = 0;
+
+  /// The match sheet's partner after an invite that was returned.
+  Mate? _matchReveal;
+  bool _matchRevealSample = false;
+
+  /// The last swipe that can still be taken back — a pass, or an invite that
+  /// wasn't returned. Never a match: the API's undo drops the swipe row but
+  /// leaves the match it created.
+  ({MatchCandidate? candidate, Mate? sample})? _lastSwipe;
+
   /// Set after a swipe that didn't reciprocate, so the swipe screen can show
   /// an honest "sent, waiting on them" line instead of silently doing nothing.
   String? _pendingNotice;
@@ -207,7 +224,7 @@ class V2State extends ChangeNotifier {
   V2Screen get detailBack => _detailBack;
 
   List<MatchCandidate> get candidates => _candidates;
-  bool get hasCandidates => _candidates.isNotEmpty;
+  bool get hasCandidates => deck.isNotEmpty;
   bool get candidatesLoading => _candidatesLoading;
   String? get candidatesError => _candidatesError;
   bool get inviteLoading => _inviteLoading;
@@ -240,11 +257,27 @@ class V2State extends ChangeNotifier {
   Place get place =>
       _openedPlace ?? (_places.isEmpty ? _placeholderPlace : _places[_placeIdx]);
 
-  /// The swipe card's candidate. While there are none yet, a neutral
-  /// placeholder — never a sample person.
-  Mate get mate => _candidates.isEmpty
-      ? _placeholderMate
-      : mateFromCandidate(_candidates[_mateIdx.clamp(0, _candidates.length - 1)]);
+  /// The swipe card on top. With an empty deck, a neutral placeholder.
+  Mate get mate => deck.isEmpty ? _placeholderMate : deck.first;
+
+  /// The cards still to swipe, top first: real candidates, or the sample
+  /// profiles when the API had none for this viewer.
+  List<Mate> get deck => _sampleDeck ? _samples : _candidates.map(mateFromCandidate).toList();
+  bool get isSampleDeck => _sampleDeck;
+
+  /// The sample deck is showing because the viewer isn't signed in (401).
+  bool get sampleBecauseSignedOut => _sampleSignedOut;
+  int get deckTotal => _deckTotal;
+
+  /// 1-based position of the top card; stays on the last once the deck is empty.
+  int get deckPosition => (_deckTotal - deck.length + 1).clamp(1, _deckTotal < 1 ? 1 : _deckTotal);
+
+  /// Every card of a loaded deck has been swiped.
+  bool get deckFinished =>
+      !_candidatesLoading && _candidatesError == null && _deckTotal > 0 && deck.isEmpty;
+  bool get canUndo => _lastSwipe != null && !_inviteLoading;
+  Mate? get matchReveal => _matchReveal;
+  bool get matchRevealIsSample => _matchRevealSample;
 
   /// Who chat/bill/rate are about. Captured at match time (before the
   /// candidate is dropped from the swipe deck), so the chat header still
@@ -361,6 +394,7 @@ class V2State extends ChangeNotifier {
     _notifsOpen = false;
     _searchOpen = false;
     _radiusSheetOpen = false;
+    _matchReveal = null;
     notifyListeners();
 
     // Re-establish the live socket when coming back to chat (e.g. from the
@@ -430,10 +464,21 @@ class V2State extends ChangeNotifier {
 
   /// Records a real pass and drops the candidate locally — the backend's own
   /// `NOT EXISTS (swipes …)` filter means it would never be re-offered anyway.
+  /// A sample profile is just dropped.
   Future<void> skipMate() async {
+    _pendingNotice = null;
+    if (_sampleDeck) {
+      if (_samples.isEmpty) return;
+      _lastSwipe = (candidate: null, sample: _samples.first);
+      _samples = _samples.sublist(1);
+      notifyListeners();
+      return;
+    }
     if (_candidates.isEmpty) return;
-    final target = _candidates[_mateIdx.clamp(0, _candidates.length - 1)];
+    final target = _candidates.first;
     _removeCandidate(target.userId);
+    _lastSwipe = (candidate: target, sample: null);
+    notifyListeners();
     try {
       await MatchService().swipe(target.userId, false);
     } catch (_) {
@@ -443,38 +488,57 @@ class V2State extends ChangeNotifier {
     }
   }
 
-  /// Records a real like. A reciprocated like creates the match — the app
-  /// moves to a real chat with real (empty, at first) history. Otherwise the
+  /// Records a real like. A reciprocated like creates the match and opens the
+  /// match sheet (its "Nhắn tin" goes on to the real chat). Otherwise the
   /// invite is honestly reported as pending, never faked into a conversation
-  /// with someone who hasn't matched back.
+  /// with someone who hasn't matched back. A sample profile never reaches the
+  /// API; the ones in [kSampleInvitesBack] open the sheet, marked as samples.
   Future<void> inviteMate() async {
-    if (_candidates.isEmpty || _inviteLoading) return;
-    final target = _candidates[_mateIdx.clamp(0, _candidates.length - 1)];
-    _inviteLoading = true;
     _pendingNotice = null;
+    if (_sampleDeck) {
+      if (_samples.isEmpty) return;
+      final m = _samples.first;
+      _samples = _samples.sublist(1);
+      if (kSampleInvitesBack.contains(m.userId)) {
+        _matchReveal = m;
+        _matchRevealSample = true;
+        _lastSwipe = null;
+      } else {
+        _lastSwipe = (candidate: null, sample: m);
+        _pendingNotice = t('Hồ sơ mẫu: lời mời tới ${m.name} không được gửi đi.',
+            'Sample profile: no invite was sent to ${m.name}.');
+      }
+      notifyListeners();
+      return;
+    }
+
+    if (_candidates.isEmpty || _inviteLoading) return;
+    final target = _candidates.first;
+    // Dropped now: the card has already flown off the deck. A failed call
+    // puts it back.
+    _removeCandidate(target.userId);
+    _inviteLoading = true;
+    _lastSwipe = null;
     notifyListeners();
 
     try {
       final result = await MatchService().swipe(target.userId, true);
-      _removeCandidate(target.userId);
-
       if (result.matched && result.matchId != null) {
         _activeMatchId = result.matchId;
         // Captured now, before `target` disappears from `_candidates` —
         // chatPartner reads this instead of the (now empty) swipe deck.
         _activeMate = mateFromCandidate(target);
-        _screen = V2Screen.chat;
-        await _loadMyUserId();
-        await loadMessages(result.matchId!);
-        await _connectChat(result.matchId!);
-        await loadBooking(result.matchId!);
+        _matchReveal = _activeMate;
+        _matchRevealSample = false;
       } else {
+        _lastSwipe = (candidate: target, sample: null);
         _pendingNotice = t(
           'Đã gửi lời mời tới ${target.name} — đang chờ phản hồi.',
           'Invite sent to ${target.name} — waiting on a reply.',
         );
       }
     } catch (e) {
+      _candidates = [target, ..._candidates];
       _pendingNotice = t('Gửi lời mời thất bại, thử lại nhé.', "Couldn't send the invite — try again.");
     } finally {
       _inviteLoading = false;
@@ -482,9 +546,67 @@ class V2State extends ChangeNotifier {
     }
   }
 
+  /// Takes back the last pass or unanswered invite (see [_lastSwipe]); a real
+  /// one through POST /api/v1/swipes/undo.
+  Future<void> undoSwipe() async {
+    final last = _lastSwipe;
+    if (last == null || _inviteLoading) return;
+    _lastSwipe = null;
+    _pendingNotice = null;
+    final sample = last.sample;
+    if (sample != null) {
+      _samples = [sample, ..._samples];
+      notifyListeners();
+      return;
+    }
+    final c = last.candidate!;
+    try {
+      await MatchService().undoSwipe();
+      _candidates = [c, ..._candidates];
+    } catch (_) {
+      _pendingNotice = t('Không hoàn tác được, thử lại nhé.', "Couldn't undo — try again.");
+    }
+    notifyListeners();
+  }
+
+  /// The match sheet's "Nhắn tin": on to the real chat with the new match.
+  Future<void> openMatchChat() async {
+    final matchId = _activeMatchId;
+    if (_matchRevealSample || matchId == null) {
+      dismissMatch();
+      return;
+    }
+    _matchReveal = null;
+    _screen = V2Screen.chat;
+    notifyListeners();
+    await _loadMyUserId();
+    await loadMessages(matchId);
+    await _connectChat(matchId);
+    await loadBooking(matchId);
+  }
+
+  void dismissMatch() {
+    _matchReveal = null;
+    notifyListeners();
+  }
+
+  /// Deals the sample profiles again from the first.
+  void restartSampleDeck() {
+    _startDeck(samples: true, signedOut: _sampleSignedOut);
+    notifyListeners();
+  }
+
+  void _startDeck({required bool samples, bool signedOut = false}) {
+    _sampleDeck = samples;
+    _sampleSignedOut = samples && signedOut;
+    _samples = samples ? List.of(kSampleMates) : const [];
+    _deckTotal = samples ? _samples.length : _candidates.length;
+    _lastSwipe = null;
+    _pendingNotice = null;
+  }
+
   void _removeCandidate(String userId) {
     _candidates = _candidates.where((c) => c.userId != userId).toList();
-    if (_mateIdx >= _candidates.length) _mateIdx = 0;
   }
 
   Future<void> _loadMyUserId() async {
@@ -700,8 +822,25 @@ class V2State extends ChangeNotifier {
   @visibleForTesting
   void seedCandidates(List<MatchCandidate> candidates) {
     _candidates = candidates;
-    _mateIdx = 0;
     _candidatesError = null;
+    _startDeck(samples: false);
+    notifyListeners();
+  }
+
+  /// The deck as a load that found no real candidate leaves it.
+  @visibleForTesting
+  void seedSampleDeck({bool signedOut = false}) {
+    _candidates = const [];
+    _candidatesError = null;
+    _startDeck(samples: true, signedOut: signedOut);
+    notifyListeners();
+  }
+
+  /// The match sheet as a returned invite opens it.
+  @visibleForTesting
+  void seedMatchReveal(Mate partner, {bool sample = false}) {
+    _matchReveal = partner;
+    _matchRevealSample = sample;
     notifyListeners();
   }
 
@@ -839,9 +978,16 @@ class V2State extends ChangeNotifier {
 
     try {
       _candidates = await MatchService().getCandidates();
-      _mateIdx = 0;
+      _startDeck(samples: _candidates.isEmpty);
     } on ApiException catch (e) {
-      _candidatesError = 'HTTP ${e.statusCode}';
+      if (e.statusCode == 401) {
+        // Signed out: nobody to rank against, so the sample deck — with a
+        // nudge to sign in — rather than an error screen.
+        _candidates = const [];
+        _startDeck(samples: true, signedOut: true);
+      } else {
+        _candidatesError = 'HTTP ${e.statusCode}';
+      }
     } catch (e) {
       _candidatesError = e.toString();
     } finally {

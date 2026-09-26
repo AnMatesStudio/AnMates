@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/app_theme_v2.dart';
 import '../../theme/v2_layout.dart';
+import 'v2_mate_mapper.dart' show avatarColorFor, initialsOf;
 
 /// Small building blocks repeated across the v2 screens — pill chips, the
 /// gradient CTA, the circular back button, the white sheet card. Keeping them
@@ -251,4 +252,57 @@ class V2Eyebrow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       Text(label, style: AppTextV2.eyebrow(color: color));
+}
+
+/// A person's round avatar: their photo when they have one (initials if it
+/// fails to load), otherwise their initials on a steady color.
+class MateAvatar extends StatelessWidget {
+  const MateAvatar({
+    super.key,
+    required this.name,
+    required this.userId,
+    this.url,
+    this.size = 64,
+    this.ring = 4,
+  });
+
+  final String name;
+  final String userId;
+  final String? url;
+  final double size;
+  final double ring;
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = Center(
+      child: Text(
+        initialsOf(name),
+        style: AppTextV2.name(color: Colors.white, size: size * 0.34)
+            .copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+    final photo = url;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: avatarColorFor(userId),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: ring),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10366E).withValues(alpha: 0.18),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: photo == null || photo.isEmpty
+          ? initials
+          : ClipOval(
+              child: Image.network(photo, fit: BoxFit.cover,
+                  errorBuilder: (context, error, stack) => initials),
+            ),
+    );
+  }
 }

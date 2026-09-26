@@ -6,6 +6,7 @@ import '../../theme/v2_layout.dart';
 import '../../widgets/v2/aurora_background.dart';
 import '../../widgets/v2/design_frame.dart';
 import '../../widgets/v2/glass_nav_bar.dart';
+import '../../widgets/v2/match_sheet.dart';
 import '../../widgets/v2/notifications_sheet.dart';
 import '../../widgets/v2/radius_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
@@ -26,7 +27,8 @@ import 'v2_state.dart';
 
 /// The phone shell every v2 screen sits inside: the aurora wash, the language
 /// toggle pinned top-right, the current screen, the glass nav, and the
-/// overlays that float above everything (search, notifications, feed radius).
+/// overlays that float above everything (search, notifications, feed radius,
+/// the match sheet).
 ///
 /// Port of the Claude Design project *Mobile app design planning* — all 19
 /// canvas frames across its five flows.
@@ -136,6 +138,17 @@ class V2AppBody extends StatelessWidget {
                     s.setRadiusSheetOpen(false);
                     s.setRadiusKm(km);
                   },
+                ),
+              ),
+
+            if (s.matchReveal case final partner?)
+              Positioned.fill(
+                child: MatchSheet(
+                  en: s.en,
+                  partner: partner,
+                  sample: s.matchRevealIsSample,
+                  onChat: s.openMatchChat,
+                  onClose: s.dismissMatch,
                 ),
               ),
           ],

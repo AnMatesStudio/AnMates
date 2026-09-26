@@ -145,11 +145,14 @@ class Mate {
   const Mate({
     required this.userId, required this.name, required this.img,
     required this.overlapFoods, required this.tags, required this.match,
-    this.age,
+    this.age, this.avatarUrl,
   });
 
   final String userId;
   final String name;
+
+  /// The profile photo, when the user uploaded one; null draws initials.
+  final String? avatarUrl;
 
   /// Real age in years from the candidate's birth_date — null when unset,
   /// never guessed.
@@ -167,6 +170,35 @@ class Mate {
   /// Real taste-overlap percentage (API's `score`), not a fabricated rating.
   final int match;
 }
+
+/// Ten sample profiles for Quẹt. Shown only when the API has no real candidate
+/// for this viewer (none yet, or not signed in), always labelled "Dữ liệu mẫu",
+/// and swiped locally: an invite to one never reaches the API.
+const List<Mate> kSampleMates = [
+  Mate(userId: 'sample-1', name: 'Minh Anh', age: 24, img: A.hotpot, match: 92,
+      overlapFoods: ['lau', 'oc'], tags: ['Đi ăn khuya', 'Quán vỉa hè', 'Hướng nội']),
+  Mate(userId: 'sample-2', name: 'Hoàng Nam', age: 27, img: A.bbq, match: 88,
+      overlapFoods: ['nuong', 'bia'], tags: ['BBQ Hàn', 'Nhậu nhẹ', 'Vui vẻ']),
+  Mate(userId: 'sample-3', name: 'Thu Trang', age: 22, img: A.coffee, match: 85,
+      overlapFoods: ['cafe', 'trang_mieng'], tags: ['Cà phê sáng', 'Chụp ảnh món', 'Healthy']),
+  Mate(userId: 'sample-4', name: 'Quốc Bảo', age: 30, img: A.ramen, match: 81,
+      overlapFoods: ['pho', 'lau'], tags: ['Sành phở', 'Ăn sáng sớm', 'Ít nói']),
+  Mate(userId: 'sample-5', name: 'Ngọc Hân', age: 25, img: A.beer, match: 79,
+      overlapFoods: ['oc', 'nuong'], tags: ['Mê hải sản', 'Đi nhóm', 'Hay cười']),
+  Mate(userId: 'sample-6', name: 'Đức Huy', age: 28, img: A.bbq, match: 76,
+      overlapFoods: ['nuong', 'pho'], tags: ['Gym xong đi ăn', 'Ăn khỏe', 'Đúng giờ']),
+  Mate(userId: 'sample-7', name: 'Lan Chi', age: 23, img: A.hotpot, match: 74,
+      overlapFoods: ['lau', 'cafe'], tags: ['Lẩu Thái', 'Cuối tuần', 'Thử quán mới']),
+  Mate(userId: 'sample-8', name: 'Tuấn Kiệt', age: 26, img: A.beer, match: 71,
+      overlapFoods: ['oc', 'banh_mi'], tags: ['Ốc đêm', 'Bóng đá', 'Nói nhiều']),
+  Mate(userId: 'sample-9', name: 'Bảo Ngọc', age: 29, img: A.coffee, match: 68,
+      overlapFoods: ['trang_mieng', 'cafe'], tags: ['Hảo ngọt', 'Chè & bánh', 'Chill']),
+  Mate(userId: 'sample-10', name: 'Gia Hưng', age: 31, img: A.ramen, match: 65,
+      overlapFoods: ['pho', 'lau'], tags: ['Người Chợ Lớn', 'Dẫn đường giỏi', 'Mì vịt tiềm']),
+];
+
+/// The sample profiles that "invite back", so the match sheet can be tried.
+const Set<String> kSampleInvitesBack = {'sample-1', 'sample-3', 'sample-5', 'sample-8'};
 
 /// ── Onboarding ──────────────────────────────────────────────────────────────
 
