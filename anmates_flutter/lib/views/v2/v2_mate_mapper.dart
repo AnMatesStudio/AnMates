@@ -24,6 +24,27 @@ Mate mateFromCandidate(MatchCandidate c) => Mate(
       match: c.matchPct,
     );
 
+/// The demo bots (users seeded by migration 016) wear the sample illustrations
+/// of the same names.
+const Map<String, String> kBotAvatars = {
+  '00000000-0000-0000-0000-0000000000b1': 'assets/v2/avatars/sample-1.png',
+  '00000000-0000-0000-0000-0000000000b2': 'assets/v2/avatars/sample-2.png',
+  '00000000-0000-0000-0000-0000000000b3': 'assets/v2/avatars/sample-3.png',
+  '00000000-0000-0000-0000-0000000000b4': 'assets/v2/avatars/sample-4.png',
+};
+
+/// The partner of an inbox row, as the chat header draws them.
+Mate mateFromConversation(ApiMatch c) => Mate(
+      userId: c.partnerId,
+      name: c.partnerName,
+      avatarUrl: c.partnerAvatarUrl,
+      avatarAsset: kBotAvatars[c.partnerId],
+      img: A.hotpot,
+      overlapFoods: const [],
+      tags: const [],
+      match: (c.score * 100).round(),
+    );
+
 /// The category keys the API's interests use, in words.
 const Map<String, String> _tasteLabels = {
   'lau': 'Lẩu', 'nuong': 'Nướng', 'bbq': 'Nướng BBQ', 'korean': 'Món Hàn',

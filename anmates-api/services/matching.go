@@ -85,6 +85,7 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		) c
 		JOIN users u ON u.id = c.user_id
 		WHERE c.overlap_count >= 2
+		  AND NOT u.is_bot
 		ORDER BY score DESC, c.overlap_count DESC
 		LIMIT 50
 	`
@@ -239,20 +240,28 @@ func (s *MatchingService) Conversations(ctx context.Context, userID uuid.UUID) (
 	const q = `
 		SELECT
 			mt.id AS match_id,
-			CASE WHEN mt.user_a_id = $1 THEN mt.user_b_id ELSE mt.user_a_id END AS partner_id,
+			u.id AS partner_id,
 			u.name AS partner_name,
 			u.avatar_url,
+			u.is_bot,
 			last_msg.content,
 			last_msg.created_at AS last_message_at,
+			last_msg.sender_id,
+			(SELECT count(*) FROM messages m2
+			  WHERE m2.match_id = mt.id AND m2.sender_id <> $1
+			    AND m2.created_at > COALESCE(mine.last_read_at, '-infinity'::timestamptz))::int AS unread_count,
+			theirs.last_read_at AS partner_read_at,
 			mt.score,
 			mt.created_at
 		FROM matches mt
 		JOIN users u ON u.id = CASE WHEN mt.user_a_id = $1 THEN mt.user_b_id ELSE mt.user_a_id END
 		LEFT JOIN LATERAL (
-			SELECT content, created_at FROM messages
+			SELECT content, created_at, sender_id FROM messages
 			WHERE match_id = mt.id
 			ORDER BY created_at DESC LIMIT 1
 		) last_msg ON true
+		LEFT JOIN match_reads mine ON mine.match_id = mt.id AND mine.user_id = $1
+		LEFT JOIN match_reads theirs ON theirs.match_id = mt.id AND theirs.user_id = u.id
 		WHERE mt.user_a_id = $1 OR mt.user_b_id = $1
 		ORDER BY COALESCE(last_msg.created_at, mt.created_at) DESC
 	`
@@ -266,12 +275,19 @@ func (s *MatchingService) Conversations(ctx context.Context, userID uuid.UUID) (
 	for rows.Next() {
 		var cv models.Conversation
 		if err := rows.Scan(
-			&cv.MatchID, &cv.PartnerID, &cv.PartnerName, &cv.PartnerAvatarURL,
-			&cv.LastMessage, &cv.LastMessageAt, &cv.Score, &cv.CreatedAt,
+			&cv.MatchID, &cv.PartnerID, &cv.PartnerName, &cv.PartnerAvatarURL, &cv.PartnerIsBot,
+			&cv.LastMessage, &cv.LastMessageAt, &cv.LastSenderID,
+			&cv.UnreadCount, &cv.PartnerReadAt, &cv.Score, &cv.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
 		out = append(out, cv)
 	}
 	return out, rows.Err()
+}
+
+// MatchWith fetches-or-creates the match between two users without a swipe —
+// the demo bots' way in (see BotService.Start).
+func (s *MatchingService) MatchWith(ctx context.Context, userID, targetID uuid.UUID) (*models.Match, error) {
+	return s.createMatch(ctx, userID, targetID)
 }

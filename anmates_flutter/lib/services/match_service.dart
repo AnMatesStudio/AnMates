@@ -47,36 +47,59 @@ class MatchCandidate {
   int get matchPct => (score * 100).round();
 }
 
+/// One row of the inbox (`GET /api/v1/conversations`).
 class ApiMatch {
   final String id;
+  final String partnerId;
   final String partnerName;
   final String? partnerAvatarUrl;
+  final bool partnerIsBot;
   final String? lastMessage;
   final DateTime? lastMessageAt;
+  final String? lastSenderId;
+
+  /// Messages from the partner (or the concierge) you haven't opened yet.
+  final int unreadCount;
+
+  /// When the partner last opened the chat — your "Đã xem".
+  final DateTime? partnerReadAt;
   final double score;
   final DateTime createdAt;
 
   ApiMatch({
     required this.id,
+    this.partnerId = '',
     required this.partnerName,
     this.partnerAvatarUrl,
+    this.partnerIsBot = false,
     this.lastMessage,
     this.lastMessageAt,
+    this.lastSenderId,
+    this.unreadCount = 0,
+    this.partnerReadAt,
     required this.score,
     required this.createdAt,
   });
 
+  static DateTime? _time(Object? v) => v is String ? DateTime.parse(v) : null;
+
   factory ApiMatch.fromJson(Map<String, dynamic> j) => ApiMatch(
     id: j['match_id'] as String,
+    partnerId: j['partner_id'] as String? ?? '',
     partnerName: j['partner_name'] as String,
     partnerAvatarUrl: j['partner_avatar_url'] as String?,
+    partnerIsBot: j['partner_is_bot'] as bool? ?? false,
     lastMessage: j['last_message'] as String?,
-    lastMessageAt: j['last_message_at'] != null
-        ? DateTime.parse(j['last_message_at'] as String)
-        : null,
+    lastMessageAt: _time(j['last_message_at']),
+    lastSenderId: j['last_sender_id'] as String?,
+    unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
+    partnerReadAt: _time(j['partner_read_at']),
     score: (j['score'] as num).toDouble(),
     createdAt: DateTime.parse(j['created_at'] as String),
   );
+
+  /// Newest activity: the last message, or the match itself.
+  DateTime get activityAt => lastMessageAt ?? createdAt;
 }
 
 class ApiMessage {
@@ -152,6 +175,19 @@ class MatchService {
 
   Future<List<ApiMatch>> getConversations() async {
     final data = await _api.get('/api/v1/conversations') as List;
+    return data
+        .map((e) => ApiMatch.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Marks the match read up to now; the partner's socket gets the receipt.
+  Future<void> markRead(String matchId) async {
+    await _api.post('/api/v1/matches/$matchId/read');
+  }
+
+  /// Opens a chat with each demo bot (idempotent) and returns the inbox.
+  Future<List<ApiMatch>> startBotChats() async {
+    final data = await _api.post('/api/v1/demo/bots') as List;
     return data
         .map((e) => ApiMatch.fromJson(e as Map<String, dynamic>))
         .toList();

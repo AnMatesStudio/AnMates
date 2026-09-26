@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import '../v2_chat_format.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
@@ -12,6 +13,11 @@ import '../v2_state.dart';
 /// live WebSocket connection for new ones (`ChatSocket` in
 /// services/chat_socket.dart — fully built already, just never wired into the
 /// v2 UI until now).
+///
+/// Messenger-style: bubbles from one sender stack into a group, a time
+/// separator after a quiet gap, the partner's avatar beside their last bubble,
+/// "…" while they type and "Đã gửi" / their avatar under your newest message
+/// once they've read it (read receipts: POST /matches/:id/read + socket).
 ///
 /// The design's version boiled a "Vibe %" gauge with every message and popped
 /// a celebration sheet at 70% to "unlock" scheduling. No `vibe_score` exists
@@ -70,7 +76,7 @@ class _Header extends StatelessWidget {
           ),
           child: Row(children: [
             V2TapTarget(
-              onTap: () => s.go(V2Screen.swipe),
+              onTap: s.chatBack,
               child: SizedBox(
                 width: 34, height: 34,
                 child: Center(
@@ -91,7 +97,7 @@ class _Header extends StatelessWidget {
                   size: 40,
                   ring: 2,
                 ),
-                if (!s.isSampleChat)
+                if (s.isBotChat)
                   Positioned(
                     right: 0, bottom: 0,
                     child: Container(
@@ -111,7 +117,9 @@ class _Header extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(s.chatPartner.name, style: AppTextV2.name(size: 15)),
+                  Text(s.chatPartner.name,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: AppTextV2.name(size: 15)),
                   Text(s.chatSub,
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: AppTextV2.meta().copyWith(fontSize: 11)),
@@ -163,61 +171,261 @@ class _Transcript extends StatelessWidget {
       );
     }
 
-    final msgs = s.messages;
-    if (msgs.isEmpty) {
+    final lines = s.transcript;
+    if (lines.isEmpty && !s.partnerTyping) {
+      // Scrolls rather than overflows on a short landscape screen.
       return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Text(
-            s.t('Match mới — gửi tin nhắn đầu tiên đi!',
-                'New match — send the first message!'),
-            textAlign: TextAlign.center,
-            style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 13),
-          ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 12),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            MateAvatar(
+              name: s.chatPartner.name,
+              userId: s.chatPartner.userId,
+              url: s.chatPartner.avatarUrl,
+              asset: s.chatPartner.avatarAsset,
+              size: 72,
+              ring: 3,
+            ),
+            const SizedBox(height: 12),
+            Text(s.chatPartner.name, style: AppTextV2.name(size: 16)),
+            const SizedBox(height: 6),
+            Text(
+              s.t('Match mới — gửi tin nhắn đầu tiên đi!',
+                  'New match — send the first message!'),
+              textAlign: TextAlign.center,
+              style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 13),
+            ),
+          ]),
         ),
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
-      children: [
-        for (final m in msgs)
-          Align(
-            alignment: m.mine ? Alignment.centerRight : Alignment.centerLeft,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * 0.74,
-              ),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-                decoration: BoxDecoration(
-                  gradient: m.mine ? AppGradientsV2.cta : null,
-                  color: m.mine ? null : Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(m.mine ? 18 : 5),
-                    bottomRight: Radius.circular(m.mine ? 5 : 18),
-                  ),
-                ),
-                child: Text(
-                  m.text,
-                  style: AppTextV2.body(
-                    color: m.mine ? Colors.white : AppColorsV2.ink,
-                    size: 13.5,
-                  ).copyWith(height: 1.4),
-                ),
-              ),
-            ),
-          ),
+    final lastMine = s.lastMineIndex;
+    // Built newest-first into a reversed list, so it opens at the bottom and
+    // stays pinned there as messages arrive — the way a messenger does.
+    final items = <Widget>[
+      if (s.partnerTyping) _TypingBubble(s: s),
+      for (var i = lines.length - 1; i >= 0; i--) ...[
+        if (i == lastMine && !s.isSampleChat) _Status(s: s),
+        _Bubble(
+          s: s,
+          line: lines[i],
+          // Rounded less where it touches a neighbour from the same sender.
+          joinsAbove: i > 0 && _sameGroup(lines[i - 1], lines[i]),
+          joinsBelow: i < lines.length - 1 && _sameGroup(lines[i], lines[i + 1]),
+        ),
+        if (i == 0 || lines[i].at.difference(lines[i - 1].at) >= kSeparatorGap)
+          _Separator(text: separatorTime(lines[i].at, en: s.en)),
       ],
+    ];
+
+    return ListView(
+      reverse: true,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      children: items,
+    );
+  }
+
+  static bool _sameGroup(ChatLine a, ChatLine b) =>
+      a.mine == b.mine && b.at.difference(a.at) < kGroupGap;
+}
+
+class _Separator extends StatelessWidget {
+  const _Separator({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Center(
+        child: Text(text,
+            style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 11.5)),
+      ),
     );
   }
 }
 
+class _Bubble extends StatelessWidget {
+  const _Bubble({
+    required this.s,
+    required this.line,
+    required this.joinsAbove,
+    required this.joinsBelow,
+  });
+  final V2State s;
+  final ChatLine line;
+  final bool joinsAbove, joinsBelow;
+
+  @override
+  Widget build(BuildContext context) {
+    final mine = line.mine;
+    const big = Radius.circular(18);
+    const small = Radius.circular(5);
+    final radius = BorderRadius.only(
+      topLeft: !mine && joinsAbove ? small : big,
+      bottomLeft: !mine && joinsBelow ? small : big,
+      topRight: mine && joinsAbove ? small : big,
+      bottomRight: mine && joinsBelow ? small : big,
+    );
+    final concierge = line.kind == 'ai_venue_card' || line.kind == 'system';
+
+    final Widget body = isBigEmoji(line.text)
+        ? Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Text(line.text, style: const TextStyle(fontSize: 38, height: 1.15)),
+          )
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+            decoration: BoxDecoration(
+              gradient: mine ? AppGradientsV2.cta : null,
+              color: mine ? null : (concierge ? AppColorsV2.wisteriaTint : Colors.white),
+              borderRadius: radius,
+            ),
+            child: Text(
+              concierge ? '✨ ${line.text}' : line.text,
+              style: AppTextV2.body(
+                color: mine ? Colors.white : AppColorsV2.ink,
+                size: 14,
+              ).copyWith(height: 1.38),
+            ),
+          );
+
+    return Padding(
+      padding: EdgeInsets.only(top: joinsAbove ? 2 : 8),
+      child: Row(
+        mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!mine) ...[
+            // The partner's face sits beside the last bubble of their group.
+            SizedBox(
+              width: 28,
+              child: joinsBelow
+                  ? null
+                  : MateAvatar(
+                      name: s.chatPartner.name,
+                      userId: s.chatPartner.userId,
+                      url: s.chatPartner.avatarUrl,
+                      asset: s.chatPartner.avatarAsset,
+                      size: 28,
+                      ring: 0,
+                    ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.7),
+            child: Tooltip(
+              message: separatorTime(line.at, en: s.en),
+              child: body,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Under your newest message: "Đã gửi", or the partner's tiny avatar + "Đã xem".
+class _Status extends StatelessWidget {
+  const _Status({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    final seen = s.lastMineSeen;
+    return Padding(
+      padding: const EdgeInsets.only(top: 3, right: 2),
+      child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+        if (seen) ...[
+          MateAvatar(
+            name: s.chatPartner.name,
+            userId: s.chatPartner.userId,
+            url: s.chatPartner.avatarUrl,
+            asset: s.chatPartner.avatarAsset,
+            size: 14,
+            ring: 0,
+          ),
+          const SizedBox(width: 4),
+        ],
+        Text(
+          seen ? s.t('Đã xem', 'Seen') : s.t('Đã gửi', 'Sent'),
+          key: Key(seen ? 'chat-status-seen' : 'chat-status-sent'),
+          style: AppTextV2.meta(color: AppColorsV2.inkA(0.42)).copyWith(fontSize: 11),
+        ),
+      ]),
+    );
+  }
+}
+
+/// The partner's "…" bubble, three dots pulsing in turn.
+class _TypingBubble extends StatefulWidget {
+  const _TypingBubble({required this.s});
+  final V2State s;
+
+  @override
+  State<_TypingBubble> createState() => _TypingBubbleState();
+}
+
+class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = widget.s;
+    return Padding(
+      key: const Key('chat-typing'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        MateAvatar(
+          name: s.chatPartner.name,
+          userId: s.chatPartner.userId,
+          url: s.chatPartner.avatarUrl,
+          asset: s.chatPartner.avatarAsset,
+          size: 28,
+          ring: 0,
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: AnimatedBuilder(
+            animation: _c,
+            builder: (context, _) => Row(mainAxisSize: MainAxisSize.min, children: [
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Opacity(
+                  opacity: 0.3 + 0.7 * _pulse((_c.value - i * 0.18) % 1.0),
+                  child: Container(
+                    width: 7, height: 7,
+                    decoration: BoxDecoration(color: AppColorsV2.inkA(0.55), shape: BoxShape.circle),
+                  ),
+                ),
+              ],
+            ]),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  static double _pulse(double t) => t < 0.5 ? t * 2 : (1 - t) * 2;
+}
+
 class _Composer extends StatelessWidget {
   const _Composer({required this.s, required this.controller, required this.onSend});
+
   final V2State s;
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -279,6 +487,7 @@ class _Composer extends StatelessWidget {
                 maxLines: null,
                 textAlignVertical: TextAlignVertical.center,
                 onSubmitted: (_) => onSend(),
+                onChanged: (_) => s.notifyTyping(),
                 textInputAction: TextInputAction.send,
                 decoration: InputDecoration(
                   border: InputBorder.none,
@@ -291,15 +500,26 @@ class _Composer extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          V2TapTarget(
-            onTap: onSend,
-            child: Container(
-              width: 38, height: 38,
-              decoration: const BoxDecoration(
-                color: AppColorsV2.wisteria, shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.send_rounded, size: 17, color: Colors.white),
-            ),
+          // Empty field: a one-tap 👍, the way Messenger offers its like.
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              final empty = value.text.trim().isEmpty;
+              return V2TapTarget(
+                onTap: empty ? () => s.sendRealMessage('👍') : onSend,
+                child: Container(
+                  key: Key(empty ? 'chat-like' : 'chat-send'),
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: empty ? Colors.transparent : AppColorsV2.wisteria,
+                    shape: BoxShape.circle,
+                  ),
+                  child: empty
+                      ? const Center(child: Text('👍', style: TextStyle(fontSize: 24)))
+                      : const Icon(Icons.send_rounded, size: 17, color: Colors.white),
+                ),
+              );
+            },
           ),
         ]),
       ]),

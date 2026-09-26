@@ -18,6 +18,7 @@ type Config struct {
 	FirebaseVerifyTimeout time.Duration
 	DevMode               bool
 	DevBypassSecret       string
+	ChatBots              bool // demo chat bots (POST /demo/bots); CHAT_BOTS=off disables
 	PGMaxConns            int32
 	PGMinConns            int32
 	CORSOrigins           string
@@ -63,6 +64,7 @@ func Load() (*Config, error) {
 		FirebaseWebAPIKey: os.Getenv("FIREBASE_WEB_API_KEY"),
 		DevMode:           os.Getenv("DEV_MODE") == "true" || os.Getenv("DEV_MODE") == "1",
 		DevBypassSecret:   os.Getenv("DEV_BYPASS_SECRET"),
+		ChatBots:          os.Getenv("CHAT_BOTS") != "off",
 		CORSOrigins:       getOr("CORS_ORIGINS", "*"),
 	}
 	if c.DatabaseURL == "" {

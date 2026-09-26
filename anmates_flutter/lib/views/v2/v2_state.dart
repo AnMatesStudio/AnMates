@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,7 +16,7 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, home, filters, detail, swipe, chat, bill, rate, me, trust, pay, local, allVenues }
+enum V2Screen { onb, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues }
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
@@ -42,6 +45,19 @@ int _keepRadiusKm(int km) =>
     ((km / kRadiusStepKm).round() * kRadiusStepKm).clamp(kRadiusMinKm, kRadiusMaxKm);
 
 enum SplitMode { item, equal }
+
+/// One line of the chat transcript as the chat screen draws it.
+class ChatLine {
+  const ChatLine({required this.text, required this.mine, required this.at, this.kind = 'text'});
+  final String text;
+  final bool mine;
+
+  /// Local time it was sent.
+  final DateTime at;
+
+  /// The API's msg_type: 'text', 'system', 'ai_venue_card'…
+  final String kind;
+}
 
 /// Everything the v2 prototype remembers.
 ///
@@ -165,7 +181,7 @@ class V2State extends ChangeNotifier {
   /// The chat is with a sample profile: messages stay on this device, nothing
   /// is sent and nobody answers.
   bool _sampleChat = false;
-  List<({String text, bool mine})> _sampleMessages = const [];
+  List<ChatLine> _sampleLines = const [];
 
   /// Set after a swipe that didn't reciprocate, so the swipe screen can show
   /// an honest "sent, waiting on them" line instead of silently doing nothing.
@@ -178,6 +194,22 @@ class V2State extends ChangeNotifier {
   bool _messagesLoading = false;
   ChatSocket? _chatSocket;
   String? _myUserId;
+  bool _activeIsBot = false;
+  bool _partnerTyping = false;
+  Timer? _typingTimer;
+  DateTime? _lastTypingSent;
+
+  /// Index in [_messages] up to which the partner has read; -1 for nothing.
+  int _seenThrough = -1;
+
+  // ── Inbox (GET /api/v1/conversations) ─────────────────────────────────────
+  List<ApiMatch> _conversations = const [];
+  bool _conversationsLoading = false;
+  bool _conversationsLoaded = false;
+  bool _inboxSignedOut = false;
+  String? _conversationsError;
+  bool _botsStarting = false;
+  String _inboxQuery = '';
 
   // ── Booking (GET/POST /api/v1/matches/:id/booking) ────────────────────────
   Booking? _booking;
@@ -236,6 +268,25 @@ class V2State extends ChangeNotifier {
   String? get pendingNotice => _pendingNotice;
 
   bool get hasActiveMatch => _activeMatchId != null;
+
+  /// The inbox, newest activity first, narrowed by the search box.
+  List<ApiMatch> get conversations {
+    final q = _inboxQuery.trim().toLowerCase();
+    if (q.isEmpty) return _conversations;
+    return _conversations.where((c) => c.partnerName.toLowerCase().contains(q)).toList();
+  }
+
+  /// Bots answer at any hour, so they are the only partners shown as active.
+  List<ApiMatch> get activeBots => _conversations.where((c) => c.partnerIsBot).toList();
+  bool get conversationsLoading => _conversationsLoading;
+  bool get conversationsLoaded => _conversationsLoaded;
+  bool get inboxSignedOut => _inboxSignedOut;
+  String? get conversationsError => _conversationsError;
+  bool get botsStarting => _botsStarting;
+  String get inboxQuery => _inboxQuery;
+  String? get myUserId => _myUserId;
+  bool get isBotChat => _activeIsBot && !_sampleChat;
+  bool get partnerTyping => _partnerTyping;
   bool get messagesLoading => _messagesLoading;
 
   Booking? get booking => _booking;
@@ -295,14 +346,14 @@ class V2State extends ChangeNotifier {
 
   /// The design hides the bottom nav on the screens that own their full height.
   bool get showNav => const {
-        V2Screen.home, V2Screen.swipe, V2Screen.chat, V2Screen.bill,
+        V2Screen.home, V2Screen.swipe, V2Screen.inbox, V2Screen.chat, V2Screen.bill,
         V2Screen.me, V2Screen.local, V2Screen.rate, V2Screen.trust,
       }.contains(_screen);
 
   /// Flows B–D run the aurora 30% softer so cards and glass read cleanly.
   bool get softBackground => const {
         V2Screen.home, V2Screen.detail, V2Screen.filters, V2Screen.swipe,
-        V2Screen.chat, V2Screen.bill, V2Screen.rate, V2Screen.local,
+        V2Screen.inbox, V2Screen.chat, V2Screen.bill, V2Screen.rate, V2Screen.local,
         V2Screen.allVenues,
       }.contains(_screen);
 
@@ -356,10 +407,50 @@ class V2State extends ChangeNotifier {
   /// from `/matches/:id/messages` plus anything the live socket has appended.
   /// Empty means genuinely no messages yet, not a loading placeholder.
   List<({String text, bool mine})> get messages => _sampleChat
-      ? _sampleMessages
+      ? [for (final l in _sampleLines) (text: l.text, mine: l.mine)]
       : [for (final m in _messages) (text: m.content, mine: m.senderId == _myUserId)];
 
+  /// [messages] with time and kind, for the chat screen.
+  List<ChatLine> get transcript => _sampleChat
+      ? _sampleLines
+      : [
+          for (final m in _messages)
+            ChatLine(
+              text: _lineText(m),
+              mine: m.senderId == _myUserId,
+              at: m.createdAt.toLocal(),
+              kind: m.msgType,
+            ),
+        ];
+
+  /// Index in [transcript] of your newest message, or null when you haven't
+  /// written anything yet.
+  int? get lastMineIndex {
+    final t = transcript;
+    for (var i = t.length - 1; i >= 0; i--) {
+      if (t[i].mine) return i;
+    }
+    return null;
+  }
+
+  /// Your newest message has been read by the partner.
+  bool get lastMineSeen {
+    final i = lastMineIndex;
+    return !_sampleChat && i != null && i <= _seenThrough;
+  }
+
+  /// A concierge card is JSON; the transcript shows its intro line.
+  static String _lineText(ApiMessage m) {
+    if (m.msgType != 'ai_venue_card') return m.content;
+    try {
+      final card = jsonDecode(m.content);
+      if (card is Map && card['intro'] is String) return card['intro'] as String;
+    } catch (_) {}
+    return m.content;
+  }
+
   String get chatSub {
+    if (isBotChat) return t('Bot demo · Đang hoạt động', 'Demo bot · Active now');
     final foods = chatPartner.overlapFoods;
     if (foods.isEmpty) return t('Match mới', 'New match');
     final names = foods.take(3).map(tasteLabel).join(', ');
@@ -410,6 +501,113 @@ class V2State extends ChangeNotifier {
     if (s == V2Screen.chat && _chatSocket == null && _activeMatchId != null) {
       _connectChat(_activeMatchId!);
     }
+    if (s == V2Screen.inbox) loadConversations();
+  }
+
+  /// The chat's back arrow: a sample chat came from Quẹt, a real one from the inbox.
+  void chatBack() => go(_sampleChat ? V2Screen.swipe : V2Screen.inbox);
+
+  /// Loads the inbox. Signed out (401) is a state of its own, not an error.
+  Future<void> loadConversations() async {
+    _conversationsLoading = true;
+    _conversationsError = null;
+    notifyListeners();
+    try {
+      await _loadMyUserId();
+      _conversations = await MatchService().getConversations();
+      _inboxSignedOut = false;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        _inboxSignedOut = true;
+        _conversations = const [];
+      } else {
+        _conversationsError = 'HTTP ${e.statusCode}';
+      }
+    } catch (e) {
+      _conversationsError = e.toString();
+    } finally {
+      _conversationsLoading = false;
+      _conversationsLoaded = true;
+      notifyListeners();
+    }
+  }
+
+  /// Opens a chat with each demo bot (POST /demo/bots) and shows the new inbox.
+  Future<void> startBotChats() async {
+    if (_botsStarting) return;
+    _botsStarting = true;
+    _conversationsError = null;
+    notifyListeners();
+    try {
+      await _loadMyUserId();
+      _conversations = await MatchService().startBotChats();
+      _inboxSignedOut = false;
+    } on ApiException catch (e) {
+      if (e.statusCode == 401) {
+        _inboxSignedOut = true;
+      } else {
+        _conversationsError = 'HTTP ${e.statusCode}';
+      }
+    } catch (e) {
+      _conversationsError = e.toString();
+    } finally {
+      _botsStarting = false;
+      _conversationsLoaded = true;
+      notifyListeners();
+    }
+  }
+
+  void setInboxQuery(String q) {
+    _inboxQuery = q;
+    notifyListeners();
+  }
+
+  /// Opens one inbox row: history, live socket, read receipt, booking.
+  Future<void> openConversation(ApiMatch c) async {
+    _disconnectChat();
+    _activeMatchId = c.id;
+    _activeMate = mateFromConversation(c);
+    _activeIsBot = c.partnerIsBot;
+    _sampleChat = false;
+    _sampleLines = const [];
+    _messages = const [];
+    _seenThrough = -1;
+    _booking = null;
+    _screen = V2Screen.chat;
+    notifyListeners();
+    await _loadMyUserId();
+    await loadMessages(c.id);
+    _seenThrough = _readThrough(c.partnerReadAt);
+    notifyListeners();
+    await _connectChat(c.id);
+    _markRead();
+    await loadBooking(c.id);
+  }
+
+  /// Last index of [_messages] sent at or before [readAt]; -1 when none.
+  int _readThrough(DateTime? readAt) {
+    if (readAt == null) return -1;
+    for (var i = _messages.length - 1; i >= 0; i--) {
+      if (!_messages[i].createdAt.isAfter(readAt)) return i;
+    }
+    return -1;
+  }
+
+  void _markRead() {
+    final id = _activeMatchId;
+    if (id == null || _sampleChat) return;
+    unawaited(MatchService().markRead(id).catchError((_) {}));
+  }
+
+  /// The composer's keystrokes: tells the partner you're typing, at most every 2 s.
+  void notifyTyping() {
+    final socket = _chatSocket;
+    if (_sampleChat || socket == null) return;
+    final now = DateTime.now();
+    final last = _lastTypingSent;
+    if (last != null && now.difference(last) < const Duration(seconds: 2)) return;
+    _lastTypingSent = now;
+    socket.sendTyping();
   }
 
   void setLang(bool english) {
@@ -539,7 +737,7 @@ class V2State extends ChangeNotifier {
         _matchRevealSample = false;
         // The chat now belongs to this real match, whatever sample came before.
         _sampleChat = false;
-        _sampleMessages = const [];
+        _sampleLines = const [];
       } else {
         _lastSwipe = (candidate: target, sample: null);
         _pendingNotice = t(
@@ -590,7 +788,8 @@ class V2State extends ChangeNotifier {
       _messages = const [];
       _booking = null;
       _sampleChat = true;
-      _sampleMessages = const [];
+      _activeIsBot = false;
+      _sampleLines = const [];
       _matchReveal = null;
       _screen = V2Screen.chat;
       notifyListeners();
@@ -602,12 +801,15 @@ class V2State extends ChangeNotifier {
       return;
     }
     _sampleChat = false;
+    _activeIsBot = false;
+    _seenThrough = -1;
     _matchReveal = null;
     _screen = V2Screen.chat;
     notifyListeners();
     await _loadMyUserId();
     await loadMessages(matchId);
     await _connectChat(matchId);
+    _markRead();
     await loadBooking(matchId);
   }
 
@@ -674,6 +876,25 @@ class V2State extends ChangeNotifier {
     _chatSocket = socket;
     socket.messages.listen((m) {
       _messages = [..._messages, m];
+      _partnerTyping = false;
+      _typingTimer?.cancel();
+      notifyListeners();
+      if (_screen == V2Screen.chat) _markRead();
+    });
+    socket.typing.listen((userId) {
+      if (userId == _myUserId) return;
+      _partnerTyping = true;
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 4), () {
+        _partnerTyping = false;
+        notifyListeners();
+      });
+      notifyListeners();
+    });
+    // The partner opened the chat: everything on screen now has been seen.
+    socket.reads.listen((r) {
+      if (r.userId == _myUserId) return;
+      _seenThrough = _messages.length - 1;
       notifyListeners();
     });
   }
@@ -681,6 +902,8 @@ class V2State extends ChangeNotifier {
   void _disconnectChat() {
     _chatSocket?.dispose();
     _chatSocket = null;
+    _typingTimer?.cancel();
+    _partnerTyping = false;
   }
 
   /// Sends a real message over the live socket and appends it optimistically —
@@ -690,7 +913,7 @@ class V2State extends ChangeNotifier {
     final content = text.trim();
     if (_sampleChat) {
       if (content.isEmpty) return;
-      _sampleMessages = [..._sampleMessages, (text: content, mine: true)];
+      _sampleLines = [..._sampleLines, ChatLine(text: content, mine: true, at: DateTime.now())];
       notifyListeners();
       return;
     }

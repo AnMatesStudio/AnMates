@@ -22,14 +22,42 @@ type ConciergeFirer interface {
 	MaybeFire(matchID uuid.UUID, before, after int)
 }
 
+// BotResponder is the demo-bot seam: reacts to a user's message when the
+// partner in the match is a bot. nil when the bots are disabled.
+type BotResponder interface {
+	OnMessage(matchID, senderID uuid.UUID, text string)
+}
+
 type Chat struct {
 	svc       services.ChatServicer
 	hub       wsx.HubI
 	concierge ConciergeFirer
+	bots      BotResponder
 }
 
-func NewChat(svc services.ChatServicer, hub wsx.HubI, concierge ConciergeFirer) *Chat {
-	return &Chat{svc: svc, hub: hub, concierge: concierge}
+func NewChat(svc services.ChatServicer, hub wsx.HubI, concierge ConciergeFirer, bots BotResponder) *Chat {
+	return &Chat{svc: svc, hub: hub, concierge: concierge, bots: bots}
+}
+
+// MarkRead records that the caller has seen the match up to now and tells the
+// partner's live socket, which turns their "Đã gửi" into "Đã xem".
+func (ch *Chat) MarkRead(c *fiber.Ctx) error {
+	uid := middleware.UserID(c)
+	matchID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid match id")
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 10*time.Second)
+	defer cancel()
+	if !ch.svc.IsMember(ctx, matchID, uid) {
+		return httputil.Err(c, fiber.StatusNotFound, httputil.ErrMatchNotFound, "match not found")
+	}
+	at, err := ch.svc.MarkRead(ctx, matchID, uid)
+	if err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "mark read failed")
+	}
+	services.BroadcastRead(ch.hub, matchID, uid, at)
+	return httputil.OK(c, fiber.Map{"read_at": at})
 }
 
 // History returns paginated messages oldest→newest using cursor=created_at.
@@ -127,6 +155,9 @@ func (ch *Chat) onIncoming(matchID, senderID uuid.UUID, env wsx.Envelope) (wsx.E
 		if ch.concierge != nil {
 			// Fires async (goroutine) — posts the AI venue card iff Vibe just crossed the threshold.
 			ch.concierge.MaybeFire(matchID, before, after)
+		}
+		if ch.bots != nil {
+			ch.bots.OnMessage(matchID, senderID, in.Content)
 		}
 
 		payload, _ := json.Marshal(saved)

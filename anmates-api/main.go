@@ -202,7 +202,17 @@ func run(log *slog.Logger) error {
 	userH := handlers.NewUser(userSvc)
 	wlH := handlers.NewWishlist(wlSvc)
 	matchH := handlers.NewMatching(matchSvc)
-	chatH := handlers.NewChat(chatSvc, hub, concierge)
+	// Demo chat bots (migration 016). On unless CHAT_BOTS=off: they never enter
+	// a swipe deck, a user meets them only through POST /demo/bots.
+	var bots handlers.BotResponder
+	var botsH *handlers.Bots
+	if cfg.ChatBots {
+		botSvc := services.NewBotService(pool, hub, chatSvc, matchSvc, services.DefaultBotTiming, log)
+		bots = botSvc
+		botsH = handlers.NewBots(botSvc, matchSvc)
+		log.Info("demo chat bots enabled")
+	}
+	chatH := handlers.NewChat(chatSvc, hub, concierge, bots)
 	noiH := handlers.NewNoiLau(noiSvc)
 	locH := handlers.NewLocation(locSvc)
 	bookingH := handlers.NewBooking(bookingSvc)
@@ -277,6 +287,10 @@ func run(log *slog.Logger) error {
 	auth.Post("/swipes/undo", matchH.Undo)
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
+	auth.Post("/matches/:id/read", chatH.MarkRead)
+	if botsH != nil {
+		auth.Post("/demo/bots", botsH.Start)
+	}
 	auth.Get("/matches/:id/progress", noiH.Get)
 
 	// First Date booking: one member proposes a venue+time, the other confirms.

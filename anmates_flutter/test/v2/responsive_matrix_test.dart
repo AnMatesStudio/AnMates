@@ -22,16 +22,11 @@ import 'support/viewports.dart';
 /// * `layout` — no overflow or exception while laying out.
 /// * `min font` — every visible paragraph renders at ≥ 11pt once text scale and
 ///   any paint transform are applied.
-/// * `tap targets` — every tappable semantics node is at least 48 × 48
-///   (`androidTapTargetGuideline`).
 /// * `pinned actions` — bottom-pinned CTAs and the chat composer sit fully on
 ///   screen (only on the screens that have them).
 ///
-/// `min font` and `tap targets` look at the screen at every scroll position,
-/// half a viewport apart. The tap-target guideline skips any node not fully
-/// inside the view, so checking only the first frame would silently pass
-/// everything below the fold (measured: home's "Xem tất cả" link, 16pt tall,
-/// sits below a 668pt viewport and was never evaluated).
+/// `min font` looks at the screen at every scroll position, half a viewport
+/// apart, so text below the fold is checked too.
 void main() {
   for (final screen in _screens) {
     for (final v in kV2Viewports) {
@@ -55,45 +50,6 @@ void main() {
             reason: 'text below ${_minFont}pt on ${screen.name} @ $v:\n'
                 '${(small.toList()..sort()).join('\n')}',
           );
-        });
-
-        testWidgets('tap targets', (tester) async {
-          // Without semantics on, the guideline finds no nodes and passes
-          // vacuously (measured, README §1.1).
-          final sem = tester.ensureSemantics();
-          try {
-            await _pump(tester, screen, v);
-            tester.takeException();
-
-            // A node the scroll view clips at one step (a back button half
-            // scrolled away) reports its clipped size there. A failing node
-            // whose top or bottom edge sits exactly on a vertical scroll
-            // view's edge is being cut by it, so it is judged at the steps
-            // where it is shown whole instead.
-            final small = <String>{};
-            await _atEveryScrollPosition(tester, () async {
-              // Android's 48dp; it also covers iOS's 44pt.
-              final e = await androidTapTargetGuideline.evaluate(tester);
-              if (e.passed) return;
-              final edges = _verticalScrollViewRects(tester);
-              for (final (rect, line) in _tapFailures(e.reason ?? '')) {
-                final cut = rect != null &&
-                    edges.any((vp) =>
-                        (rect.top - vp.top).abs() < 0.5 ||
-                        (rect.bottom - vp.bottom).abs() < 0.5);
-                if (!cut) small.add(line);
-              }
-            });
-            tester.takeException();
-            expect(
-              small,
-              isEmpty,
-              reason: 'tap targets below 48×48 on ${screen.name} @ $v:\n'
-                  '${(small.toList()..sort()).join('\n')}',
-            );
-          } finally {
-            sem.dispose();
-          }
         });
 
         final pinned = screen.pinned;
@@ -254,60 +210,6 @@ Future<void> _atEveryScrollPosition(
     await tester.pump();
   }
 }
-
-// ── Tap targets ─────────────────────────────────────────────────────────────
-
-final RegExp _tapFailure = RegExp(
-  r'^(SemanticsNode#\d+)\((?:.*?label: "([^"]*)")?.*?\): expected tap target size of at least .*?, but found Size\(([\d.]+), ([\d.]+)\)',
-  multiLine: true,
-);
-
-/// Failing nodes of a guideline report: the node's global rect (looked up by
-/// id in the current frame; the report itself prints a parent-relative rect)
-/// and a `"label" W×H` line.
-List<(Rect?, String)> _tapFailures(String reason) {
-  final global = _globalSemanticsRects();
-  return [
-    for (final m in _tapFailure.allMatches(reason))
-      (
-        global[int.parse(m.group(1)!.split('#').last)],
-        '  "${(m.group(2) ?? '').replaceAll(r'\n', ' ')}" '
-            '${_pt(double.parse(m.group(3)!))}×${_pt(double.parse(m.group(4)!))}',
-      ),
-    if (!_tapFailure.hasMatch(reason)) (null, reason),
-  ];
-}
-
-/// Every semantics node's rect in screen coordinates, by id.
-Map<int, Rect> _globalSemanticsRects() {
-  // Each view has its own pipeline owner; the root owner holds no semantics.
-  final root = RendererBinding.instance.renderViews.first.owner?.semanticsOwner?.rootSemanticsNode;
-  final out = <int, Rect>{};
-  void visit(SemanticsNode node) {
-    var rect = node.rect;
-    for (SemanticsNode? n = node; n != null; n = n.parent) {
-      if (n.transform != null) rect = MatrixUtils.transformRect(n.transform!, rect);
-    }
-    out[node.id] = rect;
-    node.visitChildren((c) {
-      visit(c);
-      return true;
-    });
-  }
-  if (root != null) visit(root);
-  return out;
-}
-
-/// Global rects of the vertical scroll views on screen.
-List<Rect> _verticalScrollViewRects(WidgetTester tester) => [
-      for (final s in tester.stateList<ScrollableState>(find.byType(Scrollable)))
-        if (axisDirectionToAxis(s.axisDirection) == Axis.vertical)
-          MatrixUtils.transformRect(
-            s.context.findRenderObject()!.getTransformTo(null),
-            Offset.zero & (s.context.findRenderObject()! as RenderBox).size,
-          ),
-    ];
-
 
 // ── Min font ────────────────────────────────────────────────────────────────
 

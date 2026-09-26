@@ -108,10 +108,16 @@ type Conversation struct {
 	PartnerID        uuid.UUID  `json:"partner_id"`
 	PartnerName      string     `json:"partner_name"`
 	PartnerAvatarURL *string    `json:"partner_avatar_url,omitempty"`
+	PartnerIsBot     bool       `json:"partner_is_bot"`
 	LastMessage      *string    `json:"last_message,omitempty"`
 	LastMessageAt    *time.Time `json:"last_message_at,omitempty"`
-	Score            float64    `json:"score"`
-	CreatedAt        time.Time  `json:"created_at"`
+	LastSenderID     *uuid.UUID `json:"last_sender_id,omitempty"`
+	// Messages from anyone but the caller newer than the caller's last read.
+	UnreadCount int `json:"unread_count"`
+	// When the partner last opened this chat — the "Đã xem" under your message.
+	PartnerReadAt *time.Time `json:"partner_read_at,omitempty"`
+	Score         float64    `json:"score"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
 // NoiLauThresholds maps level index to minimum point threshold (level 1 = 0 pts, level 5 = 100 pts).

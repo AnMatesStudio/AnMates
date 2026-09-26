@@ -13,6 +13,7 @@ import '../../widgets/v2/search_overlay.dart';
 import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
 import 'screens/chat_screen.dart';
+import 'screens/inbox_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/filters_screen.dart';
 import 'screens/home_screen.dart';
@@ -97,7 +98,7 @@ class V2AppBody extends StatelessWidget {
                     onSelect: (tab) => s.go(switch (tab) {
                       NavTab.discover => V2Screen.home,
                       NavTab.swipe => V2Screen.swipe,
-                      NavTab.tables => V2Screen.chat,
+                      NavTab.tables => V2Screen.inbox,
                       NavTab.me => V2Screen.me,
                     }),
                   ),
@@ -163,6 +164,7 @@ class V2AppBody extends StatelessWidget {
         V2Screen.filters => const FiltersScreen(),
         V2Screen.detail => const DetailScreen(),
         V2Screen.swipe => const SwipeScreen(),
+        V2Screen.inbox => const InboxScreen(),
         V2Screen.chat => const ChatScreen(),
         V2Screen.bill => const BillScreen(),
         V2Screen.rate => const RateScreen(),
@@ -177,7 +179,7 @@ class V2AppBody extends StatelessWidget {
   /// Me, and Split bill / Close the meal under Messages.
   static NavTab _tabFor(V2Screen screen) => switch (screen) {
         V2Screen.swipe => NavTab.swipe,
-        V2Screen.chat || V2Screen.bill || V2Screen.rate => NavTab.tables,
+        V2Screen.inbox || V2Screen.chat || V2Screen.bill || V2Screen.rate => NavTab.tables,
         V2Screen.me || V2Screen.trust => NavTab.me,
         _ => NavTab.discover,
       };

@@ -120,3 +120,16 @@ func (s *ChatService) IncrementPoints(ctx context.Context, matchID uuid.UUID) (b
 	)
 	return before, after
 }
+
+// MarkRead records that userID has seen everything in the match up to now and
+// returns that time — the read receipt the partner's "Đã xem" is drawn from.
+func (s *ChatService) MarkRead(ctx context.Context, matchID, userID uuid.UUID) (time.Time, error) {
+	var at time.Time
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO match_reads (match_id, user_id, last_read_at)
+		VALUES ($1, $2, now())
+		ON CONFLICT (match_id, user_id) DO UPDATE SET last_read_at = EXCLUDED.last_read_at
+		RETURNING last_read_at
+	`, matchID, userID).Scan(&at)
+	return at, err
+}
