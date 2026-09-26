@@ -1,5 +1,10 @@
 # Current Task
 
+**Status (2026-09-27) — Đăng nhập/Đăng ký email + mật khẩu: code + test + E2E local xong, push main (CI/CD); chờ verify prod:**
+Xem `sessions/2026-09-27-email-password-auth.md`.
+
+---
+
 **Status (2026-09-27) — Tin nhắn kiểu Messenger + bot demo: code + test + E2E local xong, chưa commit/deploy; chờ user xác nhận:**
 Xem `sessions/2026-09-27-messenger-inbox-chat-bots.md`.
 
