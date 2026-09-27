@@ -84,3 +84,4 @@ badge máy ảnh) → màn **"Ảnh đại diện"** (`V2Screen.avatar`):
 - Test: 4 widget test mới (+2 mutation bị bắt), full 1493/1493; UI thật local 13/13 (`ui_avatar.js` thêm bước UI-26).
 - Semantics trong widget test sau cross-fade không ổn định (getSemantics trả node route) → test kiểm badge/viewer,
   nhãn a11y kiểm ở Playwright.
+- Deploy: `27c3253` → CI `36311542219` + CD `36311695535` xanh (10:11Z). Prod: build có `photo-viewer-close`; viewer dùng chung chạy trên chi tiết quán (chưa đăng nhập, mở + đóng, không page error). Chưa test luồng avatar full size trên prod vì cần tài khoản — không tạo thêm tài khoản thử (tài khoản "QA Avatar" lần trước vẫn chờ user duyệt xoá).
