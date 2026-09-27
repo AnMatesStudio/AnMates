@@ -18,7 +18,11 @@ class MatchSheet extends StatelessWidget {
     required this.sample,
     required this.onChat,
     required this.onClose,
+    this.signInToChat = false,
   });
+
+  /// Signed out: the chat needs an account, so the CTA leads to sign-in.
+  final bool signInToChat;
 
   final bool en;
   final Mate partner;
@@ -108,8 +112,11 @@ class MatchSheet extends StatelessWidget {
                         if (sample) ...[
                           const SizedBox(height: 8),
                           Text(
-                            _t('Hồ sơ mẫu: tin nhắn chỉ nằm trên máy bạn, không được gửi đi.',
-                                'Sample profile: messages stay on your device and are not sent.'),
+                            signInToChat
+                                ? _t('Hồ sơ mẫu. Đăng nhập để nhắn tin với mates thật và bot demo.',
+                                    'Sample profile. Sign in to chat with real mates and the demo bots.')
+                                : _t('Hồ sơ mẫu: tin nhắn chỉ nằm trên máy bạn, không được gửi đi.',
+                                    'Sample profile: messages stay on your device and are not sent.'),
                             textAlign: TextAlign.center,
                             style: AppTextV2.meta(color: AppColorsV2.inkA(0.5)),
                           ),
@@ -118,7 +125,9 @@ class MatchSheet extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: V2Cta(
-                            label: _t('Nhắn tin chốt kèo', 'Message to set it up'),
+                            label: signInToChat
+                                ? _t('Đăng nhập để nhắn tin', 'Sign in to chat')
+                                : _t('Nhắn tin chốt kèo', 'Message to set it up'),
                             height: 52,
                             fontSize: 15,
                             onTap: onChat,

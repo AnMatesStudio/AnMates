@@ -51,6 +51,20 @@ void main() {
     expect(find.text('Hoàng Nam'), findsOneWidget);
   });
 
+  testWidgets('signed out, a sample match asks you to sign in before any chat', (tester) async {
+    serveMatchApi(listStatus: 401);
+    final s = await pumpSwipe(tester);
+    await tester.tap(find.text('Gửi lời mời đi ăn'));
+    await settle(tester);
+
+    expect(find.text('Nhắn tin chốt kèo'), findsNothing);
+    await tester.tap(find.text('Đăng nhập để nhắn tin'));
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(s.screen, V2Screen.auth);
+    expect(s.isSampleChat, isFalse);
+  });
+
   testWidgets('a sample match can be messaged, in a chat that says nothing is sent', (tester) async {
     serveMatchApi(candidates: const []);
     await pumpSwipe(tester);

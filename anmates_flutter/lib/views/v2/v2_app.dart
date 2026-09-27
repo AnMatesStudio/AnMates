@@ -149,6 +149,7 @@ class V2AppBody extends StatelessWidget {
                   en: s.en,
                   partner: partner,
                   sample: s.matchRevealIsSample,
+                  signInToChat: s.matchRevealIsSample && s.sampleBecauseSignedOut,
                   onChat: s.openMatchChat,
                   onClose: s.dismissMatch,
                 ),

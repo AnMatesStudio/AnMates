@@ -928,6 +928,12 @@ class V2State extends ChangeNotifier {
   /// or, for a sample profile, a chat that keeps messages on this device only.
   Future<void> openMatchChat() async {
     final partner = _matchReveal;
+    // Signed out, chatting needs an account: sign in, then on to Tin nhắn.
+    if (partner != null && _matchRevealSample && _sampleSignedOut) {
+      _matchReveal = null;
+      openAuth(then: V2Screen.inbox);
+      return;
+    }
     if (partner != null && _matchRevealSample) {
       _disconnectChat();
       _activeMate = partner;
