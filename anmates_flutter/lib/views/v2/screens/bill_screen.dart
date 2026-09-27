@@ -53,6 +53,12 @@ class BillScreen extends StatelessWidget {
             _NoBookingCard(s: s)
           else ...[
             _BookingCard(s: s, booking: booking),
+            const SizedBox(height: 16),
+            _RulesCard(s: s),
+            if (booking.status == 'confirmed') ...[
+              const SizedBox(height: 16),
+              _MealStatusCard(s: s),
+            ],
             if (booking.status == 'confirmed' || booking.status == 'completed') ...[
               const SizedBox(height: 16),
               V2Cta(
@@ -90,6 +96,113 @@ class _NoBookingCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _RulesCard extends StatelessWidget {
+  const _RulesCard({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    final bullets = [
+      s.t('Hai bạn được nhắc 24 giờ và 2 giờ trước giờ hẹn.',
+          'You both get reminders 24 h and 2 h before the meal.'),
+      s.t('Đang tới hay sẽ trễ? Báo mate bằng một chạm ở trên.',
+          'On the way or running late? Tell your mate with one tap above.'),
+      s.t('Bị báo "không đến" bị trừ 20 điểm Trust Score; 3 người khác nhau báo cáo trong 30 ngày thì tài khoản tạm khoá.',
+          'A no-show report costs 20 Trust Score points; reports from 3 different people within 30 days suspend the account.'),
+    ];
+    return V2Sheet(
+      key: const Key('bill-rules'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.t('Luật chơi chống bùng hẹn', 'No-show rules'),
+              style: AppTextV2.name(size: 14.5)),
+          const SizedBox(height: 8),
+          for (final line in bullets)
+            Text('• $line', style: AppTextV2.body(size: 13).copyWith(height: 1.45)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealStatusCard extends StatelessWidget {
+  const _MealStatusCard({required this.s});
+  final V2State s;
+
+  static const _codes = ['on_my_way', 'running_late_10', 'running_late_20', 'arrived'];
+
+  @override
+  Widget build(BuildContext context) {
+    return V2Sheet(
+      key: const Key('bill-meal-status'),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(s.t('Hôm nay thế nào?', 'How is it going?'),
+              style: AppTextV2.name(size: 14.5)),
+          if (s.partnerMealStatus != null) ...[
+            const SizedBox(height: 8),
+            Text('${s.chatPartner.name}: ${s.mealStatusLabel(s.partnerMealStatus!)}',
+                key: const Key('bill-partner-status'),
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 13.5)),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final code in _codes)
+                V2TapTarget(
+                  key: Key('meal-status-$code'),
+                  onTap: s.mealStatusBusy ? null : () => _pick(code, context),
+                  child: _pill(context, code),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pill(BuildContext context, String code) {
+    final selected = s.myMealStatus == code;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected ? AppColorsV2.wisteria : Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        border: selected
+            ? null
+            : Border.all(color: AppColorsV2.inkA(0.25), width: 1),
+      ),
+      child: Text(
+        s.mealStatusLabel(code),
+        style: AppTextV2.name(
+          color: selected ? Colors.white : AppColorsV2.ink,
+          size: 13,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pick(String code, BuildContext context) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final bottom = navClearance(context);
+    final ok = await s.setMealStatus(code);
+    showV2Toast(
+      messenger,
+      ok
+          ? s.t('Đã báo cho ${s.chatPartner.name}', 'Told ${s.chatPartner.name}')
+          : s.t('Chỉ báo được trong khoảng 3 giờ trước tới 2 giờ sau giờ hẹn.',
+              'You can only send this from 3 h before to 2 h after the meal.'),
+      bottom: bottom,
     );
   }
 }

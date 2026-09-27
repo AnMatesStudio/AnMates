@@ -8,39 +8,40 @@ import (
 )
 
 type Config struct {
-	DatabaseURL           string
-	JWTSecret             []byte
-	JWTAccessExpire       time.Duration
-	JWTRefreshExpire      time.Duration
-	Port                  string
-	Env                   string
-	FirebaseWebAPIKey     string
-	FirebaseVerifyTimeout time.Duration
-	DevMode               bool
-	DevBypassSecret       string
-	ChatBots              bool // demo chat bots (POST /demo/bots); CHAT_BOTS=off disables
-	PGMaxConns            int32
-	PGMinConns            int32
-	CORSOrigins           string
-	RedisURL              string // optional; when set the WebSocket hub uses Redis pub/sub
+	DatabaseURL             string
+	JWTSecret               []byte
+	JWTAccessExpire         time.Duration
+	JWTRefreshExpire        time.Duration
+	Port                    string
+	Env                     string
+	FirebaseWebAPIKey       string
+	FirebaseVerifyTimeout   time.Duration
+	DevMode                 bool
+	DevBypassSecret         string
+	ChatBots                bool // demo chat bots (POST /demo/bots); CHAT_BOTS=off disables
+	PGMaxConns              int32
+	PGMinConns              int32
+	CORSOrigins             string
+	RedisURL                string        // optional; when set the WebSocket hub uses Redis pub/sub
+	BookingReminderInterval time.Duration // polling interval for the 24h/2h meal reminders
 
 	// Email OTP (passwordless login via emailed code). When SMTPHost+SMTPUsername
 	// are set the email-OTP endpoints deliver real mail; otherwise the codes are
 	// logged (dev only). Gmail: SMTP_HOST=smtp.gmail.com, SMTP_PORT=587,
 	// SMTP_USERNAME=<you>@gmail.com, SMTP_PASSWORD=<16-char App Password>.
-	SMTPHost              string
-	SMTPPort              int
-	SMTPUsername          string
-	SMTPPassword          string
-	SMTPFrom              string // From address; defaults to SMTPUsername
-	SMTPFromName          string // optional display name (e.g. "ĂnMates")
-	EmailOTPExpire        time.Duration
+	SMTPHost               string
+	SMTPPort               int
+	SMTPUsername           string
+	SMTPPassword           string
+	SMTPFrom               string // From address; defaults to SMTPUsername
+	SMTPFromName           string // optional display name (e.g. "ĂnMates")
+	EmailOTPExpire         time.Duration
 	EmailOTPResendCooldown time.Duration
-	EmailOTPMaxAttempts   int
+	EmailOTPMaxAttempts    int
 
 	// Web Push (self-hosted, RFC 8292 VAPID). Unset keys ⇒ push off,
 	// realtime /ws/notify still on.
-	VAPIDPublicKey string
+	VAPIDPublicKey  string
 	VAPIDPrivateKey string
 	VAPIDSubject    string
 
@@ -104,6 +105,14 @@ func Load() (*Config, error) {
 	c.PGMaxConns = int32(parseInt32(getOr("PG_MAX_CONNS", "4")))
 	c.PGMinConns = int32(parseInt32(getOr("PG_MIN_CONNS", "1")))
 	c.RedisURL = os.Getenv("REDIS_URL")
+
+	// Booking reminders poll interval: invalid or non-positive values fall back
+	// to the default instead of failing startup.
+	rem, rerr := time.ParseDuration(getOr("BOOKING_REMINDER_INTERVAL", "1m"))
+	if rerr != nil || rem <= 0 {
+		rem = time.Minute
+	}
+	c.BookingReminderInterval = rem
 
 	// Email OTP.
 	c.SMTPHost = os.Getenv("SMTP_HOST")

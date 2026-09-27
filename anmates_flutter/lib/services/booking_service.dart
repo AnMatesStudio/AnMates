@@ -39,6 +39,20 @@ class Booking {
   );
 }
 
+/// Meal arrival status for each side of a match's booking. [mine]/[partner] ∈
+/// on_my_way|running_late_10|running_late_20|arrived, or null if not set.
+class MealStatusView {
+  final String? mine;
+  final String? partner;
+
+  MealStatusView({this.mine, this.partner});
+
+  factory MealStatusView.fromJson(Map<String, dynamic> j) => MealStatusView(
+    mine: j['mine'] as String?,
+    partner: j['partner'] as String?,
+  );
+}
+
 /// First Date booking API: one member proposes a venue + time, the other confirms.
 class BookingService {
   final _api = ApiClient();
@@ -77,4 +91,21 @@ class BookingService {
 
   Future<Booking> cancel(String matchId) async =>
       Booking.fromJson(await _api.post('/api/v1/matches/$matchId/booking/cancel') as Map<String, dynamic>);
+
+  /// GET /api/v1/matches/:matchId/booking/status — meal arrival status of each side.
+  Future<MealStatusView> mealStatus(String matchId) async {
+    final data = await _api.get('/api/v1/matches/$matchId/booking/status');
+    return MealStatusView.fromJson(data as Map<String, dynamic>);
+  }
+
+  /// POST /api/v1/matches/:matchId/booking/status — set my meal arrival status.
+  /// [status] ∈ on_my_way|running_late_10|running_late_20|arrived.
+  /// ApiException propagates (409 = not now).
+  Future<MealStatusView> setMealStatus(String matchId, String status) async {
+    final data = await _api.post(
+      '/api/v1/matches/$matchId/booking/status',
+      body: {'status': status},
+    );
+    return MealStatusView.fromJson(data as Map<String, dynamic>);
+  }
 }

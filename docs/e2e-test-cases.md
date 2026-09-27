@@ -56,6 +56,9 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | E2E-27 | Realtime `/ws/notify` | bad token; match created | 401; `notification` envelope (kind match, actor, body) in ~25 ms | Auto |
 | E2E-28 | Web Push (fake push service, 2 API replicas) | VAPID key; subscribe; match | aes128gcm + VAPID auth with our key; payload DECRYPTS with the browser keys; exactly 1 push | Auto |
 | E2E-29 | Subscription lifecycle | no token; bad input ×3; same endpoint twice; 410 endpoint; unsubscribe | 401; 400 ×3; one row; dead row deleted; row gone | Auto |
+| E2E-30 | Booking reminders | meal moved to +23 h (confirmed a day earlier), then +90 min; a booking confirmed 10 h before | 24 h + 2 h reminders to both, once each; none for the late confirmation | Auto |
+| E2E-31 | Day-of meal status | before booking; 30 h early; bad status; outsider; late; arrived; 3 h after | 409; 409; 400; 404; partner notified + sees it; latest wins; 409 | Auto |
+| E2E-32 | Icebreakers | shared foods; both members; outsider; bad id; no shared food | 3 prompts mentioning phở/cơm tấm; identical for both; 404; 400; 3 generic | Auto |
 | E2E-20 | Local Mates | no location; near ×2 with meals, far, near without meal; block | [] → only the 2 near with meals, nearest first ~1.1 km; blocked disappears | Auto |
 | E2E-27 | Avatar | upload without token; non-image; crop PNG (data: URL); GET versioned / with ETag / unversioned; partner's deck; sample; bad samples / external URL / someone else's photo; ""; never-uploaded user | 401; 400; avatar_url `/api/v1/users/<id>/avatar?v=…`; 200 image/jpeg immutable / 304 / no-cache; same avatar_url in B's deck; `asset:…`; 400 ×3; null; 404 | Auto |
 
@@ -94,4 +97,8 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | UI-28 | Push opt-in (NEW) | Inbox card → Bật (grant) | real Chromium subscription stored (jmt17.google.com); card gone; Me switch on — **Auto** |
 | UI-29 | Web Push end to end (NEW) | page visible; other user rates | notification shown by OUR service worker via the real push service — **Auto** |
 | UI-30 | Hidden tab + switch off (NEW) | tab hidden; booking proposed; Me switch off | system notification; switch off removes the subscription — **Auto** |
+| UI-31 | Icebreakers (NEW) | open a new match's chat; tap a starter; send | "Gợi ý mở lời" with a shared food; composer filled (not sent); sent message = the starter — **Auto** `tool/e2e/ui_meal_round6.js` |
+| UI-32 | Day-of status (NEW) | Bill screen near meal time → "Trễ ~10 phút" | DB status; partner notified — **Auto** |
+| UI-33 | Partner status live (NEW) | partner taps "Đang tới" | "<mate>: Đang tới" appears in ~0.4 s without reload — **Auto** |
+| UI-34 | No-show rules (NEW) | Bill screen | "Luật chơi chống bùng hẹn" card with the real rules — **Auto** |
 | UI-10 | Every screen | 360×640 and 402×874 viewports, VI and EN | no overflow stripes, no untranslated string |

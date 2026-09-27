@@ -132,6 +132,18 @@ func (s *PushService) Load(ctx context.Context, notificationID uuid.UUID) (*Noti
 		p.Body = "Một lịch hẹn đã bị huỷ"
 	case "rating":
 		p.Body = fmt.Sprintf("%s đã đánh giá bữa ăn — rate lại để xem", who)
+	case "booking_reminder_24h":
+		p.Body = fmt.Sprintf("Nhắc lịch: mai bạn có hẹn ăn với %s", who)
+	case "booking_reminder_2h":
+		p.Body = fmt.Sprintf("Sắp tới giờ hẹn ăn với %s — nhớ đến đúng giờ nhé", who)
+	case "on_my_way":
+		p.Body = fmt.Sprintf("%s đang trên đường tới quán", who)
+	case "running_late_10":
+		p.Body = fmt.Sprintf("%s sẽ trễ khoảng 10 phút", who)
+	case "running_late_20":
+		p.Body = fmt.Sprintf("%s sẽ trễ khoảng 20 phút", who)
+	case "arrived":
+		p.Body = fmt.Sprintf("%s đã tới quán", who)
 	default:
 		p.Body = "Bạn có thông báo mới"
 	}

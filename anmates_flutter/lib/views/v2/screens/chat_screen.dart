@@ -36,10 +36,12 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _controller = TextEditingController();
+  final _fieldFocus = FocusNode();
 
   @override
   void dispose() {
     _controller.dispose();
+    _fieldFocus.dispose();
     super.dispose();
   }
 
@@ -53,11 +55,19 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
 
+    final draft = s.takeDraft();
+    if (draft != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _controller.text = draft;
+        _controller.selection = TextSelection.collapsed(offset: draft.length);
+      });
+    }
+
     return Column(children: [
       _Header(s: s),
       if (s.isSampleChat) _SampleNote(s: s),
       Expanded(child: _Transcript(s: s)),
-      _Composer(s: s, controller: _controller, onSend: () => _send(s)),
+      _Composer(s: s, controller: _controller, fieldFocus: _fieldFocus, onSend: () => _send(s)),
     ]);
   }
 }
@@ -225,6 +235,33 @@ class _Transcript extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 13),
             ),
+            if (s.icebreakerPrompts.isNotEmpty && !s.isSampleChat) ...[
+              const SizedBox(height: 16),
+              Text(s.t('Gợi ý mở lời', 'Conversation starters'),
+                  textAlign: TextAlign.center,
+                  style: AppTextV2.meta()),
+              const SizedBox(height: 8),
+              for (var i = 0; i < s.icebreakerPrompts.length && i < 3; i++) ...[
+                if (i > 0) const SizedBox(height: 8),
+                V2TapTarget(
+                  key: Key('icebreaker-$i'),
+                  onTap: () => s.setDraft(s.icebreakerPrompts[i]),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColorsV2.wisteriaTint,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      s.icebreakerPrompts[i],
+                      textAlign: TextAlign.center,
+                      style: AppTextV2.body(size: 13.5),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ]),
         ),
       );
@@ -552,10 +589,16 @@ class _TypingBubbleState extends State<_TypingBubble> with SingleTickerProviderS
 }
 
 class _Composer extends StatelessWidget {
-  const _Composer({required this.s, required this.controller, required this.onSend});
+  const _Composer({
+    required this.s,
+    required this.controller,
+    required this.fieldFocus,
+    required this.onSend,
+  });
 
   final V2State s;
   final TextEditingController controller;
+  final FocusNode fieldFocus;
   final VoidCallback onSend;
 
   @override
@@ -597,7 +640,7 @@ class _Composer extends StatelessWidget {
           ),
           const SizedBox(height: 8),
         ],
-        Row(children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
           if (s.hasActiveMatch) ...[
             // Send a photo into the chat; the picker runs behind the button
             // which shows a spinner while the upload lands.
@@ -648,31 +691,37 @@ class _Composer extends StatelessWidget {
             const SizedBox(width: 6),
           ],
           Expanded(
-            child: Container(
-              // 48pt of field inside the 1pt border.
-              height: V2Layout.minTap + 2,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: AppColorsV2.inkA(0.07)),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              // Fills the pill so the whole pill, not just the text line, takes the tap.
-              child: TextField(
-                controller: controller,
-                expands: true,
-                maxLines: null,
-                textAlignVertical: TextAlignVertical.center,
-                onSubmitted: (_) => onSend(),
-                onChanged: (_) => s.notifyTyping(),
-                textInputAction: TextInputAction.send,
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  isCollapsed: true,
-                  hintText: s.t('Nhắn tin…', 'Message…'),
-                  hintStyle: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 13),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              // Tapping anywhere in the pill (not just the text line) focuses the field.
+              onTap: () => FocusScope.of(context).requestFocus(fieldFocus),
+              child: Container(
+                // Grows with the draft up to 5 lines, then scrolls.
+                constraints: const BoxConstraints(minHeight: V2Layout.minTap + 2, maxHeight: 132),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColorsV2.inkA(0.07)),
+                  borderRadius: BorderRadius.circular(24),
                 ),
-                style: AppTextV2.body(size: 13),
+                child: TextField(
+                  controller: controller,
+                  focusNode: fieldFocus,
+                  minLines: 1,
+                  maxLines: 5,
+                  textAlignVertical: TextAlignVertical.center,
+                  onSubmitted: (_) => onSend(),
+                  onChanged: (_) => s.notifyTyping(),
+                  textInputAction: TextInputAction.send,
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isCollapsed: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                    hintText: s.t('Nhắn tin…', 'Message…'),
+                    hintStyle: AppTextV2.body(color: AppColorsV2.inkA(0.4), size: 13),
+                  ),
+                  style: AppTextV2.body(size: 13),
+                ),
               ),
             ),
           ),

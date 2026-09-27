@@ -181,6 +181,11 @@ func run(log *slog.Logger) error {
 	dispatcher := services.NewPushDispatcher(pool, pushStore, userHub, pushSender, log)
 	go dispatcher.Run(ctx)
 
+	// Day-of statuses, icebreakers and the 24h/2h booking reminders.
+	mealDaySvc := services.NewMealDayService(pool)
+	reminders := services.NewReminderService(pool, log)
+	go reminders.Run(ctx, cfg.BookingReminderInterval)
+
 	// One engine over the `restaurants` table, shared by the venue catalogue,
 	// the free-text /venues/search route and (optionally) the concierge.
 	venueEngine := services.NewVenueEngine(pool)
@@ -240,6 +245,7 @@ func run(log *slog.Logger) error {
 	bookingH := handlers.NewBooking(bookingSvc)
 	safetyH := handlers.NewSafety(safetySvc)
 	mealsH := handlers.NewMeals(mealSvc)
+	mealDayH := handlers.NewMealDay(mealDaySvc)
 	extrasH := handlers.NewProfileExtras(extrasSvc)
 	notifH := handlers.NewNotifications(notifSvc)
 	pushH := handlers.NewPush(pushStore, pushSender, userHub, cfg.DevMode)
@@ -335,6 +341,12 @@ func run(log *slog.Logger) error {
 	auth.Get("/matches/:id/booking", bookingH.Get)
 	auth.Post("/matches/:id/booking/confirm", bookingH.Confirm)
 	auth.Post("/matches/:id/booking/cancel", bookingH.Cancel)
+
+	// Day-of meal: statuses (on_my_way / running_late_10 / running_late_20 /
+	// arrived), both members' statuses, and food icebreakers.
+	auth.Post("/matches/:id/booking/status", mealDayH.SetStatus)
+	auth.Get("/matches/:id/booking/status", mealDayH.Status)
+	auth.Get("/matches/:id/icebreakers", mealDayH.Icebreakers)
 
 	// Safety: unmatch, block, report — every meet-a-stranger app needs these.
 	auth.Delete("/matches/:id", safetyH.Unmatch)

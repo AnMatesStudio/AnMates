@@ -171,6 +171,24 @@ class NotificationPage {
   );
 }
 
+/// Icebreaker prompts suggested for a match: bilingual lines and shared topics.
+class IcebreakerSet {
+  final List<({String vi, String en})> prompts;
+  final List<String> shared;
+
+  IcebreakerSet({required this.prompts, required this.shared});
+
+  factory IcebreakerSet.fromJson(Map<String, dynamic> j) => IcebreakerSet(
+    prompts: ((j['prompts'] as List?) ?? const [])
+        .map((e) {
+          final p = e as Map<String, dynamic>;
+          return (vi: p['vi'] as String? ?? '', en: p['en'] as String? ?? '');
+        })
+        .toList(),
+    shared: ((j['shared'] as List?) ?? const []).cast<String>().toList(),
+  );
+}
+
 /// Match preferences, account deletion, trust score, meal history, nearby
 /// locals and notifications.
 class ExtrasService {
@@ -218,6 +236,12 @@ class ExtrasService {
     return data
         .map((e) => LocalMate.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// GET /api/v1/matches/:matchId/icebreakers — suggested icebreakers for a match.
+  Future<IcebreakerSet> icebreakers(String matchId) async {
+    final data = await _api.get('/api/v1/matches/$matchId/icebreakers');
+    return IcebreakerSet.fromJson(data as Map<String, dynamic>);
   }
 
   /// GET /api/v1/notifications — notifications with the unread count.

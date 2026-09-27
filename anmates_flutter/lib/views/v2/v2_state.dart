@@ -302,6 +302,16 @@ class V2State extends ChangeNotifier {
   Booking? _booking;
   bool _bookingLoading = false;
 
+  // ── Icebreakers (GET /api/v1/matches/:id/icebreakers) ────────────────────
+  IcebreakerSet? _icebreakers;
+
+  // ── Meal arrival status (GET/POST /api/v1/matches/:id/booking/status) ────
+  MealStatusView? _mealStatus;
+  bool _mealStatusBusy = false;
+
+  /// Chat text stashed before the chat opened (deep link), handed back once.
+  String? _pendingDraft;
+
   // ── Profile (GET /api/v1/profile) ─────────────────────────────────────────
   String? _profileName;
 
@@ -330,6 +340,22 @@ class V2State extends ChangeNotifier {
   int? get mealsCount => _mealsCount;
   int? get matchesCount => _matchesCount;
   MealRatingView? get ratingView => _ratingView;
+
+  /// Prompts for an empty chat, in the user's language.
+  List<String> get icebreakerPrompts => [for (final p in _icebreakers?.prompts ?? const []) _en ? p.en : p.vi];
+  String? get myMealStatus => _mealStatus?.mine;
+  String? get partnerMealStatus => _mealStatus?.partner;
+  bool get mealStatusBusy => _mealStatusBusy;
+
+  /// Human label for a meal status code.
+  String mealStatusLabel(String code) => switch (code) {
+        'on_my_way' => t('Đang tới', 'On my way'),
+        'running_late_10' => t('Trễ ~10 phút', '~10 min late'),
+        'running_late_20' => t('Trễ ~20 phút', '~20 min late'),
+        'arrived' => t('Đã tới quán', 'Arrived'),
+        _ => code,
+      };
+
   List<BlockedUser> get blocked => _blocked;
   String get profileBio => _profileBio ?? '';
   MatchPrefs? get prefs => _prefs;
@@ -360,6 +386,12 @@ class V2State extends ChangeNotifier {
       'booking_confirmed' => t('$who đã xác nhận lịch hẹn', '$who confirmed the booking'),
       'booking_cancelled' => t('Một lịch hẹn đã bị huỷ', 'A booking was cancelled'),
       'rating' => t('$who đã đánh giá bữa ăn — rate lại để xem', '$who rated your meal — rate back to see it'),
+      'booking_reminder_24h' => t('Nhắc lịch: mai bạn có hẹn ăn với $who', 'Reminder: you have a meal with $who tomorrow'),
+      'booking_reminder_2h' => t('Sắp tới giờ hẹn ăn với $who — nhớ đến đúng giờ nhé', 'Your meal with $who is soon — be on time'),
+      'on_my_way' => t('$who đang trên đường tới quán', '$who is on the way'),
+      'running_late_10' => t('$who sẽ trễ khoảng 10 phút', '$who is running ~10 min late'),
+      'running_late_20' => t('$who sẽ trễ khoảng 20 phút', '$who is running ~20 min late'),
+      'arrived' => t('$who đã tới quán', '$who has arrived'),
       _ => t('Bạn có thông báo mới', 'You have a new notification'),
     };
   }
@@ -945,6 +977,10 @@ class V2State extends ChangeNotifier {
     await _connectChat(c.id);
     _markRead();
     await loadBooking(c.id);
+    _icebreakers = null;
+    _mealStatus = null;
+    unawaited(loadIcebreakers());
+    unawaited(loadMealStatus());
   }
 
   /// Last index of [_messages] sent at or before [readAt]; -1 when none.
@@ -1829,6 +1865,11 @@ class V2State extends ChangeNotifier {
       notifyLocal(p['title'] as String? ?? 'ĂnMates', p['body'] as String? ?? notifText(n), n.id);
     }
     notifyListeners();
+    if ({'on_my_way', 'running_late_10', 'running_late_20', 'arrived'}.contains(n.kind) &&
+        n.matchId != null &&
+        n.matchId == _activeMatchId) {
+      unawaited(loadMealStatus());
+    }
   }
 
   /// Registers this browser for Web Push (the VAPID key comes from the server;
@@ -1886,6 +1927,70 @@ class V2State extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('push_prompt_dismissed', true);
     notifyListeners();
+  }
+
+  /// Loads the active match's suggested icebreakers; cleared when no match.
+  Future<void> loadIcebreakers() async {
+    final id = _activeMatchId;
+    if (id == null) {
+      _icebreakers = null;
+      notifyListeners();
+      return;
+    }
+    try {
+      _icebreakers = await ExtrasService().icebreakers(id);
+    } catch (_) {
+      // A missing icebreaker payload must not keep the chat open.
+    }
+    notifyListeners();
+  }
+
+  /// Loads the active match's meal arrival status; cleared when no match.
+  Future<void> loadMealStatus() async {
+    final id = _activeMatchId;
+    if (id == null) {
+      _mealStatus = null;
+      notifyListeners();
+      return;
+    }
+    try {
+      _mealStatus = await BookingService().mealStatus(id);
+    } catch (_) {
+      // Status is transient; a failed read keeps the previous value.
+    }
+    notifyListeners();
+  }
+
+  /// Sets my meal arrival status. True on success; the 409 "not now" surfaces
+  /// to the caller. Refreshes both sides' status on success.
+  Future<bool> setMealStatus(String code) async {
+    final id = _activeMatchId;
+    if (id == null) return false;
+    _mealStatusBusy = true;
+    notifyListeners();
+    try {
+      await BookingService().setMealStatus(id, code);
+      await loadMealStatus();
+      return true;
+    } on ApiException {
+      return false;
+    } finally {
+      _mealStatusBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Stashes chat text to prefill the composer when the chat opens.
+  void setDraft(String text) {
+    _pendingDraft = text;
+    notifyListeners();
+  }
+
+  /// Hands back the stashed draft once (called from build).
+  String? takeDraft() {
+    final d = _pendingDraft;
+    _pendingDraft = null;
+    return d;
   }
 
   /// Unblocks one person and drops them from the list.
