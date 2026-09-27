@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import 'legal_screen.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
@@ -22,12 +24,18 @@ class _AuthScreenState extends State<AuthScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _showPassword = false;
+  DateTime? _dob;
+  bool _accept = false;
+  final _termsTap = TapGestureRecognizer();
+  final _privacyTap = TapGestureRecognizer();
 
   @override
   void dispose() {
     _name.dispose();
     _email.dispose();
     _password.dispose();
+    _termsTap.dispose();
+    _privacyTap.dispose();
     super.dispose();
   }
 
@@ -35,13 +43,29 @@ class _AuthScreenState extends State<AuthScreen> {
         email: _email.text,
         password: _password.text,
         name: _name.text,
+        birthDate: _dob,
+        acceptTerms: _accept,
       );
+
+  Future<void> _pickDob(V2State s) async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(now.year - 22, now.month, now.day),
+      firstDate: DateTime(now.year - 100),
+      lastDate: DateTime(now.year - 18, now.month, now.day),
+      helpText: s.t('Bạn phải từ 18 tuổi', 'You must be 18 or older'),
+    );
+    if (picked != null && mounted) setState(() => _dob = picked);
+  }
 
   @override
   Widget build(BuildContext context) {
     final s = context.watch<V2State>();
     final reg = s.authRegister;
     final pad = V2Layout.hPad(context);
+    _termsTap.onTap = () => showLegalSheet(context, s, privacy: false);
+    _privacyTap.onTap = () => showLegalSheet(context, s, privacy: true);
 
     return AutofillGroup(
       child: ListView(
@@ -108,6 +132,80 @@ class _AuthScreenState extends State<AuthScreen> {
               onPressed: () => setState(() => _showPassword = !_showPassword),
             ),
           ),
+          if (reg) ...[
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              label: s.t('Ngày sinh', 'Date of birth'),
+              child: V2TapTarget(
+                key: const Key('auth-dob'),
+                onTap: () => _pickDob(s),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s.t('Ngày sinh', 'Date of birth'),
+                      style: AppTextV2.name(color: AppColorsV2.inkA(0.6), size: 12.5)),
+                  const SizedBox(height: 6),
+                  Container(
+                    height: 52,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      border: Border.all(color: AppColorsV2.inkA(0.08)),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Center(
+                      child: Text(
+                        _dob == null
+                            ? s.t('Chọn ngày sinh', 'Pick your date of birth')
+                            : '${_dob!.day.toString().padLeft(2, '0')}/'
+                                '${_dob!.month.toString().padLeft(2, '0')}/'
+                                '${_dob!.year}',
+                        style: AppTextV2.body(
+                            color: _dob == null ? AppColorsV2.inkA(0.35) : AppColorsV2.ink,
+                            size: 14),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Semantics(
+                  container: true,
+                  label: s.t('Đồng ý Điều khoản và Chính sách', 'Accept the Terms and Privacy Policy'),
+                  child: Checkbox(
+                    key: const Key('auth-terms'),
+                    value: _accept,
+                    activeColor: AppColorsV2.wisteria,
+                    onChanged: (v) => setState(() => _accept = v ?? false),
+                  ),
+                ),
+                Expanded(
+                  child: Text.rich(
+                    TextSpan(
+                      style: AppTextV2.body(size: 12.5),
+                      children: [
+                        TextSpan(text: s.t('Tôi từ 18 tuổi trở lên và đồng ý ', 'I am 18+ and agree to the ')),
+                        TextSpan(
+                          text: s.t('Điều khoản', 'Terms'),
+                          style: AppTextV2.body(color: AppColorsV2.wisteria, size: 12.5).merge(const TextStyle(fontWeight: FontWeight.bold)),
+                          recognizer: _termsTap,
+                        ),
+                        TextSpan(text: s.t(' và ', ' and the ')),
+                        TextSpan(
+                          text: s.t('Chính sách quyền riêng tư', 'Privacy Policy'),
+                          style: AppTextV2.body(color: AppColorsV2.wisteria, size: 12.5).merge(const TextStyle(fontWeight: FontWeight.bold)),
+                          recognizer: _privacyTap,
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           if (s.authError case final err?) ...[
             const SizedBox(height: 12),
             Text(err,

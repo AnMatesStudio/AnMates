@@ -50,7 +50,14 @@ async function devUser(name) {
   };
   const tap = async (name, role) => {
     const loc = role ? page.getByRole(role, { name }) : page.getByText(name, { exact: true });
-    await loc.last().click({ timeout: 8000 });
+    try {
+      await loc.last().click({ timeout: 4000 });
+    } catch (_) {
+      // After a scroll the semantics layer can lag behind the pixels: press where the text is drawn.
+      const b = await page.getByText(name).last().boundingBox();
+      if (!b) throw new Error('not found: ' + name);
+      await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    }
     await page.waitForTimeout(1500);
   };
   // Flutter web inputs: type like a user — fill() does not always reach the engine.
@@ -71,9 +78,18 @@ async function devUser(name) {
     await typeInto(page.getByRole('textbox', { name: /Tên mọi người sẽ thấy|Tên/ }).first(), 'UI Ba Mới');
     await typeInto(page.getByRole('textbox', { name: /ban@email.com|Email/ }).first(), email);
     await typeInto(page.getByRole('textbox', { name: /Mật khẩu|Password|ký tự/ }).first(), password);
+    // Round 4: sign-up also needs a date of birth and the consent box.
+    await page.getByRole('button', { name: /Ngày sinh/ }).first().click();
+    await page.waitForTimeout(1200);
+    await page.getByRole('button', { name: /^(OK|Đồng ý|CHỌN)$/i }).last().click();
+    await page.waitForTimeout(800);
+    await page.getByRole('checkbox').first().click();
+    await page.waitForTimeout(400);
     await shot('01-signup');
     await page.getByRole('button', { name: /^Đăng ký$/ }).last().click();
     await page.waitForTimeout(4000);
+    // New email accounts must verify before they can swipe; this script tests other flows, so verify via the DB.
+    sql(`UPDATE users SET email_verified_at = now() WHERE email='${email}'`);
     await shot('02-after-signup');
     const row = sql(`SELECT onboarding_done || '|' || array_to_string(food_tags, ',') FROM users WHERE email='${email}'`);
     check('DB: sign-up saved onboarding (onboarding_done + tastes)', /^(t|true)\|.+/.test(row), row);
@@ -122,6 +138,10 @@ async function devUser(name) {
     };
     const n0 = await count();
     check('filters: both new candidates counted', n0 >= 2, 'n=' + n0);
+    // The filter screen grew (distance slider + area search): scroll the vibe chips into view first.
+    await page.mouse.move(200, 500);
+    await page.mouse.wheel(0, 600);
+    await page.waitForTimeout(800);
     await tap('Yên tĩnh');
     await shot('04-filter-quiet');
     check('filters: vibe "Yên tĩnh" hides the lively one', (await count()) === n0 - 1);

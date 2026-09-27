@@ -11,21 +11,37 @@ import (
 	"github.com/anmates/api/models"
 	"github.com/anmates/api/services"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 )
+
+// AccountHooks is the slice of the account service the auth handlers need.
+type AccountHooks interface {
+	RecordSignup(ctx context.Context, userID uuid.UUID, birthDate time.Time) error
+	MarkEmailVerified(ctx context.Context, userID uuid.UUID) error
+	Gate(ctx context.Context, userID uuid.UUID) (suspended, unverified bool, err error)
+}
 
 type Auth struct {
 	svc             services.AuthServicer
 	devBypassSecret string
+	acct            AccountHooks
+	otpEnabled      bool
 }
 
 func NewAuth(svc services.AuthServicer, devBypassSecret string) *Auth {
 	return &Auth{svc: svc, devBypassSecret: devBypassSecret}
 }
 
+// SetAccounts wires consent/age recording and suspension checks. otpEnabled=false
+// (no SMTP) marks new email accounts verified at once — otherwise nobody could verify.
+func (a *Auth) SetAccounts(acct AccountHooks, otpEnabled bool) { a.acct = acct; a.otpEnabled = otpEnabled }
+
 type registerReq struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	BirthDate   string `json:"birth_date"`
+	AcceptTerms bool   `json:"accept_terms"`
 }
 
 type loginReq struct {
@@ -150,6 +166,29 @@ func (a *Auth) Register(c *fiber.Ctx) error {
 		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation,
 			"name required; valid email; password >= 10 chars")
 	}
+	if !r.AcceptTerms {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation,
+			"you must accept the terms and privacy policy")
+	}
+	bd, err := time.Parse("2006-01-02", strings.TrimSpace(r.BirthDate))
+	if err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation,
+			"birth_date must be YYYY-MM-DD")
+	}
+	age := 0
+	today := time.Now()
+	if bd.Year() < today.Year() {
+		age = today.Year() - bd.Year()
+		if today.YearDay() < bd.YearDay() {
+			age--
+		}
+	}
+	if age < 18 {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "you must be 18 or older")
+	}
+	if age > 100 {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid birth_date")
+	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
 	defer cancel()
@@ -160,6 +199,16 @@ func (a *Auth) Register(c *fiber.Ctx) error {
 			return httputil.Err(c, fiber.StatusConflict, httputil.ErrConflict, "email already registered")
 		}
 		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "create user failed")
+	}
+	if a.acct != nil {
+		if err := a.acct.RecordSignup(ctx, u.ID, bd); err != nil {
+			return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "create user failed")
+		}
+		if !a.otpEnabled {
+			if err := a.acct.MarkEmailVerified(ctx, u.ID); err != nil {
+				return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "create user failed")
+			}
+		}
 	}
 	tokens, err := a.svc.IssueTokens(ctx, u.ID)
 	if err != nil {
@@ -184,6 +233,15 @@ func (a *Auth) Login(c *fiber.Ctx) error {
 	}
 	if err != nil {
 		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "login failed")
+	}
+	if a.acct != nil {
+		suspended, _, err := a.acct.Gate(ctx, u.ID)
+		if err != nil {
+			return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "login failed")
+		}
+		if suspended {
+			return httputil.Err(c, fiber.StatusForbidden, "ACCOUNT_SUSPENDED", "account suspended")
+		}
 	}
 	tokens, err := a.svc.IssueTokens(ctx, u.ID)
 	if err != nil {

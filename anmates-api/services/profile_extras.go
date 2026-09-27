@@ -198,6 +198,7 @@ func (s *ProfileExtrasService) Locals(ctx context.Context, userID uuid.UUID) ([]
 		SELECT n.user_id, u.name, u.avatar_url, n.district, meals.n::int, n.km
 		FROM near n
 		JOIN users u ON u.id = n.user_id AND NOT u.is_bot
+		  AND u.suspended_at IS NULL AND (u.email IS NULL OR u.email_verified_at IS NOT NULL)
 		JOIN meals ON meals.user_id = n.user_id
 		WHERE n.km <= 5
 		  AND NOT EXISTS (SELECT 1 FROM user_blocks ub

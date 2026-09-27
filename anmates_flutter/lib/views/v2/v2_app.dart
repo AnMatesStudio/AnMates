@@ -12,11 +12,13 @@ import '../../widgets/v2/radius_sheet.dart';
 import '../../widgets/v2/search_overlay.dart';
 import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
+import 'screens/admin_screen.dart';
 import 'screens/auth_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/detail_screen.dart';
 import 'screens/filters_screen.dart';
+import 'screens/legal_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/local_screen.dart';
 import 'screens/me_screen.dart';
@@ -25,6 +27,7 @@ import 'screens/pay_screen.dart';
 import 'screens/rate_screen.dart';
 import 'screens/swipe_screen.dart';
 import 'screens/trust_screen.dart';
+import 'screens/verify_email_screen.dart';
 import 'v2_state.dart';
 
 /// The phone shell every v2 screen sits inside: the aurora wash, the language
@@ -175,6 +178,10 @@ class V2AppBody extends StatelessWidget {
         V2Screen.rate => const RateScreen(),
         V2Screen.me => const MeScreen(),
         V2Screen.trust => const TrustScreen(),
+        V2Screen.terms => const LegalScreen(privacy: false),
+        V2Screen.privacy => const LegalScreen(privacy: true),
+        V2Screen.verifyEmail => const VerifyEmailScreen(),
+        V2Screen.admin => const AdminScreen(),
         V2Screen.pay => const PayScreen(),
         V2Screen.local => const LocalScreen(),
         V2Screen.allVenues => const AllVenuesScreen(),
@@ -185,7 +192,7 @@ class V2AppBody extends StatelessWidget {
   static NavTab _tabFor(V2Screen screen) => switch (screen) {
         V2Screen.swipe => NavTab.swipe,
         V2Screen.inbox || V2Screen.chat || V2Screen.bill || V2Screen.rate => NavTab.tables,
-        V2Screen.me || V2Screen.trust => NavTab.me,
+        V2Screen.me || V2Screen.trust || V2Screen.admin => NavTab.me,
         _ => NavTab.discover,
       };
 }

@@ -99,6 +99,8 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		JOIN users u ON u.id = c.user_id
 		WHERE c.overlap_count >= 2
 		  AND NOT u.is_bot
+		  AND u.suspended_at IS NULL
+		  AND (u.email IS NULL OR u.email_verified_at IS NOT NULL)
 		ORDER BY score DESC, c.overlap_count DESC
 		LIMIT 50
 	`

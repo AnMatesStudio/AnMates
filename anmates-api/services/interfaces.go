@@ -92,3 +92,14 @@ type NotificationServicer interface {
 	List(ctx context.Context, userID uuid.UUID) (*NotificationList, error)
 	MarkAllRead(ctx context.Context, userID uuid.UUID) error
 }
+
+type AccountServicer interface {
+	Status(ctx context.Context, userID uuid.UUID) (*AccountStatus, error)
+	Gate(ctx context.Context, userID uuid.UUID) (suspended, unverified bool, err error)
+	IsAdmin(ctx context.Context, userID uuid.UUID) (bool, error)
+	RecordSignup(ctx context.Context, userID uuid.UUID, birthDate time.Time) error
+	MarkEmailVerified(ctx context.Context, userID uuid.UUID) error
+	ListReports(ctx context.Context, status string) ([]AdminReport, error)
+	ResolveReport(ctx context.Context, reportID, adminID uuid.UUID, action string) error
+	Unsuspend(ctx context.Context, userID uuid.UUID) error
+}

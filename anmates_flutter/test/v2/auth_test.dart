@@ -78,7 +78,7 @@ void main() {
     }
   }
 
-  testWidgets('sign up: name, email, password → signed in, on Home', (tester) async {
+  testWidgets('sign up: name, email, password, birth date, consent → signed in, on Home', (tester) async {
     final calls = serveAuthApi();
     final s = await pumpApp(tester, V2Screen.onb);
     s.openAuth(register: true);
@@ -88,14 +88,45 @@ void main() {
     await tester.enterText(find.descendant(of: find.byKey(const Key('auth-name')), matching: find.byType(TextField)), 'Huy');
     await tester.enterText(find.descendant(of: find.byKey(const Key('auth-email')), matching: find.byType(TextField)), ' Huy@Mail.com ');
     await tester.enterText(find.descendant(of: find.byKey(const Key('auth-password')), matching: find.byType(TextField)), 'matkhau1234');
+    await tester.tap(find.byKey(const Key('auth-dob')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));          // Material date picker confirm
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('auth-terms')));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('auth-submit')));
     await settle(tester);
 
-    expect(calls, contains('POST /api/v1/auth/register {"email":"Huy@Mail.com","password":"matkhau1234","name":"Huy"}'));
+    final now = DateTime.now();
+    final dob = DateTime(now.year - 22, now.month, now.day);
+    final birthDate =
+        '${dob.year.toString().padLeft(4, '0')}-${dob.month.toString().padLeft(2, '0')}-${dob.day.toString().padLeft(2, '0')}';
+    expect(calls, contains('POST /api/v1/auth/register {"email":"Huy@Mail.com","password":"matkhau1234","name":"Huy","birth_date":"$birthDate","accept_terms":true}'));
     expect(s.signedIn, isTrue);
     expect(s.profileName, 'Huy');
     expect(s.screen, V2Screen.home);
     expect((await SharedPreferences.getInstance()).getString('access_token'), 'acc');
+  });
+
+  testWidgets('sign up without consent is blocked before any request', (tester) async {
+    final calls = serveAuthApi();
+    final s = await pumpApp(tester, V2Screen.onb);
+    s.openAuth(register: true);
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.enterText(find.descendant(of: find.byKey(const Key('auth-name')), matching: find.byType(TextField)), 'Huy');
+    await tester.enterText(find.descendant(of: find.byKey(const Key('auth-email')), matching: find.byType(TextField)), 'huy@mail.com');
+    await tester.enterText(find.descendant(of: find.byKey(const Key('auth-password')), matching: find.byType(TextField)), 'matkhau1234');
+    await tester.tap(find.byKey(const Key('auth-dob')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));          // Material date picker confirm
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('auth-submit')));
+    await settle(tester);
+
+    expect(find.text('Bạn cần đồng ý Điều khoản và Chính sách quyền riêng tư.'), findsOneWidget);
+    expect(calls.where((c) => c.contains('/auth/')), isEmpty);
+    expect(s.screen, V2Screen.auth);
   });
 
   testWidgets('signed out, no Tôi tab and no avatar; signing in brings both back', (tester) async {
@@ -150,7 +181,9 @@ void main() {
 
     serveAuthApi(registerStatus: 409);
     s.setAuthRegister(true);
-    await s.submitAuth(email: 'huy@mail.com', password: 'matkhau1234', name: 'Huy');
+    final now = DateTime.now();
+    await s.submitAuth(email: 'huy@mail.com', password: 'matkhau1234', name: 'Huy',
+        birthDate: DateTime(now.year - 22, now.month, now.day), acceptTerms: true);
     expect(s.authError, 'Email này đã có tài khoản — đăng nhập nhé.');
   });
 

@@ -129,9 +129,11 @@ func TestAuthEmail(t *testing.T) {
 
 	// register
 	status, env := do(t, http.MethodPost, "/api/v1/auth/register", "", map[string]any{
-		"email":    email,
-		"password": password,
-		"name":     "Smoke Test",
+		"email":        email,
+		"password":     password,
+		"name":         "Smoke Test",
+		"birth_date":   time.Now().AddDate(-25, 0, 0).Format("2006-01-02"),
+		"accept_terms": true,
 	})
 	assertStatus(t, status,http.StatusCreated)
 	var reg struct {
@@ -151,6 +153,7 @@ func TestAuthEmail(t *testing.T) {
 	// register again → 409
 	status, _ = do(t, http.MethodPost, "/api/v1/auth/register", "", map[string]any{
 		"email": email, "password": password, "name": "Dup",
+		"birth_date": time.Now().AddDate(-25, 0, 0).Format("2006-01-02"), "accept_terms": true,
 	})
 	assertStatus(t, status,http.StatusConflict)
 

@@ -117,12 +117,21 @@ class AuthService {
   Future<Map<String, dynamic>> register(
     String email,
     String password,
-    String name,
-  ) async {
+    String name, {
+    required DateTime birthDate,
+    required bool acceptTerms,
+  }) async {
     final res = await _client.post(
       Uri.parse('$_baseUrl/api/v1/auth/register'),
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'email': email, 'password': password, 'name': name}),
+      body: jsonEncode({
+        'email': email,
+        'password': password,
+        'name': name,
+        'birth_date':
+            '${birthDate.year.toString().padLeft(4, '0')}-${birthDate.month.toString().padLeft(2, '0')}-${birthDate.day.toString().padLeft(2, '0')}',
+        'accept_terms': acceptTerms,
+      }),
     );
     if (res.statusCode != 201) throw _authError(res, 'register failed');
     final data = jsonDecode(res.body)['data'] as Map<String, dynamic>;

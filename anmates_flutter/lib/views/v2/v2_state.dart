@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../services/account_service.dart';
 import '../../services/api_client.dart';
 import '../../services/auth_service.dart';
 import '../../services/booking_service.dart';
@@ -21,7 +22,7 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, auth, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues }
+enum V2Screen { onb, auth, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues, terms, privacy, verifyEmail, admin }
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
@@ -144,6 +145,12 @@ class V2State extends ChangeNotifier {
 
   /// My vibe/spend preferences (Me edit sheet); null until loaded.
   MatchPrefs? _prefs;
+  AccountStatus? _account;
+  bool _verifyBusy = false;
+  String? _verifyMessage;
+  bool _deckNeedsVerify = false;
+  List<AdminReport> _adminReports = const [];
+  bool _adminLoading = false;
 
   /// In-app notifications (DB-trigger fed); polled every 30 s while signed in.
   List<AppNotification> _notifs = const [];
@@ -303,6 +310,15 @@ class V2State extends ChangeNotifier {
   List<BlockedUser> get blocked => _blocked;
   String get profileBio => _profileBio ?? '';
   MatchPrefs? get prefs => _prefs;
+  AccountStatus? get account => _account;
+  bool get isAdmin => _account?.isAdmin ?? false;
+  /// Email account that has not confirmed its email: it can't swipe or be seen yet.
+  bool get needsEmailVerify => _account != null && _account!.email != null && !_account!.emailVerified;
+  bool get verifyBusy => _verifyBusy;
+  String? get verifyMessage => _verifyMessage;
+  bool get deckNeedsVerify => _deckNeedsVerify;
+  List<AdminReport> get adminReports => _adminReports;
+  bool get adminLoading => _adminLoading;
   List<AppNotification> get notifications => _notifs;
   int get unreadCount => _unread;
   TrustScore? get trust => _trust;
@@ -462,7 +478,7 @@ class V2State extends ChangeNotifier {
   /// The design hides the bottom nav on the screens that own their full height.
   bool get showNav => const {
         V2Screen.home, V2Screen.swipe, V2Screen.inbox, V2Screen.chat, V2Screen.bill,
-        V2Screen.me, V2Screen.local, V2Screen.rate, V2Screen.trust,
+        V2Screen.me, V2Screen.local, V2Screen.rate, V2Screen.trust, V2Screen.admin,
       }.contains(_screen);
 
   /// Flows B–D run the aurora 30% softer so cards and glass read cleanly.
@@ -622,6 +638,7 @@ class V2State extends ChangeNotifier {
     }
     if (s == V2Screen.trust) unawaited(loadTrust());
     if (s == V2Screen.local) unawaited(loadLocals());
+    if (s == V2Screen.admin) unawaited(loadAdminReports());
 
     // Re-establish the live socket when coming back to chat (e.g. from the
     // booking screen) for the same match — go() itself must stay synchronous,
@@ -655,9 +672,20 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Whole years lived so far — the 18+ gate counts birthdays, not months.
+  int _ageInYears(DateTime born) {
+    final now = DateTime.now();
+    var age = now.year - born.year;
+    if (now.month < born.month ||
+        (now.month == born.month && now.day < born.day)) {
+      age--;
+    }
+    return age;
+  }
+
   /// Signs in, or signs up in register mode. Checks what the API would reject
   /// first, so the common mistakes get a message without a round trip.
-  Future<void> submitAuth({required String email, required String password, String name = ''}) async {
+  Future<void> submitAuth({required String email, required String password, String name = '', DateTime? birthDate, bool acceptTerms = false}) async {
     if (_authBusy) return;
     final e = email.trim();
     String? problem;
@@ -668,6 +696,14 @@ class V2State extends ChangeNotifier {
     } else if (_authRegister && password.length < minPasswordLength) {
       problem = t('Mật khẩu cần ít nhất $minPasswordLength ký tự.',
           'Password needs at least $minPasswordLength characters.');
+    } else if (_authRegister && birthDate == null) {
+      problem = t('Chọn ngày sinh của bạn nhé.', 'Please pick your date of birth.');
+    } else if (_authRegister && _ageInYears(birthDate!) < 18) {
+      problem = t('ĂnMates chỉ dành cho người từ 18 tuổi trở lên.',
+          'ĂnMates is only for people aged 18 and over.');
+    } else if (_authRegister && !acceptTerms) {
+      problem = t('Bạn cần đồng ý Điều khoản và Chính sách quyền riêng tư.',
+          'Please accept the Terms and the Privacy Policy.');
     } else if (password.isEmpty) {
       problem = t('Nhập mật khẩu nhé.', 'Please enter your password.');
     }
@@ -682,23 +718,32 @@ class V2State extends ChangeNotifier {
     notifyListeners();
     try {
       if (_authRegister) {
-        await AuthService().register(e, password, name.trim());
+        await AuthService().register(e, password, name.trim(),
+            birthDate: birthDate!, acceptTerms: acceptTerms);
       } else {
         await AuthService().login(e, password);
       }
       _myUserId = null;
       await loadProfile();
       if (!_onboardingDone) await _syncOnboarding();
+      await loadAccountStatus();
       _authBusy = false;
-      go(_authThen);
+      if (needsEmailVerify) {
+        go(V2Screen.verifyEmail);
+        unawaited(requestEmailCode());
+      } else {
+        go(_authThen);
+      }
       unawaited(loadCandidates());
       return;
     } on AuthException catch (err) {
       _authError = switch (err.statusCode) {
         401 => t('Sai email hoặc mật khẩu.', 'Wrong email or password.'),
         409 => t('Email này đã có tài khoản — đăng nhập nhé.', 'That email already has an account — sign in instead.'),
-        400 => t('Cần tên, email hợp lệ và mật khẩu từ $minPasswordLength ký tự.',
-            'Name, a valid email and a $minPasswordLength+ character password are required.'),
+        403 => t('Tài khoản đang tạm khoá do bị báo cáo. Liên hệ anmates.studio@gmail.com.',
+            'This account is suspended after reports. Contact anmates.studio@gmail.com.'),
+        400 => t('Kiểm tra lại tên, email, mật khẩu (từ $minPasswordLength ký tự) và ngày sinh.',
+            'Check your name, email, password ($minPasswordLength+ characters) and date of birth.'),
         _ => t('Máy chủ lỗi (HTTP ${err.statusCode}), thử lại nhé.', 'Server error (HTTP ${err.statusCode}) — try again.'),
       };
     } catch (_) {
@@ -718,6 +763,8 @@ class V2State extends ChangeNotifier {
     _disconnectChat();
     _myUserId = null;
     _profileName = null;
+    _account = null;
+    _deckNeedsVerify = false;
     _notifs = const [];
     _unread = 0;
     _conversations = const [];
@@ -1509,6 +1556,91 @@ class V2State extends ChangeNotifier {
     }
   }
 
+  /// Refreshes the account's verification / suspension / admin flags.
+  Future<void> loadAccountStatus() async {
+    try {
+      _account = await AccountService().status();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Emails a fresh verification code.
+  Future<void> requestEmailCode() async {
+    _verifyBusy = true;
+    _verifyMessage = null;
+    notifyListeners();
+    try {
+      await AccountService().requestEmailCode();
+      _verifyMessage = t('Đã gửi mã tới ${_account?.email ?? 'email của bạn'}.', 'Code sent to ${_account?.email ?? 'your email'}.');
+    } on ApiException catch (e) {
+      _verifyMessage = e.statusCode == 429
+          ? t('Đợi một chút rồi gửi lại nhé.', 'Please wait a moment before resending.')
+          : t('Không gửi được mã (HTTP ${e.statusCode}).', 'Could not send the code (HTTP ${e.statusCode}).');
+    } catch (_) {
+      _verifyMessage = t('Không kết nối được, thử lại nhé.', "Couldn't connect — try again.");
+    } finally {
+      _verifyBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Confirms the emailed code. True when the email is now verified.
+  Future<bool> confirmEmailCode(String code) async {
+    final c = code.trim();
+    if (c.length < 4) {
+      _verifyMessage = t('Nhập mã 6 số trong email nhé.', 'Enter the 6-digit code from the email.');
+      notifyListeners();
+      return false;
+    }
+    _verifyBusy = true;
+    _verifyMessage = null;
+    notifyListeners();
+    try {
+      await AccountService().confirmEmailCode(c);
+      await loadAccountStatus();
+      _deckNeedsVerify = false;
+      unawaited(loadCandidates(force: true));
+      return true;
+    } on ApiException catch (e) {
+      _verifyMessage = e.statusCode == 401
+          ? t('Mã sai hoặc đã hết hạn.', 'Wrong or expired code.')
+          : t('Không xác minh được (HTTP ${e.statusCode}).', 'Could not verify (HTTP ${e.statusCode}).');
+      return false;
+    } catch (_) {
+      _verifyMessage = t('Không kết nối được, thử lại nhé.', "Couldn't connect — try again.");
+      return false;
+    } finally {
+      _verifyBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Admin: loads the open report queue.
+  Future<void> loadAdminReports() async {
+    _adminLoading = true;
+    notifyListeners();
+    try {
+      _adminReports = await AccountService().adminReports();
+    } catch (_) {
+      _adminReports = const [];
+    } finally {
+      _adminLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Admin: dismiss a report, or suspend the reported account. True when done.
+  Future<bool> resolveReport(String id, {required bool suspend}) async {
+    try {
+      await AccountService().resolveReport(id, suspend ? 'suspend' : 'dismiss');
+    } catch (_) {
+      return false;
+    }
+    _adminReports = _adminReports.where((r) => r.id != id).toList();
+    notifyListeners();
+    return true;
+  }
+
   /// Unblocks one person and drops them from the list.
   Future<bool> unblockUser(String userId) async {
     try {
@@ -1802,6 +1934,7 @@ class V2State extends ChangeNotifier {
 
     try {
       _allCandidates = await MatchService().getCandidates();
+      _deckNeedsVerify = false;
       _candidates = _filtered(_allCandidates);
       _startDeck(samples: _allCandidates.isEmpty);
     } on ApiException catch (e) {
@@ -1810,6 +1943,12 @@ class V2State extends ChangeNotifier {
         // nudge to sign in — rather than an error screen.
         _candidates = const [];
         _startDeck(samples: true, signedOut: true);
+      } else if (e.statusCode == 403) {
+        // Unverified email or suspended account: explain it on the deck instead of an error.
+        _deckNeedsVerify = !e.message.toLowerCase().contains('suspend');
+        _candidates = const [];
+        _allCandidates = const [];
+        _startDeck(samples: true);
       } else {
         _candidatesError = 'HTTP ${e.statusCode}';
       }
@@ -1831,6 +1970,7 @@ class V2State extends ChangeNotifier {
       notifyListeners();
       unawaited(loadStats());
       unawaited(loadPrefs());
+      unawaited(loadAccountStatus());
       unawaited(loadNotifications());
     } catch (_) {
       // The header falls back to blank rather than a fake name.

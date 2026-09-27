@@ -24,6 +24,9 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | Local Mates | placeholder | `GET /locals`: ≤5 km, ≥1 real meal, invite = like (round 3) |
 | Chat photos | text only | attach button → Firebase Storage → `image` message + bubble (round 3) |
 | Match filter distance + areas | no distance; 11+ area chips always shown | "Match filter": 0–200 km radius (unknown location kept); areas collapsed to 6 + "Thêm", diacritic-insensitive search |
+| Legal + 18+ | no terms/privacy, no age check | Terms + Privacy screens (Decree 13/2023), sign-up needs birth date (18+) and consent, stored server-side (round 4) |
+| Report handling | reports stored, never reviewed | auto-suspend after 3 distinct reporters / 30 days; admin queue (dismiss / suspend / unsuspend) (round 4) |
+| Fake accounts | any email could sign up and swipe | email accounts verify a 6-digit code before swiping/booking/locals and stay hidden until then; old accounts grandfathered (round 4) |
 | Pay tiers, bill split OCR, push | placeholders | NOT built — need a payment merchant, an OCR service, FCM server keys |
 
 ## Journeys
@@ -44,6 +47,11 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | E2E-18 | Trust Score | fresh; +meal; +5★; 2 no-show reports by 1 person + 1 harassment | 80 → 84 → 86 → 56; partner 84 | Auto |
 | E2E-19 | History | fresh; confirmed booking + rating with note | empty → 1 visit (venue, partner) + 1 review (stars, note, venue) | Auto |
 | E2E-21 | Candidate distance | A, B ~10 km, C without location, same unique tastes | B `distance_km` ≈ 10; C `null`; both in A's deck | Auto |
+| E2E-22 | Sign-up consent + age | missing/false terms, missing/bad/17-year birth date; valid | 400 ×5; 201 with terms_accepted, unverified | Auto |
+| E2E-23 | Email verification gate | unverified: deck/locals/swipe; wrong code; right code (planted hash) | 403 `EMAIL_UNVERIFIED`; profile still 200; 401; verified → 200 | Auto |
+| E2E-24 | Unverified hidden | unverified user with shared tastes; verify | not in viewer's deck → appears | Auto |
+| E2E-25 | Auto-suspend | 2 then 3 distinct reporters | not suspended at 2; at 3: 403 `ACCOUNT_SUSPENDED`, hidden from decks | Auto |
+| E2E-26 | Admin queue | non-admin; list; bad action; dismiss; suspend; unsuspend | 403; both reports with names/note; 400; resolved & gone from queue; right account suspended/unsuspended | Auto |
 | E2E-20 | Local Mates | no location; near ×2 with meals, far, near without meal; block | [] → only the 2 near with meals, nearest first ~1.1 km; blocked disappears | Auto |
 
 ## UI checks
@@ -70,4 +78,8 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | UI-17 | Local Mates (NEW) | Explore → "Tìm Local Mates" → "Mời đi ăn" | nearby local listed; toast; like row in DB — **Auto-UI3** |
 | UI-18 | Delete account (NEW) | Me → Xoá tài khoản → Xoá | user row gone — **Auto-UI3** |
 | UI-19 | Match filter (NEW) | title; drag radius to ~20 km / ~5 km; Đặt lại; "+ Thêm" / "Thu gọn"; search "thu duc"; nonsense search | "Match filter"; counts 3 → 2 → 1 → 3; 6 chips + "+ Thêm (5)"; finds "Thủ Đức" only; no-match text — **Auto** `tool/e2e/ui_match_radius.js` |
+| UI-20 | Sign-up (NEW) | fill form + birth date, submit without consent; open Terms and close; tick; submit | blocked + no DB row; Terms sheet over the form; form kept; account with birth date + consent — **Auto** `tool/e2e/ui_trust_round4.js` |
+| UI-21 | Verify email (NEW) | verify screen after sign-up; wrong code; right code | code auto-requested; error; `email_verified_at` set — **Auto** |
+| UI-22 | Legal pages (NEW) | Me → Quyền riêng tư; Terms | Decree 13 section; 18+ rule — **Auto** |
+| UI-23 | Admin (NEW) | admin → Me → Quản trị báo cáo → Khoá tài khoản → Khoá | report listed; account suspended; item leaves queue — **Auto** |
 | UI-10 | Every screen | 360×640 and 402×874 viewports, VI and EN | no overflow stripes, no untranslated string |

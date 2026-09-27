@@ -143,6 +143,25 @@ class MeScreen extends StatelessWidget {
                           style: AppTextV2.cta().copyWith(fontSize: 13.5)),
                     ),
                   ),
+                if (s.signedIn && s.needsEmailVerify) ...[
+                  const SizedBox(height: 9),
+                  V2TapTarget(
+                    key: const Key('me-verify'),
+                    onTap: () => s.go(V2Screen.verifyEmail),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColorsV2.wisteriaTint,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Text(
+                        s.t('Xác minh email để bắt đầu quẹt và hẹn ăn ›',
+                            'Verify your email to start swiping and booking ›'),
+                        style: AppTextV2.name(color: AppColorsV2.wisteria, size: 13),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 9),
                 if (s.myPrefLabels.isNotEmpty)
                   Wrap(
@@ -261,6 +280,19 @@ class MeScreen extends StatelessWidget {
                       _UpgradeCard(s: s),
                       if (s.signedIn) ...[
                         const SizedBox(height: 22),
+                        if (s.isAdmin)
+                          Center(
+                            child: V2TapTarget(
+                              key: const Key('me-admin'),
+                              onTap: () => s.go(V2Screen.admin),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                child: Text(s.t('Quản trị báo cáo ›', 'Review reports ›'),
+                                    style: AppTextV2.name(
+                                        color: AppColorsV2.wisteria, size: 13.5)),
+                              ),
+                            ),
+                          ),
                         Center(
                           child: V2TapTarget(
                             key: const Key('me-delete-account'),
@@ -274,6 +306,32 @@ class MeScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 22),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          V2TapTarget(
+                            key: const Key('me-terms'),
+                            onTap: () => s.go(V2Screen.terms),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: Text(s.t('Điều khoản', 'Terms'),
+                                  style: AppTextV2.meta()),
+                            ),
+                          ),
+                          const Text(' · ',
+                              style: TextStyle(fontSize: 12, color: Color(0x9910366E))),
+                          V2TapTarget(
+                            key: const Key('me-privacy'),
+                            onTap: () => s.go(V2Screen.privacy),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              child: Text(s.t('Quyền riêng tư', 'Privacy'),
+                                  style: AppTextV2.meta()),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

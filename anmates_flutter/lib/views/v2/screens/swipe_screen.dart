@@ -185,6 +185,25 @@ class _DeckState extends State<_Deck> with SingleTickerProviderStateMixin {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _Header(s: s),
+        if (s.deckNeedsVerify) ...[
+          const SizedBox(height: 10),
+          V2TapTarget(
+            key: const Key('deck-verify'),
+            onTap: () => s.go(V2Screen.verifyEmail),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColorsV2.wisteriaTint,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Text(
+                s.t('Xác minh email để thấy người thật quanh bạn ›',
+                    'Verify your email to see real people near you ›'),
+                style: AppTextV2.name(color: AppColorsV2.wisteria, size: 13),
+              ),
+            ),
+          ),
+        ],
         if (s.isSampleDeck) ...[
           const SizedBox(height: 10),
           _Banner(

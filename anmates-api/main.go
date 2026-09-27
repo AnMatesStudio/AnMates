@@ -165,6 +165,7 @@ func run(log *slog.Logger) error {
 	mealSvc := services.NewMealService(pool)
 	extrasSvc := services.NewProfileExtrasService(pool)
 	notifSvc := services.NewNotificationService(pool)
+	accountSvc := services.NewAccountService(pool)
 
 	// One engine over the `restaurants` table, shared by the venue catalogue,
 	// the free-text /venues/search route and (optionally) the concierge.
@@ -203,6 +204,9 @@ func run(log *slog.Logger) error {
 	}
 
 	authH := handlers.NewAuth(authSvc, cfg.DevBypassSecret)
+	authH.SetAccounts(accountSvc, authSvc.EmailOTPEnabled())
+	accountH := handlers.NewAccount(accountSvc, authSvc)
+	gate := middleware.AccountGate(accountSvc)
 	userH := handlers.NewUser(userSvc)
 	wlH := handlers.NewWishlist(wlSvc)
 	matchH := handlers.NewMatching(matchSvc)
@@ -290,8 +294,8 @@ func run(log *slog.Logger) error {
 	auth.Post("/wishlist", wlH.Create)
 	auth.Delete("/wishlist/:id", wlH.Delete)
 
-	auth.Get("/matches", matchH.List)
-	auth.Post("/swipes", matchH.Swipe)
+	auth.Get("/matches", gate, matchH.List)
+	auth.Post("/swipes", gate, matchH.Swipe)
 	auth.Post("/swipes/undo", matchH.Undo)
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
@@ -303,7 +307,7 @@ func run(log *slog.Logger) error {
 	auth.Get("/matches/:id/progress", noiH.Get)
 
 	// First Date booking: one member proposes a venue+time, the other confirms.
-	auth.Post("/matches/:id/booking", bookingH.Propose)
+	auth.Post("/matches/:id/booking", gate, bookingH.Propose)
 	auth.Get("/matches/:id/booking", bookingH.Get)
 	auth.Post("/matches/:id/booking/confirm", bookingH.Confirm)
 	auth.Post("/matches/:id/booking/cancel", bookingH.Cancel)
@@ -326,11 +330,22 @@ func run(log *slog.Logger) error {
 	auth.Delete("/profile", extrasH.DeleteAccount)
 	auth.Get("/profile/trust", extrasH.Trust)
 	auth.Get("/profile/history", extrasH.History)
-	auth.Get("/locals", extrasH.Locals)
+	auth.Get("/locals", gate, extrasH.Locals)
 
 	// In-app notifications (rows written by DB triggers, migration 019).
 	auth.Get("/notifications", notifH.List)
 	auth.Post("/notifications/read", notifH.MarkAllRead)
+
+	// Account: status, email verification (codes via the existing email OTP sender).
+	auth.Get("/account/status", accountH.Status)
+	auth.Post("/account/verify-email/request", accountH.RequestVerify)
+	auth.Post("/account/verify-email", accountH.ConfirmVerify)
+
+	// Admin report queue (users.is_admin).
+	admin := auth.Group("/admin", middleware.AdminOnly(accountSvc))
+	admin.Get("/reports", accountH.ListReports)
+	admin.Post("/reports/:id/resolve", accountH.ResolveReport)
+	admin.Post("/users/:id/unsuspend", accountH.Unsuspend)
 
 	// On-demand venue re-suggest with a chosen anchor (midpoint | me | mate).
 	// Only when the concierge is enabled; returns a card without posting to chat.
