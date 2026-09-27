@@ -70,3 +70,17 @@ badge máy ảnh) → màn **"Ảnh đại diện"** (`V2Screen.avatar`):
 - Ảnh chat qua Firebase Storage (412) — xem trên.
 - Ảnh đã tải lên vẫn giữ trong `user_avatars` khi chuyển sang ảnh có sẵn; UI chưa có ô "ảnh đã tải" để quay lại.
 - Rate limiter per-IP 0.5 rps/burst 5 phủ cả `/api/v1` (kể cả ảnh) — prod chưa thấy 429, nên kiểm cấu hình.
+
+## Bổ sung (cùng ngày) — xem ảnh đại diện full size, chỉ với ảnh upload
+- User yêu cầu. `isUploadedAvatar(url)` (v2_kit) = avatar_url trỏ tới ảnh (upload trên API hoặc URL cũ),
+  không phải `asset:`/null.
+- Màn "Ảnh đại diện": preview có badge phóng to + nút "Xem ảnh đại diện" **chỉ khi preview là ảnh upload**;
+  bấm → viewer full màn hình. Chọn ảnh có sẵn trong lưới → preview thành ảnh minh hoạ → hết xem được.
+- Header chat: avatar đối phương là ảnh upload → bấm để xem full size ("Xem ảnh của <tên>").
+- Viewer: tách `_PhotoViewer` của màn chi tiết quán thành `lib/widgets/v2/photo_viewer.dart`
+  (`showPhotoViewer`, `PhotoViewer`, `PhotoDots`, `DragScrollBehavior`) — dùng chung cho ảnh quán + avatar
+  (chụm/cuộn chuột/double-tap zoom, X hoặc bấm ra ngoài để đóng). Nút X có key `photo-viewer-close` + nhãn Close.
+- "Full size" = ảnh đã lưu (crop 512×512); ảnh gốc trước crop không được giữ.
+- Test: 4 widget test mới (+2 mutation bị bắt), full 1493/1493; UI thật local 13/13 (`ui_avatar.js` thêm bước UI-26).
+- Semantics trong widget test sau cross-fade không ổn định (getSemantics trả node route) → test kiểm badge/viewer,
+  nhãn a11y kiểm ở Playwright.

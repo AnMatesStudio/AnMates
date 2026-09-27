@@ -1,6 +1,6 @@
-// Real-app UI e2e (docs/e2e-test-cases.md UI-25): Me → avatar → pick an illustration → saved; then upload a
-// photo → drag + zoom in the crop → "Dùng ảnh này" → stored on our API as a 512×512 JPEG, shown on Me, on the
-// Explore header and on a partner's Quẹt card.
+// Real-app UI e2e (docs/e2e-test-cases.md UI-25, UI-26): Me → avatar → pick an illustration → saved; then upload
+// a photo → drag + zoom in the crop → "Dùng ảnh này" → stored on our API as a 512×512 JPEG, shown on Me, on the
+// Explore header and on a partner's Quẹt card; the uploaded photo (only) opens full size.
 // Needs the API with DEV_MODE + DEV_BYPASS_SECRET + DISABLE_RATE_LIMIT (see ui_flows.js) and a web build with
 // V2_DEBUG_NAV pointed at it:
 //   flutter build web --dart-define=API_BASE_URL=$API_ORIGIN --dart-define=V2_DEBUG_NAV=true
@@ -116,6 +116,20 @@ const avatarOf = async (u) => (await call('GET', '/profile', u.token)).data.avat
     check('served as a 512×512 JPEG', img.status === 200 && img.headers.get('content-type') === 'image/jpeg' && w === 512 && h === 512, `${img.status} ${w}x${h}`);
     await shot('7-me-photo');
     check('back on Me with a toast', (await vis('Quán bạn đã đi')) && (await vis('Đã cập nhật ảnh đại diện')));
+
+    // ── Full size: the uploaded photo opens, an illustration doesn't ──
+    await clickBox(page.getByRole('button', { name: 'Đổi ảnh đại diện' }));
+    check('uploaded photo offers "Xem ảnh đại diện"', await page.getByRole('button', { name: 'Xem ảnh đại diện' }).first().isVisible().catch(() => false));
+    await clickBox(page.getByRole('button', { name: 'Xem ảnh đại diện' }));
+    await page.waitForTimeout(1200);
+    await shot('7b-full-size');
+    const closeBtn = page.getByRole('button', { name: 'Close' });
+    check('full-size viewer open', await closeBtn.first().isVisible().catch(() => false));
+    await clickBox(closeBtn);
+    check('viewer closed', !(await closeBtn.first().isVisible().catch(() => false)));
+    await clickBox(page.getByRole('button', { name: 'Ảnh có sẵn 2' }));
+    check('an illustration has no full-size view', !(await page.getByRole('button', { name: 'Xem ảnh đại diện' }).first().isVisible().catch(() => false)));
+    await clickBox(page.getByRole('button', { name: /^‹$|Back/ }).or(page.getByText('‹', { exact: true })));
 
     await page.goto(APP + '?v2screen=home');
     await page.waitForTimeout(4000);

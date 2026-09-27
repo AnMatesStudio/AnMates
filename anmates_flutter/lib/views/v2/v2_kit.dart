@@ -265,6 +265,10 @@ class V2Eyebrow extends StatelessWidget {
   return (network: ApiClient.mediaUrl(url), asset: null);
 }
 
+/// Whether [url] is a photo someone uploaded (as opposed to a bundled sample or
+/// nothing) — only those open full size.
+bool isUploadedAvatar(String? url) => avatarSourceOf(url).network != null;
+
 /// My own avatar, round: the photo I uploaded or the sample I picked, else the
 /// app's default chibi — also when the photo fails to load.
 class AvatarImage extends StatelessWidget {

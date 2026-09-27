@@ -7,6 +7,7 @@ import 'package:anmates/views/v2/v2_app.dart';
 import 'package:anmates/views/v2/v2_data.dart';
 import 'package:anmates/views/v2/v2_kit.dart';
 import 'package:anmates/views/v2/v2_state.dart';
+import 'package:anmates/widgets/v2/photo_viewer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -224,6 +225,72 @@ void main() {
       await tap(tester, find.byType(V2BackButton));
       expect(s.screen, V2Screen.me);
       expect(api.puts, isEmpty);
+    });
+
+    group('full-size view (uploaded photos only)', () {
+      const uploaded = '/api/v1/users/u-me/avatar?v=abcdef012345';
+
+      Future<V2State> pumpAvatarScreen(WidgetTester tester, String? avatarUrl) async {
+        final s = await pumpMe(tester, FakeProfileApi(avatarUrl: avatarUrl));
+        await tap(tester, find.byKey(const Key('me-avatar')));
+        expect(s.screen, V2Screen.avatar);
+        return s;
+      }
+
+      testWidgets('my uploaded photo opens full screen, and closes', (tester) async {
+        await pumpAvatarScreen(tester, uploaded);
+        // The badge that says it opens (the aria-label is checked in tool/e2e/ui_avatar.js).
+        expect(find.byIcon(Icons.zoom_out_map_rounded), findsOneWidget);
+
+        await tap(tester, find.byKey(const Key('avatar-preview')));
+        final viewer = tester.widget<PhotoViewer>(find.byType(PhotoViewer));
+        expect(viewer.photos, [ApiClient.mediaUrl(uploaded)]);
+
+        await tap(tester, find.byKey(const Key('photo-viewer-close')));
+        expect(find.byType(PhotoViewer), findsNothing);
+      });
+
+      testWidgets('an illustration, or the default, has no full-size view', (tester) async {
+        for (final url in ['asset:assets/v2/avatars/sample-2.png', null]) {
+          await pumpAvatarScreen(tester, url);
+          expect(find.byIcon(Icons.zoom_out_map_rounded), findsNothing);
+          await tap(tester, find.byKey(const Key('avatar-preview')));
+          expect(find.byType(PhotoViewer), findsNothing, reason: '$url');
+        }
+      });
+
+      testWidgets('picking an illustration over my photo turns the view off', (tester) async {
+        await pumpAvatarScreen(tester, uploaded);
+        await tap(tester, find.byKey(const Key('avatar-sample-4')));
+        await tap(tester, find.byKey(const Key('avatar-preview')));
+        expect(find.byType(PhotoViewer), findsNothing);
+      });
+
+      testWidgets("a mate's uploaded photo opens full screen from the chat header", (tester) async {
+        final s = await pumpMe(tester, FakeProfileApi());
+        Mate mate(String? url) => Mate(
+              userId: 'u-lan', name: 'Lan', img: A.hotpot, match: 80,
+              overlapFoods: const ['lau'], tags: const [], avatarUrl: url,
+            );
+
+        s
+          ..go(V2Screen.swipe)
+          ..seedMatchReveal(mate(uploaded.replaceFirst('u-me', 'u-lan')), sample: true)
+          ..openMatchChat();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tap(tester, find.byKey(const Key('chat-partner-avatar')));
+        expect(tester.widget<PhotoViewer>(find.byType(PhotoViewer)).photos,
+            [ApiClient.mediaUrl('/api/v1/users/u-lan/avatar?v=abcdef012345')]);
+        await tap(tester, find.byKey(const Key('photo-viewer-close')));
+
+        s
+          ..go(V2Screen.swipe)
+          ..seedMatchReveal(mate('asset:assets/v2/avatars/sample-1.png'), sample: true)
+          ..openMatchChat();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tap(tester, find.byKey(const Key('chat-partner-avatar')));
+        expect(find.byType(PhotoViewer), findsNothing);
+      });
     });
 
     testWidgets('Explore header shows my avatar', (tester) async {

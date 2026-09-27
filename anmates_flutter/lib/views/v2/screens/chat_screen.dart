@@ -7,6 +7,7 @@ import '../../../services/safety_service.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import '../../../widgets/v2/photo_viewer.dart';
 import '../v2_chat_format.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -88,7 +89,19 @@ class _Header extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            SizedBox(
+            // An uploaded photo opens full size; an illustration or initials don't.
+            Semantics(
+              container: true,
+              button: isUploadedAvatar(s.chatPartner.avatarUrl),
+              label: isUploadedAvatar(s.chatPartner.avatarUrl)
+                  ? s.t('Xem ảnh của ${s.chatPartner.name}', "View ${s.chatPartner.name}'s photo")
+                  : null,
+              child: GestureDetector(
+              key: const Key('chat-partner-avatar'),
+              onTap: isUploadedAvatar(s.chatPartner.avatarUrl)
+                  ? () => showPhotoViewer(context, [avatarSourceOf(s.chatPartner.avatarUrl).network!])
+                  : null,
+              child: SizedBox(
               width: 40, height: 40,
               child: Stack(clipBehavior: Clip.none, children: [
                 MateAvatar(
@@ -113,6 +126,8 @@ class _Header extends StatelessWidget {
                     ),
                   ),
               ]),
+              ),
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(

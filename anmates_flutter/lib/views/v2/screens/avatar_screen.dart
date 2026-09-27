@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../theme/app_theme_v2.dart';
 import '../../../widgets/v2/avatar_cropper.dart';
 import '../../../widgets/v2/filter_parts.dart';
+import '../../../widgets/v2/photo_viewer.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
@@ -172,24 +173,54 @@ class _AvatarScreenState extends State<AvatarScreen> {
 
   List<Widget> _chooser(V2State s) {
     final preview = _picked != null ? 'asset:$_picked' : s.myAvatarUrl;
+    // Only an uploaded photo opens full size; an illustration is all there is.
+    final viewable = isUploadedAvatar(preview);
     return [
       Center(
-        child: Container(
-          width: 132,
-          height: 132,
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF0A285A).withValues(alpha: 0.2),
-                blurRadius: 26,
-                offset: const Offset(0, 12),
+        child: Semantics(
+          container: true,
+          button: viewable,
+          label: viewable ? s.t('Xem ảnh đại diện', 'View profile photo') : null,
+          child: GestureDetector(
+            key: const Key('avatar-preview'),
+            onTap: viewable
+                ? () => showPhotoViewer(context, [avatarSourceOf(preview).network!])
+                : null,
+            child: Stack(clipBehavior: Clip.none, children: [
+              Container(
+                width: 132,
+                height: 132,
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0A285A).withValues(alpha: 0.2),
+                      blurRadius: 26,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: AvatarImage(url: preview),
               ),
-            ],
+              if (viewable)
+                Positioned(
+                  right: 4,
+                  bottom: 6,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: AppColorsV2.ink.withValues(alpha: 0.72),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: const Icon(Icons.zoom_out_map_rounded, size: 15, color: Colors.white),
+                  ),
+                ),
+            ]),
           ),
-          child: AvatarImage(url: preview),
         ),
       ),
       const SizedBox(height: 18),
