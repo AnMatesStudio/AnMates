@@ -96,6 +96,26 @@ void main() {
     expect((await SharedPreferences.getInstance()).getString('access_token'), 'acc');
   });
 
+  testWidgets('signed out, no Tôi tab and no avatar; signing in brings both back', (tester) async {
+    serveAuthApi();
+    final s = await pumpApp(tester, V2Screen.home);
+    await settle(tester);
+    expect(find.text('Tôi'), findsNothing);
+    expect(find.byKey(const Key('home-avatar')), findsNothing);
+    expect(find.text('Tin nhắn'), findsOneWidget);
+
+    s.openAuth();
+    await s.submitAuth(email: 'huy@mail.com', password: 'matkhau1234');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(s.screen, V2Screen.home);
+    expect(find.text('Tôi'), findsOneWidget);
+    expect(find.byKey(const Key('home-avatar')), findsOneWidget);
+
+    await s.signOut();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Tôi'), findsNothing);
+  });
+
   testWidgets('a short password is caught before any request', (tester) async {
     final calls = serveAuthApi();
     final s = await pumpApp(tester, V2Screen.onb);

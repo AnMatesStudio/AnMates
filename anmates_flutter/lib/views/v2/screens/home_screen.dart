@@ -131,7 +131,10 @@ class _Header extends StatelessWidget {
       ),
       const SizedBox(width: 6),
       _NotifButton(s: s),
+      // Signed out there is no account to open.
+      if (s.signedIn)
       V2TapTarget(
+        key: const Key('home-avatar'),
         onTap: () => s.go(V2Screen.me),
         child: Container(
           padding: const EdgeInsets.all(2),

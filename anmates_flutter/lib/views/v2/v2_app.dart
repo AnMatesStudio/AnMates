@@ -94,6 +94,7 @@ class V2AppBody extends StatelessWidget {
                 child: SafeArea(
                   top: false,
                   child: GlassNavBar(
+                    showMe: s.signedIn,
                     en: s.en,
                     current: _tabFor(s.screen),
                     onSelect: (tab) => s.go(switch (tab) {

@@ -17,8 +17,11 @@ class GlassNavBar extends StatelessWidget {
     required this.current,
     required this.onSelect,
     required this.en,
+    this.showMe = true,
   });
 
+  /// The Tôi tab is an account's page; signed out there is none to show.
+  final bool showMe;
   final NavTab current;
   final ValueChanged<NavTab> onSelect;
   final bool en;
@@ -62,6 +65,7 @@ class GlassNavBar extends StatelessWidget {
               child: Row(
                 children: [
                   for (final (tab, label) in _items)
+                    if (showMe || tab != NavTab.me)
                     Expanded(
                       child: _NavItem(
                         tab: tab,
