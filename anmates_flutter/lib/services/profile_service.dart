@@ -51,6 +51,18 @@ class ProfileService {
     return (data as Map).cast<String, dynamic>();
   }
 
+  /// PATCH /profile/preferences — food + vibe tags; also marks onboarding done,
+  /// which is what puts this account into other people's swipe decks.
+  Future<void> updatePreferences(List<String> foodTags, List<String> vibeTags) async {
+    await ApiClient().patch('/api/v1/profile/preferences',
+        body: {'food_tags': foodTags, 'vibe_tags': vibeTags});
+  }
+
+  /// PUT /profile — display name and bio from the Me screen's edit sheet.
+  Future<void> updateProfile({required String name, required String bio}) async {
+    await ApiClient().put('/api/v1/profile', body: {'name': name, 'bio': bio});
+  }
+
   String _formatDate(DateTime d) {
     final mm = d.month.toString().padLeft(2, '0');
     final dd = d.day.toString().padLeft(2, '0');

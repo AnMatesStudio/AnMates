@@ -161,6 +161,10 @@ func run(log *slog.Logger) error {
 	noiSvc := services.NewNoiLauService(pool)
 	locSvc := services.NewLocationService(pool)
 	bookingSvc := services.NewBookingService(pool)
+	safetySvc := services.NewSafetyService(pool)
+	mealSvc := services.NewMealService(pool)
+	extrasSvc := services.NewProfileExtrasService(pool)
+	notifSvc := services.NewNotificationService(pool)
 
 	// One engine over the `restaurants` table, shared by the venue catalogue,
 	// the free-text /venues/search route and (optionally) the concierge.
@@ -216,6 +220,10 @@ func run(log *slog.Logger) error {
 	noiH := handlers.NewNoiLau(noiSvc)
 	locH := handlers.NewLocation(locSvc)
 	bookingH := handlers.NewBooking(bookingSvc)
+	safetyH := handlers.NewSafety(safetySvc)
+	mealsH := handlers.NewMeals(mealSvc)
+	extrasH := handlers.NewProfileExtras(extrasSvc)
+	notifH := handlers.NewNotifications(notifSvc)
 	jwtMW := middleware.JWT(cfg.JWTSecret)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -299,6 +307,30 @@ func run(log *slog.Logger) error {
 	auth.Get("/matches/:id/booking", bookingH.Get)
 	auth.Post("/matches/:id/booking/confirm", bookingH.Confirm)
 	auth.Post("/matches/:id/booking/cancel", bookingH.Cancel)
+
+	// Safety: unmatch, block, report — every meet-a-stranger app needs these.
+	auth.Delete("/matches/:id", safetyH.Unmatch)
+	auth.Get("/blocks", safetyH.ListBlocked)
+	auth.Post("/blocks", safetyH.Block)
+	auth.Delete("/blocks/:userId", safetyH.Unblock)
+	auth.Post("/reports", safetyH.Report)
+
+	// Meal rating (private until both rate) and the Me screen's real numbers.
+	auth.Post("/matches/:id/rating", mealsH.SubmitRating)
+	auth.Get("/matches/:id/rating", mealsH.GetRating)
+	auth.Get("/profile/stats", mealsH.Stats)
+
+	// Match preferences (filters), account deletion, Trust Score, meal history, Local Mates.
+	auth.Get("/profile/match-prefs", extrasH.GetMatchPrefs)
+	auth.Patch("/profile/match-prefs", extrasH.SetMatchPrefs)
+	auth.Delete("/profile", extrasH.DeleteAccount)
+	auth.Get("/profile/trust", extrasH.Trust)
+	auth.Get("/profile/history", extrasH.History)
+	auth.Get("/locals", extrasH.Locals)
+
+	// In-app notifications (rows written by DB triggers, migration 019).
+	auth.Get("/notifications", notifH.List)
+	auth.Post("/notifications/read", notifH.MarkAllRead)
 
 	// On-demand venue re-suggest with a chosen anchor (midpoint | me | mate).
 	// Only when the concierge is enabled; returns a card without posting to chat.

@@ -100,6 +100,10 @@ type MatchCandidate struct {
 	OverlapCount int      `json:"overlap_count"`
 	OverlapFoods []string `json:"overlap_foods"`
 	Score        float64  `json:"score"`
+	// District from the candidate's last saved location, and their spend tier
+	// (0..3) — nil when never set; the app's filters keep unknowns.
+	District  *string `json:"district"`
+	PriceTier *int16  `json:"price_tier"`
 }
 
 // Conversation is what GET /api/conversations returns — accepted matches with partner info.

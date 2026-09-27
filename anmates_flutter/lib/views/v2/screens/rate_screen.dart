@@ -145,6 +145,17 @@ class RateScreen extends StatelessWidget {
                   height: 54, radius: 20, fontSize: 15.5,
                   onTap: s.submitRate,
                 ),
+                if (s.partnerRatingLine != null) ...[
+                  const SizedBox(height: 12),
+                  Center(
+                    child: Text(
+                      s.partnerRatingLine!,
+                      key: const Key('rate-partner-line'),
+                      textAlign: TextAlign.center,
+                      style: AppTextV2.name(color: AppColorsV2.wisteria, size: 14),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../services/api_client.dart';
@@ -11,6 +12,9 @@ import '../../services/chat_socket.dart';
 import '../../services/location_service.dart';
 import '../../services/match_service.dart';
 import '../../services/profile_service.dart';
+import '../../services/extras_service.dart';
+import '../../services/safety_service.dart';
+import '../../services/storage_service.dart';
 import '../../services/venue_catalog_service.dart';
 import 'v2_data.dart';
 import 'v2_mate_mapper.dart';
@@ -103,13 +107,48 @@ class V2State extends ChangeNotifier {
 
   SplitMode _split = SplitMode.item;
 
-  Set<int> _areas = {0};
-  Set<int> _vibeTags = {1};
+  Set<int> _areas = {};
+  Set<int> _vibeTags = {};
+
+  /// The price filter only applies after the user has touched the price track.
+  bool _priceTouched = false;
+
+  /// Every candidate the API returned; `_candidates` is this after the filters.
+  List<MatchCandidate> _allCandidates = const [];
   int _price = 2;
 
   int _stars = 5;
   Set<int> _rateTags = {0};
   bool _rated = false;
+  bool _rateFailed = false;
+
+  /// Me screen counts from `GET /profile/stats`; null until loaded (shown as "–").
+  int? _mealsCount;
+  int? _matchesCount;
+
+  /// The active match's meal rating as the API shows it to me (partner's only once both rated).
+  MealRatingView? _ratingView;
+
+  /// People I have blocked, for the Me screen. Empty until loaded.
+  List<BlockedUser> _blocked = const [];
+
+  /// From `/profile`: false until the account's tastes reached the server.
+  bool _onboardingDone = true;
+  String? _profileBio;
+
+  /// My vibe/spend preferences (Me edit sheet); null until loaded.
+  MatchPrefs? _prefs;
+
+  /// In-app notifications (DB-trigger fed); polled every 30 s while signed in.
+  List<AppNotification> _notifs = const [];
+  int _unread = 0;
+  Timer? _notifTimer;
+
+  TrustScore? _trust;
+  MealHistory? _history;
+  List<LocalMate> _locals = const [];
+  bool _localsLoading = false;
+  bool _imageSending = false;
 
   /// Index into [kFeedCategories] of Explore's selected tile; 0 is "all".
   int _feedCategory = 0;
@@ -251,6 +290,48 @@ class V2State extends ChangeNotifier {
   int get stars => _stars;
   Set<int> get rateTags => _rateTags;
   bool get rated => _rated;
+  int? get mealsCount => _mealsCount;
+  int? get matchesCount => _matchesCount;
+  MealRatingView? get ratingView => _ratingView;
+  List<BlockedUser> get blocked => _blocked;
+  String get profileBio => _profileBio ?? '';
+  MatchPrefs? get prefs => _prefs;
+  List<AppNotification> get notifications => _notifs;
+  int get unreadCount => _unread;
+  TrustScore? get trust => _trust;
+  MealHistory? get history => _history;
+  List<LocalMate> get locals => _locals;
+  bool get localsLoading => _localsLoading;
+  bool get imageSending => _imageSending;
+
+  /// One notification as a sentence in the user's language.
+  String notifText(AppNotification n) {
+    final who = n.actorName.isEmpty ? t('Mate', 'Your mate') : n.actorName;
+    return switch (n.kind) {
+      'match' => t('Bạn và $who đã match!', 'You matched with $who!'),
+      'message' => t('$who vừa nhắn tin cho bạn', '$who sent you a message'),
+      'booking_proposed' => t('$who mời bạn đi ăn — xem lịch hẹn', '$who invited you to eat — see the booking'),
+      'booking_confirmed' => t('$who đã xác nhận lịch hẹn', '$who confirmed the booking'),
+      'booking_cancelled' => t('Một lịch hẹn đã bị huỷ', 'A booking was cancelled'),
+      'rating' => t('$who đã đánh giá bữa ăn — rate lại để xem', '$who rated your meal — rate back to see it'),
+      _ => t('Bạn có thông báo mới', 'You have a new notification'),
+    };
+  }
+
+  /// My vibe chips + spend tier as labels for the Me screen (empty when unset).
+  List<String> get myPrefLabels => [
+        for (final code in _prefs?.vibeTags ?? const <String>[])
+          if (kVibeCodes.contains(code)) tr(kVibeTags[kVibeCodes.indexOf(code)]),
+        if (_prefs?.priceTier != null) kPrices[_prefs!.priceTier!],
+      ];
+
+  /// "Bình rated it 4★" once both rated; null while it's still private.
+  String? get partnerRatingLine {
+    final v = _ratingView;
+    if (v == null || !v.bothRated || v.partnerStars == null) return null;
+    final stars = '★' * v.partnerStars!;
+    return t('${chatPartner.name} đã rate $stars', '${chatPartner.name} rated it $stars');
+  }
   bool get notifsOpen => _notifsOpen;
   bool get searchOpen => _searchOpen;
 
@@ -498,7 +579,11 @@ class V2State extends ChangeNotifier {
 
   String get starLabel => tr(kStarLabels[_stars - 1]);
 
-  String get rateCta => _rated
+  String get rateCta => _rateFailed
+      ? t('Gửi lỗi · chạm để thử lại', 'Could not send · tap to retry')
+      : (_ratingView?.bothRated ?? false)
+      ? t('Cả hai đã rate · bấm để sửa', 'You both rated · tap to update')
+      : _rated
       ? t('Đã gửi · chờ ${chatPartner.name} rate lại', 'Rating sent · waiting on ${chatPartner.name}')
       : t('Gửi rate riêng tư', 'Send rating privately');
 
@@ -521,6 +606,15 @@ class V2State extends ChangeNotifier {
     _radiusSheetOpen = false;
     _matchReveal = null;
     notifyListeners();
+    if (s == V2Screen.rate) unawaited(loadRating());
+    if (s == V2Screen.me && signedIn) {
+      unawaited(loadBlocked());
+      unawaited(loadStats());
+      unawaited(loadTrust());
+      unawaited(loadHistory());
+    }
+    if (s == V2Screen.trust) unawaited(loadTrust());
+    if (s == V2Screen.local) unawaited(loadLocals());
 
     // Re-establish the live socket when coming back to chat (e.g. from the
     // booking screen) for the same match — go() itself must stay synchronous,
@@ -587,6 +681,7 @@ class V2State extends ChangeNotifier {
       }
       _myUserId = null;
       await loadProfile();
+      if (!_onboardingDone) await _syncOnboarding();
       _authBusy = false;
       go(_authThen);
       unawaited(loadCandidates());
@@ -616,6 +711,8 @@ class V2State extends ChangeNotifier {
     _disconnectChat();
     _myUserId = null;
     _profileName = null;
+    _notifs = const [];
+    _unread = 0;
     _conversations = const [];
     _conversationsLoaded = false;
     _activeMatchId = null;
@@ -894,6 +991,7 @@ class V2State extends ChangeNotifier {
       }
     } catch (e) {
       _candidates = [target, ..._candidates];
+      _allCandidates = [target, ..._allCandidates];
       _pendingNotice = t('Gửi lời mời thất bại, thử lại nhé.', "Couldn't send the invite — try again.");
     } finally {
       _inviteLoading = false;
@@ -918,6 +1016,7 @@ class V2State extends ChangeNotifier {
     try {
       await MatchService().undoSwipe();
       _candidates = [c, ..._candidates];
+      _allCandidates = [c, ..._allCandidates];
     } catch (_) {
       _pendingNotice = t('Không hoàn tác được, thử lại nhé.', "Couldn't undo — try again.");
     }
@@ -990,6 +1089,32 @@ class V2State extends ChangeNotifier {
 
   void _removeCandidate(String userId) {
     _candidates = _candidates.where((c) => c.userId != userId).toList();
+    _allCandidates = _allCandidates.where((c) => c.userId != userId).toList();
+  }
+
+  /// Applies the filter screen's choices; see the rules on [_areas].
+  List<MatchCandidate> _filtered(List<MatchCandidate> all) {
+    final names = areaNames;
+    final areas = {for (final i in _areas) if (i < names.length) names[i]};
+    final vibes = {for (final i in _vibeTags) if (i < kVibeCodes.length) kVibeCodes[i]};
+    return all.where((c) {
+      final d = c.district;
+      if (areas.isNotEmpty && d != null && !areas.contains(d) && !areas.contains(districtLabel(d))) {
+        return false;
+      }
+      final known = c.vibeTags.where(kVibeCodes.contains).toSet();
+      if (vibes.isNotEmpty && known.isNotEmpty && known.intersection(vibes).isEmpty) return false;
+      final tier = c.priceTier;
+      if (_priceTouched && tier != null && (tier - _price).abs() > 1) return false;
+      return true;
+    }).toList();
+  }
+
+  /// Re-runs the filters over the loaded candidates (no network).
+  void _refilter() {
+    if (_sampleDeck) return;
+    _candidates = _filtered(_allCandidates);
+    _deckTotal = _candidates.length;
   }
 
   Future<void> _loadMyUserId() async {
@@ -1131,23 +1256,29 @@ class V2State extends ChangeNotifier {
 
   void toggleArea(int i) {
     _areas = _toggled(_areas, i);
+    _refilter();
     notifyListeners();
   }
 
   void toggleVibeTag(int i) {
     _vibeTags = _toggled(_vibeTags, i);
+    _refilter();
     notifyListeners();
   }
 
   void cyclePrice() {
     _price = (_price + 1) % 4;
+    _priceTouched = true;
+    _refilter();
     notifyListeners();
   }
 
   void resetFilters() {
-    _areas = {0};
-    _vibeTags = {1};
+    _areas = {};
+    _vibeTags = {};
     _price = 2;
+    _priceTouched = false;
+    _refilter();
     notifyListeners();
   }
 
@@ -1161,14 +1292,279 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
-  void submitRate() {
+  /// Saves the rating for the active match; it stays private until the mate
+  /// rates too. Sample chats have no match, so they only flip the local flag.
+  Future<void> submitRate() async {
+    final id = _activeMatchId;
+    if (id != null) {
+      try {
+        await SafetyService().rateMeal(id, _stars,
+            note: [for (final i in _rateTags.toList()..sort()) if (i < kRateTags.length) kRateTags[i].vi].join(', '));
+      } catch (_) {
+        _rateFailed = true;
+        notifyListeners();
+        return;
+      }
+    }
+    _rateFailed = false;
     _rated = true;
     notifyListeners();
+    unawaited(loadRating());
+  }
+
+  /// Fetches the active match's rating view; no match (sample chat) clears it.
+  Future<void> loadRating() async {
+    final id = _activeMatchId;
+    if (id == null) {
+      _ratingView = null;
+      return;
+    }
+    try {
+      _ratingView = await SafetyService().mealRating(id);
+      final mine = _ratingView!.myStars;
+      if (mine != null) {
+        _stars = mine;
+        _rated = true;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Loads the Me screen's blocked list. Signed out leaves it empty.
+  Future<void> loadBlocked() async {
+    try {
+      _blocked = await SafetyService().listBlocked();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// v2 onboarding runs before sign-in, so its taste picks never reached the
+  /// server and the account never entered anyone's deck. Best effort: a
+  /// failure here must not fail the sign-in itself.
+  Future<void> _syncOnboarding() async {
+    try {
+      final foods = [for (final i in _tastes) if (i < kTastes.length) kTastes[i].name.vi.toLowerCase()];
+      await ProfileService().updatePreferences(foods, const []);
+      _onboardingDone = true;
+    } catch (_) {}
+  }
+
+  /// Loads my vibe/spend preferences. Signed out leaves them null.
+  Future<void> loadPrefs() async {
+    try {
+      _prefs = await ExtrasService().matchPrefs();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Saves the Me edit sheet: name + bio, then vibe chips (kVibeTags indexes)
+  /// and spend tier (null = no preference). True when both calls succeeded.
+  Future<bool> saveProfile({
+    required String name,
+    required String bio,
+    required Set<int> vibes,
+    int? priceTier,
+  }) async {
+    final n = name.trim();
+    if (n.isEmpty) return false;
+    try {
+      await ProfileService().updateProfile(name: n, bio: bio.trim());
+      _prefs = await ExtrasService().setMatchPrefs(
+          [for (final i in vibes.toList()..sort()) if (i < kVibeCodes.length) kVibeCodes[i]], priceTier);
+    } catch (_) {
+      return false;
+    }
+    _profileName = n;
+    _profileBio = bio.trim();
+    notifyListeners();
+    return true;
+  }
+
+  /// Permanently deletes the account on the server, then signs out locally.
+  Future<bool> deleteAccount() async {
+    try {
+      await ExtrasService().deleteAccount();
+    } catch (_) {
+      return false;
+    }
+    await signOut();
+    return true;
+  }
+
+  /// Polls notifications every 30 s. Called once by the app shell that owns
+  /// (and disposes) this state — never from inside the state itself, so tests
+  /// that inject a state never leak a timer. Polls are no-ops while signed out.
+  void startNotificationPolling() {
+    _notifTimer ??= Timer.periodic(const Duration(seconds: 30), (_) => loadNotifications());
+  }
+
+  /// Refreshes notifications + unread count. Signed out or offline: keeps what we had.
+  Future<void> loadNotifications() async {
+    if (!signedIn) return;
+    try {
+      final page = await ExtrasService().notifications();
+      _notifs = page.items;
+      _unread = _notifsOpen ? 0 : page.unread;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Tapping a notification closes the sheet and opens that match's chat when it
+  /// still exists (it may have been unmatched), otherwise the inbox.
+  Future<void> openNotification(AppNotification n) async {
+    setNotifsOpen(false);
+    if (_conversations.isEmpty) await loadConversations();
+    for (final c in _conversations) {
+      if (c.id == n.matchId) {
+        await openConversation(c);
+        return;
+      }
+    }
+    go(V2Screen.inbox);
+  }
+
+  Future<void> loadTrust() async {
+    try {
+      _trust = await ExtrasService().trust();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> loadHistory() async {
+    try {
+      _history = await ExtrasService().history();
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> loadLocals() async {
+    _localsLoading = true;
+    notifyListeners();
+    try {
+      _locals = await ExtrasService().locals();
+    } catch (_) {
+      _locals = const [];
+    } finally {
+      _localsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Invites a local mate the same way a right-swipe does. True when sent.
+  Future<bool> inviteLocal(String userId) async {
+    try {
+      await MatchService().swipe(userId, true);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Picks a photo, uploads it to Storage and sends its URL as an `image`
+  /// message. False when cancelled or anything failed.
+  Future<bool> sendImage() async {
+    final matchId = _activeMatchId;
+    if (matchId == null || _myUserId == null || _sampleChat || _imageSending) return false;
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1600, imageQuality: 82);
+    if (picked == null) return false;
+    _imageSending = true;
+    notifyListeners();
+    try {
+      final url = await StorageService().uploadPhoto(await picked.readAsBytes(), slot: 'chat');
+      _chatSocket?.sendText(url, msgType: 'image');
+      _messages = [
+        ..._messages,
+        ApiMessage(
+          id: 'local-${DateTime.now().microsecondsSinceEpoch}',
+          matchId: matchId,
+          senderId: _myUserId!,
+          content: url,
+          msgType: 'image',
+          createdAt: DateTime.now(),
+        ),
+      ];
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _imageSending = false;
+      notifyListeners();
+    }
+  }
+
+  /// Unblocks one person and drops them from the list.
+  Future<bool> unblockUser(String userId) async {
+    try {
+      await SafetyService().unblock(userId);
+    } catch (_) {
+      return false;
+    }
+    _blocked = _blocked.where((b) => b.userId != userId).toList();
+    notifyListeners();
+    return true;
+  }
+
+  /// Loads the Me screen's counts. Signed out or offline leaves them null.
+  Future<void> loadStats() async {
+    try {
+      final st = await SafetyService().stats();
+      _mealsCount = st.meals;
+      _matchesCount = st.matches;
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  /// Ends the active match for both people, then returns to the inbox.
+  Future<bool> unmatchActive() async {
+    final id = _activeMatchId;
+    if (id == null) return false;
+    try {
+      await SafetyService().unmatch(id);
+    } catch (_) {
+      return false;
+    }
+    _leaveEndedChat(id);
+    return true;
+  }
+
+  /// Blocks the chat partner: the match ends and neither sees the other again.
+  Future<bool> blockActivePartner() async {
+    final id = _activeMatchId;
+    if (id == null) return false;
+    try {
+      await SafetyService().block(chatPartner.userId);
+    } catch (_) {
+      return false;
+    }
+    _leaveEndedChat(id);
+    return true;
+  }
+
+  /// Reports the chat partner with one of `kReportReasons`' codes.
+  Future<bool> reportActivePartner(String reason) async {
+    if (_activeMatchId == null) return false;
+    try {
+      await SafetyService().report(chatPartner.userId, reason);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _leaveEndedChat(String matchId) {
+    _disconnectChat();
+    _conversations = _conversations.where((c) => c.id != matchId).toList();
+    _activeMatchId = null;
+    go(V2Screen.inbox);
   }
 
   void setNotifsOpen(bool v) {
     _notifsOpen = v;
     notifyListeners();
+    if (v && _unread > 0) {
+      _unread = 0;
+      unawaited(ExtrasService().markNotificationsRead().catchError((_) {}));
+    }
   }
 
   void setSearchOpen(bool v) {
@@ -1388,8 +1784,9 @@ class V2State extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _candidates = await MatchService().getCandidates();
-      _startDeck(samples: _candidates.isEmpty);
+      _allCandidates = await MatchService().getCandidates();
+      _candidates = _filtered(_allCandidates);
+      _startDeck(samples: _allCandidates.isEmpty);
     } on ApiException catch (e) {
       if (e.statusCode == 401) {
         // Signed out: nobody to rank against, so the sample deck — with a
@@ -1412,7 +1809,12 @@ class V2State extends ChangeNotifier {
       final profile = await ProfileService().getProfile();
       _myUserId = profile['id'] as String?;
       _profileName = (profile['name'] as String?) ?? (profile['nickname'] as String?);
+      _profileBio = profile['bio'] as String?;
+      _onboardingDone = profile['onboarding_done'] as bool? ?? true;
       notifyListeners();
+      unawaited(loadStats());
+      unawaited(loadPrefs());
+      unawaited(loadNotifications());
     } catch (_) {
       // The header falls back to blank rather than a fake name.
     }
@@ -1421,6 +1823,7 @@ class V2State extends ChangeNotifier {
   @override
   void dispose() {
     _disconnectChat();
+    _notifTimer?.cancel();
     super.dispose();
   }
 }

@@ -1,27 +1,35 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../theme/app_theme_v2.dart';
 import '../../views/v2/v2_kit.dart';
+import '../../views/v2/v2_state.dart';
 
 /// Liquid-glass notification sheet (canvas frame B1.2). Sits inset from every
 /// edge — `left:10 right:10 top:88 bottom:86` — so the aurora shows around it.
 ///
-/// The design shipped six sample notifications (a table invite, a "Vibe Check
-/// hit 79%", a bill share, two Trust Score events, a Local Mates offer) — none
-/// of them backed by anything: there is no notifications table, no push
-/// pipeline, and three of the six referenced mechanics (Vibe Check %, Trust
-/// Score, bill split) that don't exist in the schema either. This is an
-/// honest empty state until a real notifications system exists.
+/// Notifications now come from GET /notifications (rows written by DB
+/// triggers), polled into [V2State] — the sheet just renders them.
 class NotificationsSheet extends StatelessWidget {
   const NotificationsSheet({super.key, required this.onClose, required this.en});
 
   final VoidCallback onClose;
   final bool en;
 
+  static String _notifTime(DateTime dt, V2State s) {
+    final m = DateTime.now().difference(dt).inMinutes;
+    if (m < 1) return s.t('vừa xong', 'just now');
+    if (m < 60) return s.t('$m phút trước', '${m}m ago');
+    final h = m ~/ 60;
+    if (h < 24) return s.t('$h giờ trước', '${h}h ago');
+    return '${dt.day}/${dt.month}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final s = context.watch<V2State>();
     return Stack(
       children: [
         GestureDetector(
@@ -78,16 +86,64 @@ class NotificationsSheet extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 30),
-                          child: Text(
-                            en ? "You're all caught up — no notifications yet." : 'Chưa có thông báo nào.',
-                            textAlign: TextAlign.center,
-                            style: AppTextV2.name(color: AppColorsV2.inkA(0.48), size: 13),
-                          ),
-                        ),
-                      ),
+                      child: s.notifications.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 30),
+                                child: Text(
+                                  en ? "You're all caught up — no notifications yet." : 'Chưa có thông báo nào.',
+                                  textAlign: TextAlign.center,
+                                  style: AppTextV2.name(color: AppColorsV2.inkA(0.48), size: 13),
+                                ),
+                              ),
+                            )
+                          : ListView.separated(
+                              key: const Key('notif-list'),
+                              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                              itemCount: s.notifications.length,
+                              separatorBuilder: (_, _) => const SizedBox(height: 8),
+                              itemBuilder: (context, i) {
+                                final n = s.notifications[i];
+                                final label = switch (n.kind) {
+                                  'match' => '💞',
+                                  'message' => '💬',
+                                  'booking_proposed' => '📅',
+                                  'booking_confirmed' => '✅',
+                                  'booking_cancelled' => '❌',
+                                  'rating' => '⭐',
+                                  _ => '🔔',
+                                };
+                                return V2TapTarget(
+                                  onTap: () => s.openNotification(n),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: n.read ? Colors.white : AppColorsV2.wisteriaTint,
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(label, style: const TextStyle(fontSize: 20)),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(s.notifText(n), style: AppTextV2.name(size: 13.5)),
+                                              Text(
+                                                _notifTime(n.createdAt, s),
+                                                style: AppTextV2.meta(),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
                     ),
                   ],
                 ),

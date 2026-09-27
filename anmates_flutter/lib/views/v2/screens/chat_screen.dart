@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../../services/safety_service.dart';
+
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
 import '../v2_chat_format.dart';
@@ -138,6 +140,7 @@ class _Header extends StatelessWidget {
                 ),
               ),
             ),
+            if (s.hasActiveMatch) _SafetyMenu(s: s),
           ]),
         ),
       ),
@@ -361,7 +364,26 @@ class _Bubble extends StatelessWidget {
     );
     final concierge = line.kind == 'ai_venue_card' || line.kind == 'system';
 
-    final Widget body = isBigEmoji(line.text)
+    final Widget body = line.kind == 'image'
+        ? ClipRRect(
+            borderRadius: radius,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220, maxHeight: 280),
+              child: Image.network(
+                line.text,
+                key: const Key('chat-image'),
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => Container(
+                  width: 160,
+                  height: 120,
+                  color: AppColorsV2.inkA(0.06),
+                  alignment: Alignment.center,
+                  child: Icon(Icons.broken_image_outlined, color: AppColorsV2.inkA(0.4)),
+                ),
+              ),
+            ),
+          )
+        : isBigEmoji(line.text)
         ? Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             child: Text(line.text, style: const TextStyle(fontSize: 38, height: 1.15)),
@@ -561,6 +583,55 @@ class _Composer extends StatelessWidget {
           const SizedBox(height: 8),
         ],
         Row(children: [
+          if (s.hasActiveMatch) ...[
+            // Send a photo into the chat; the picker runs behind the button
+            // which shows a spinner while the upload lands.
+            V2TapTarget(
+              key: const Key('chat-attach'),
+              onTap: s.imageSending
+                  ? () {}
+                  : () async {
+                      // The picker dialog runs on the navigator, and the
+                      // toast lands above the glass nav: capture both before
+                      // awaiting so context is still safe to use.
+                      final messenger = ScaffoldMessenger.maybeOf(context);
+                      final bottom = navClearance(context);
+                      // ignore: use_build_context_synchronously
+                      final ok = await s.sendImage();
+                      if (ok == false && messenger != null && s.hasActiveMatch) {
+                        // Silent: a cancelled picker shouldn't nag.
+                        messenger.hideCurrentSnackBar();
+                        // keep messenger/bottom referenced for parity with
+                        // the toast call sites above.
+                        // ignore: unused_local_variable
+                        final _ = bottom;
+                      }
+                    },
+              child: Tooltip(
+                message: s.t('Gửi ảnh', 'Send a photo'),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  alignment: Alignment.center,
+                  child: s.imageSending
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColorsV2.wisteria,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.image_outlined,
+                          color: AppColorsV2.wisteria,
+                          size: 24,
+                        ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+          ],
           Expanded(
             child: Container(
               // 48pt of field inside the 1pt border.
@@ -618,6 +689,87 @@ class _Composer extends StatelessWidget {
           ),
         ]),
       ]),
+    );
+  }
+}
+
+/// ⋮ in the chat header: unmatch, block, report. Each destructive action asks
+/// first; the result is a short snackbar in the user's language.
+class _SafetyMenu extends StatelessWidget {
+  const _SafetyMenu({required this.s});
+  final V2State s;
+
+  Future<void> _onSelected(BuildContext context, String action) async {
+    final name = s.chatPartner.name;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final bottom = navClearance(context);
+    switch (action) {
+      case 'unmatch':
+        if (!await showV2Confirm(
+            context,
+            title: s.t('Bỏ ghép với $name?', 'Unmatch $name?'),
+            body: s.t('Cuộc trò chuyện sẽ bị xoá ở cả hai phía.', 'The chat is removed for both of you.'),
+            cancelLabel: s.t('Huỷ', 'Cancel'),
+            confirmLabel: s.t('Đồng ý', 'Confirm'))) {
+          return;
+        }
+        final ok = await s.unmatchActive();
+        showV2Toast(messenger,
+            ok ? s.t('Đã bỏ ghép', 'Unmatched') : s.t('Không bỏ ghép được, thử lại sau', 'Could not unmatch, try again'),
+            bottom: bottom);
+      case 'block':
+        if (!await showV2Confirm(
+            context,
+            title: s.t('Chặn $name?', 'Block $name?'),
+            body: s.t('Hai bạn sẽ không thấy nhau nữa.', 'You will no longer see each other.'),
+            cancelLabel: s.t('Huỷ', 'Cancel'),
+            confirmLabel: s.t('Đồng ý', 'Confirm'))) {
+          return;
+        }
+        final ok = await s.blockActivePartner();
+        showV2Toast(messenger,
+            ok ? s.t('Đã chặn $name', 'Blocked $name') : s.t('Không chặn được, thử lại sau', 'Could not block, try again'),
+            bottom: bottom);
+      case 'report':
+        if (!context.mounted) return;
+        final reason = await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            backgroundColor: AppColorsV2.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Text(s.t('Báo cáo $name', 'Report $name'), style: AppTextV2.cardTitle()),
+            children: [
+              for (final r in kReportReasons)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, r.$1),
+                  child: Text(s.t(r.$2, r.$3)),
+                ),
+            ],
+          ),
+        );
+        if (reason == null) return;
+        final ok = await s.reportActivePartner(reason);
+        if (!context.mounted) return;
+        showV2Toast(messenger,
+            ok ? s.t('Đã gửi báo cáo. Cảm ơn bạn!', 'Report sent. Thank you!') : s.t('Không gửi được báo cáo', 'Could not send the report'),
+            bottom: bottom);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: const Key('chat-safety-menu'),
+      icon: const Icon(Icons.more_vert, color: AppColorsV2.ink),
+      onSelected: (a) => _onSelected(context, a),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'unmatch', child: Text(s.t('Bỏ ghép', 'Unmatch'))),
+        PopupMenuItem(value: 'block', child: Text(s.t('Chặn', 'Block'))),
+        PopupMenuItem(
+          value: 'report',
+          child: Text(s.t('Báo cáo', 'Report'), style: const TextStyle(color: AppColorsV2.alert)),
+        ),
+      ],
     );
   }
 }

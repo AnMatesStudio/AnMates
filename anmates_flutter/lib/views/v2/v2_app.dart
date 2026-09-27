@@ -45,7 +45,8 @@ class V2App extends StatelessWidget {
       create: (_) => V2State()
         ..loadVenues()
         ..loadCandidates()
-        ..loadProfile(),
+        ..loadProfile()
+        ..startNotificationPolling(),
       child: const V2AppBody(),
     );
   }

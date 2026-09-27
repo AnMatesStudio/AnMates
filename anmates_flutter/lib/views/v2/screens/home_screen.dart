@@ -154,27 +154,35 @@ class _NotifButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return V2TapTarget(
-      onTap: () => s.setNotifsOpen(true),
-      child: Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(
-          color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
-        ),
-        child: Stack(alignment: Alignment.center, children: [
-          Icon(Icons.notifications_none_rounded, size: 21, color: AppColorsV2.inkA(0.62)),
-          Positioned(
-            top: 9, right: 10,
-            child: Container(
-              width: 8, height: 8,
-              decoration: BoxDecoration(
-                color: AppColorsV2.alert,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 1.5),
-              ),
-            ),
+    return Semantics(
+      label: s.unreadCount > 0
+          ? s.t('Thông báo, ${s.unreadCount} chưa đọc', 'Notifications, ${s.unreadCount} unread')
+          : s.t('Thông báo', 'Notifications'),
+      button: true,
+      child: V2TapTarget(
+        onTap: () => s.setNotifsOpen(true),
+        child: Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
           ),
-        ]),
+          child: Stack(alignment: Alignment.center, children: [
+            Icon(Icons.notifications_none_rounded, size: 21, color: AppColorsV2.inkA(0.62)),
+            if (s.unreadCount > 0)
+              Positioned(
+                top: 9, right: 10,
+                child: Container(
+                  key: const Key('notif-badge'),
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColorsV2.alert,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+          ]),
+        ),
       ),
     );
   }

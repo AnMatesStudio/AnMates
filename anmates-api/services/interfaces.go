@@ -64,3 +64,31 @@ type BookingServicer interface {
 	Confirm(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
 	Cancel(ctx context.Context, matchID, userID uuid.UUID) (*models.Booking, error)
 }
+
+type SafetyServicer interface {
+	Unmatch(ctx context.Context, matchID, userID uuid.UUID) error
+	Block(ctx context.Context, blockerID, blockedID uuid.UUID) error
+	Unblock(ctx context.Context, blockerID, blockedID uuid.UUID) error
+	ListBlocked(ctx context.Context, blockerID uuid.UUID) ([]BlockedUser, error)
+	Report(ctx context.Context, reporterID, reportedID uuid.UUID, reason, note string) (uuid.UUID, error)
+}
+
+type MealServicer interface {
+	SubmitRating(ctx context.Context, matchID, userID uuid.UUID, stars int, note string) error
+	GetRating(ctx context.Context, matchID, userID uuid.UUID) (*RatingView, error)
+	Stats(ctx context.Context, userID uuid.UUID) (*UserStats, error)
+}
+
+type ProfileExtrasServicer interface {
+	GetMatchPrefs(ctx context.Context, userID uuid.UUID) (*MatchPrefs, error)
+	SetMatchPrefs(ctx context.Context, userID uuid.UUID, vibes []string, priceTier *int16) (*MatchPrefs, error)
+	DeleteAccount(ctx context.Context, userID uuid.UUID) error
+	Trust(ctx context.Context, userID uuid.UUID) (*TrustScore, error)
+	History(ctx context.Context, userID uuid.UUID) (*History, error)
+	Locals(ctx context.Context, userID uuid.UUID) ([]LocalMate, error)
+}
+
+type NotificationServicer interface {
+	List(ctx context.Context, userID uuid.UUID) (*NotificationList, error)
+	MarkAllRead(ctx context.Context, userID uuid.UUID) error
+}

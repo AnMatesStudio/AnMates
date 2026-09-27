@@ -60,7 +60,9 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		       (date_part('year', age(u.birth_date)))::int AS age,
 		       u.food_tags, u.vibe_tags,
 		       c.overlap_count, c.overlap_foods,
-		       (c.overlap_count::float / NULLIF(c.union_count, 0)) AS score
+		       (c.overlap_count::float / NULLIF(c.union_count, 0)) AS score,
+	       (SELECT ul.district FROM user_locations ul WHERE ul.user_id = c.user_id) AS district,
+	       u.price_tier
 		FROM (
 			SELECT i.user_id,
 			       cardinality(ARRAY(
@@ -82,6 +84,11 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 			  AND NOT EXISTS (
 				SELECT 1 FROM swipes sw WHERE sw.user_id = $1 AND sw.target_id = i.user_id
 			  )
+			  AND NOT EXISTS (
+				SELECT 1 FROM user_blocks ub
+				WHERE (ub.blocker_id = $1 AND ub.blocked_id = i.user_id)
+				   OR (ub.blocker_id = i.user_id AND ub.blocked_id = $1)
+			  )
 		) c
 		JOIN users u ON u.id = c.user_id
 		WHERE c.overlap_count >= 2
@@ -100,7 +107,8 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		var mc models.MatchCandidate
 		if err := rows.Scan(&mc.UserID, &mc.Name, &mc.AvatarURL, &mc.Age,
 			&mc.FoodTags, &mc.VibeTags,
-			&mc.OverlapCount, &mc.OverlapFoods, &mc.Score); err != nil {
+			&mc.OverlapCount, &mc.OverlapFoods, &mc.Score,
+			&mc.District, &mc.PriceTier); err != nil {
 			return nil, err
 		}
 		out = append(out, mc)
@@ -129,6 +137,9 @@ func (s *MatchingService) Swipe(ctx context.Context, userID, targetID uuid.UUID,
 	if err := s.pool.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM swipes WHERE user_id = $1 AND target_id = $2 AND liked = TRUE
+		) AND NOT EXISTS(
+			SELECT 1 FROM user_blocks
+			WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)
 		)
 	`, targetID, userID).Scan(&reciprocated); err != nil {
 		return nil, err

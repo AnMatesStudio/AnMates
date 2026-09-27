@@ -51,8 +51,18 @@ class BillScreen extends StatelessWidget {
             const Center(child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColorsV2.wisteria))
           else if (booking == null)
             _NoBookingCard(s: s)
-          else
+          else ...[
             _BookingCard(s: s, booking: booking),
+            if (booking.status == 'confirmed' || booking.status == 'completed') ...[
+              const SizedBox(height: 16),
+              V2Cta(
+                key: const Key('bill-rate-cta'),
+                label: s.t('Đánh giá bữa ăn', 'Rate the meal'),
+                height: 50, radius: 18, fontSize: 15,
+                onTap: () => s.go(V2Screen.rate),
+              ),
+            ],
+          ],
         ],
       ),
     );

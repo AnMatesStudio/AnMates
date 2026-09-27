@@ -315,3 +315,50 @@ class MateAvatar extends StatelessWidget {
     );
   }
 }
+
+/// A v2-styled toast that floats ABOVE the glass nav bar. Pass the messenger
+/// and the bottom offset captured before any `await` — the screen that asked
+/// may be gone by the time the toast shows (e.g. after leaving a chat).
+void showV2Toast(ScaffoldMessengerState? messenger, String message, {required double bottom}) {
+  messenger?.showSnackBar(SnackBar(
+    content: Text(message, style: AppTextV2.body(color: Colors.white, size: 13.5)),
+    behavior: SnackBarBehavior.floating,
+    margin: EdgeInsets.fromLTRB(16, 0, 16, bottom + 8),
+    backgroundColor: AppColorsV2.ink,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    duration: const Duration(seconds: 3),
+  ));
+}
+
+/// A v2-styled yes/no dialog. [destructive] paints the confirm label red.
+Future<bool> showV2Confirm(
+  BuildContext context, {
+  required String title,
+  required String body,
+  required String cancelLabel,
+  required String confirmLabel,
+  bool destructive = true,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: AppColorsV2.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      title: Text(title, style: AppTextV2.cardTitle()),
+      content: Text(body, style: AppTextV2.body(color: AppColorsV2.inkA(0.7), size: 14)),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: Text(cancelLabel, style: AppTextV2.name(color: AppColorsV2.inkA(0.6), size: 14)),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: Text(confirmLabel,
+              style: AppTextV2.name(
+                  color: destructive ? AppColorsV2.alert : AppColorsV2.wisteria, size: 14)),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}

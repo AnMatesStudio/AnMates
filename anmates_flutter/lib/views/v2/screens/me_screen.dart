@@ -3,17 +3,16 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import '../../../widgets/v2/edit_profile_sheet.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
 import '../v2_state.dart';
 
-/// **E1 · Profile** — the design paired this with a fanned deck of "spots
-/// you've been to" and reviews "only written after a verified check-in".
-/// Neither has any backing: there's no visited-venue tracking and no
-/// user-authored review table anywhere in the schema, so both sections are
-/// now an honest placeholder instead of four invented restaurant visits and
-/// three invented five-paragraph reviews.
+/// **E1 · Profile** — the "spots you've been to" and "your reviews"
+/// sections are backed by real data: confirmed bookings feed the visit
+/// list and the ratings the user gave feed the review list, with a
+/// placeholder shown when the user has none of either yet.
 class MeScreen extends StatelessWidget {
   const MeScreen({super.key});
 
@@ -105,14 +104,30 @@ class MeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 9),
                 if (s.signedIn)
-                  V2TapTarget(
-                    onTap: s.signOut,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      child: Text(s.t('Đăng xuất', 'Sign out'),
-                          key: const Key('me-sign-out'),
-                          style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 12.5)),
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      V2TapTarget(
+                        key: const Key('me-edit'),
+                        onTap: () => showEditProfileSheet(context, s),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          child: Text(s.t('Sửa hồ sơ', 'Edit profile'),
+                              style: AppTextV2.name(
+                                  color: AppColorsV2.wisteria, size: 12.5)),
+                        ),
+                      ),
+                      Text('·', style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 14)),
+                      V2TapTarget(
+                        onTap: s.signOut,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          child: Text(s.t('Đăng xuất', 'Sign out'),
+                              key: const Key('me-sign-out'),
+                              style: AppTextV2.name(color: AppColorsV2.inkA(0.5), size: 12.5)),
+                        ),
+                      ),
+                    ],
                   )
                 else
                   V2TapTarget(
@@ -129,36 +144,38 @@ class MeScreen extends StatelessWidget {
                     ),
                   ),
                 const SizedBox(height: 9),
-                Wrap(
-                  spacing: 7, runSpacing: 7, alignment: WrapAlignment.center,
-                  children: [
-                    for (final t in [
-                      s.t('Hệ đại tiệc', 'Big-feast tier'),
-                      s.t('Ăn cay được', 'Handles spice'),
-                      s.t('Về trước 22h', 'Home by 10pm'),
-                    ])
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF4F1FD),
-                          borderRadius: BorderRadius.circular(999),
+                if (s.myPrefLabels.isNotEmpty)
+                  Wrap(
+                    spacing: 7, runSpacing: 7, alignment: WrapAlignment.center,
+                    children: [
+                      for (final t in s.myPrefLabels)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F1FD),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(t,
+                              style: AppTextV2.name(
+                                      color: AppColorsV2.wisteria, size: 11.5)
+                                  .copyWith(fontWeight: FontWeight.w600)),
                         ),
-                        child: Text(t,
-                            style: AppTextV2.name(
-                                    color: AppColorsV2.wisteria, size: 11.5)
-                                .copyWith(fontWeight: FontWeight.w600)),
-                      ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 18),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: Row(children: [
-                    Expanded(child: _MiniStat(value: '24', label: s.t('bữa đã ăn', 'meals'))),
+                    Expanded(child: _MiniStat(
+                        value: s.mealsCount?.toString() ?? '–',
+                        label: s.t('bữa đã ăn', 'meals'))),
                     const SizedBox(width: 10),
-                    Expanded(child: _MiniStat(value: '17', label: 'mates')),
+                    Expanded(child: _MiniStat(
+                        value: s.matchesCount?.toString() ?? '–', label: 'mates')),
                     const SizedBox(width: 10),
-                    Expanded(child: _MiniStat(value: '12', label: 'review')),
+                    Expanded(child: _MiniStat(
+                        value: s.history?.reviews.length.toString() ?? '–',
+                        label: 'review')),
                   ]),
                 ),
                 const SizedBox(height: 12),
@@ -179,11 +196,29 @@ class MeScreen extends StatelessWidget {
                 const SizedBox(height: 14),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Text(
-                    s.t('Chưa có lịch sử ghé quán — tính năng đang phát triển.',
-                        "No visit history yet — this feature is still being built."),
-                    style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
-                  ),
+                  child: s.history == null || s.history!.visits.isEmpty
+                      ? Text(
+                          s.t('Chưa có bữa nào được xác nhận.', 'No confirmed meals yet.'),
+                          style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                        )
+                      : SizedBox(
+                          width: double.infinity,
+                          child: Column(
+                            key: const Key('me-visits'),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (final v in s.history!.visits.take(5)) ...[
+                                Text(v.restaurantName, style: AppTextV2.name(size: 14)),
+                                Text(
+                                  '${v.scheduledAt.day}/${v.scheduledAt.month}/${v.scheduledAt.year} · '
+                                  '${s.t('với ${v.partnerName}', 'with ${v.partnerName}')}',
+                                  style: AppTextV2.meta(),
+                                ),
+                                const SizedBox(height: 10),
+                              ],
+                            ],
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 22),
                 Padding(
@@ -196,17 +231,49 @@ class MeScreen extends StatelessWidget {
                               .copyWith(fontSize: 18, letterSpacing: -0.36)),
                       const SizedBox(height: 3),
                       Text(
-                        s.t('Chỉ viết được sau khi check-in đã xác thực',
-                            'Only written after a verified check-in'),
+                        s.t('Đánh giá bạn đã gửi sau mỗi bữa ăn',
+                            'Ratings you gave after each meal'),
                         style: AppTextV2.meta().copyWith(fontSize: 11.5),
                       ),
                       const SizedBox(height: 12),
-                      Text(
-                        s.t('Bạn chưa viết review nào.', "You haven't written any reviews yet."),
-                        style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
-                      ),
+                      s.history?.reviews.isEmpty ?? true
+                          ? Text(
+                              s.t('Bạn chưa viết review nào.', "You haven't written any reviews yet."),
+                              style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                            )
+                          : Column(
+                              key: const Key('me-reviews'),
+                              children: [
+                                for (final r in s.history!.reviews.take(5)) ...[
+                                  Text(
+                                      '${'★' * r.stars}  ${r.restaurantName}',
+                                      style: AppTextV2.name(size: 13.5)),
+                                  if (r.note.isNotEmpty)
+                                    Text(r.note, style: AppTextV2.body(size: 12.5)),
+                                ],
+                              ],
+                            ),
+                      if (s.signedIn && s.blocked.isNotEmpty) ...[
+                        const SizedBox(height: 22),
+                        _BlockedList(s: s),
+                      ],
                       const SizedBox(height: 16),
                       _UpgradeCard(s: s),
+                      if (s.signedIn) ...[
+                        const SizedBox(height: 22),
+                        Center(
+                          child: V2TapTarget(
+                            key: const Key('me-delete-account'),
+                            onTap: () => _deleteAccount(context, s),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              child: Text(s.t('Xoá tài khoản', 'Delete account'),
+                                  style: AppTextV2.name(
+                                      color: AppColorsV2.alert, size: 13)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -217,6 +284,30 @@ class MeScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Xoá tài khoản" — confirm, then delete on the server and toast the result.
+Future<void> _deleteAccount(BuildContext context, V2State s) async {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  final bottom = navClearance(context);
+  final ok = await showV2Confirm(
+    context,
+    title: s.t('Xoá tài khoản vĩnh viễn?', 'Delete your account for good?'),
+    body: s.t(
+        'Hồ sơ, match, tin nhắn và lịch hẹn sẽ bị xoá và không khôi phục được.',
+        'Your profile, matches, messages and bookings are deleted and cannot be restored.'),
+    cancelLabel: s.t('Huỷ', 'Cancel'),
+    confirmLabel: s.t('Xoá', 'Delete'),
+  );
+  if (!ok) return;
+  final done = await s.deleteAccount();
+  showV2Toast(
+    messenger,
+    done
+        ? s.t('Đã xoá tài khoản', 'Account deleted')
+        : s.t('Không xoá được, thử lại sau', 'Could not delete, try again'),
+    bottom: bottom,
+  );
 }
 
 class _MiniStat extends StatelessWidget {
@@ -253,6 +344,7 @@ class _TrustRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tr = s.trust;
     return GestureDetector(
       onTap: () => s.go(V2Screen.trust),
       child: Container(
@@ -271,7 +363,8 @@ class _TrustRow extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: AppColorsV2.inkA(0.08)),
             ),
-            child: Text('—', style: AppTextV2.section().copyWith(fontSize: 16, letterSpacing: 0)),
+            child: Text(s.trust?.score.toString() ?? '—',
+                style: AppTextV2.section().copyWith(fontSize: 16, letterSpacing: 0)),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -280,7 +373,11 @@ class _TrustRow extends StatelessWidget {
               children: [
                 Text('Trust Score', style: AppTextV2.name(size: 13.5)),
                 const SizedBox(height: 3),
-                Text(s.t('Chưa được theo dõi', 'Not tracked yet'),
+                Text(
+                    tr == null
+                        ? s.t('Chưa được theo dõi', 'Not tracked yet')
+                        : s.t('${tr.meals} bữa · ${tr.noShowReports} báo bùng hẹn',
+                            '${tr.meals} meals · ${tr.noShowReports} no-show reports'),
                     style: AppTextV2.body(size: 11.5).copyWith(height: 1.4)),
               ],
             ),
@@ -327,6 +424,66 @@ class _UpgradeCard extends StatelessWidget {
           Text('›', style: AppTextV2.name(color: AppColorsV2.wisteria, size: 20)),
         ]),
       ),
+    );
+  }
+}
+
+/// "Đã chặn" — everyone this user blocked, each with an unblock button that
+/// asks first. Unblocking does not restore the old match or chat.
+class _BlockedList extends StatelessWidget {
+  const _BlockedList({required this.s});
+  final V2State s;
+
+  Future<void> _unblock(BuildContext context, String userId, String name) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    final bottom = navClearance(context);
+    final ok = await showV2Confirm(
+      context,
+      title: s.t('Bỏ chặn $name?', 'Unblock $name?'),
+      body: s.t('Hai bạn có thể thấy lại nhau khi quẹt. Cuộc trò chuyện cũ không quay lại.',
+          'You may see each other again when swiping. The old chat does not come back.'),
+      cancelLabel: s.t('Huỷ', 'Cancel'),
+      confirmLabel: s.t('Bỏ chặn', 'Unblock'),
+      destructive: false,
+    );
+    if (!ok) return;
+    final done = await s.unblockUser(userId);
+    showV2Toast(
+      messenger,
+      done ? s.t('Đã bỏ chặn $name', 'Unblocked $name') : s.t('Không bỏ chặn được', 'Could not unblock'),
+      bottom: bottom,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      key: const Key('me-blocked-list'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(s.t('Đã chặn', 'Blocked'),
+            style: AppTextV2.section().copyWith(fontSize: 18, letterSpacing: -0.36)),
+        const SizedBox(height: 8),
+        for (final b in s.blocked)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(children: [
+              Expanded(
+                child: Text(b.name.isEmpty ? s.t('(không tên)', '(no name)') : b.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: AppTextV2.name(size: 14)),
+              ),
+              V2TapTarget(
+                onTap: () => _unblock(context, b.userId, b.name),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Text(s.t('Bỏ chặn', 'Unblock'),
+                      style: AppTextV2.name(color: AppColorsV2.wisteria, size: 13.5)),
+                ),
+              ),
+            ]),
+          ),
+      ],
     );
   }
 }

@@ -16,6 +16,15 @@ class MatchCandidate {
   final List<String> overlapFoods;
   final double score;
 
+  /// The candidate's district (ward/county) — null when unset.
+  final String? district;
+
+  /// The candidate's price tier (0..3) — null when unset.
+  final int? priceTier;
+
+  /// The candidate's own vibe tags, kept separate from [tags].
+  final List<String> vibeTags;
+
   MatchCandidate({
     required this.userId,
     required this.name,
@@ -25,6 +34,9 @@ class MatchCandidate {
     required this.overlapCount,
     required this.overlapFoods,
     required this.score,
+    this.district,
+    this.priceTier,
+    this.vibeTags = const [],
   });
 
   factory MatchCandidate.fromJson(Map<String, dynamic> j) => MatchCandidate(
@@ -40,6 +52,9 @@ class MatchCandidate {
     overlapFoods:
         (j['overlap_foods'] as List?)?.map((e) => e as String).toList() ?? [],
     score: (j['score'] as num).toDouble(),
+    district: j['district'] as String?,
+    priceTier: (j['price_tier'] as num?)?.toInt(),
+    vibeTags: [...?(j['vibe_tags'] as List?)?.whereType<String>()],
   );
 
   /// Real taste-overlap percentage — how much of the union of both users'
