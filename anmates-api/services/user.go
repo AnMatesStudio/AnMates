@@ -68,7 +68,8 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID uuid.UUID, name,
 	err := scanUser(s.pool.QueryRow(ctx, `
 		UPDATE users SET
 			name       = COALESCE($2, name),
-			avatar_url = COALESCE($3, avatar_url),
+			-- "" clears it (back to the app's default); NULL leaves it alone.
+			avatar_url = CASE WHEN $3::text IS NULL THEN avatar_url ELSE NULLIF($3, '') END,
 			bio        = COALESCE($4, bio)
 		WHERE id = $1
 		RETURNING `+userColumns+`

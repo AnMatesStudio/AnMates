@@ -14,6 +14,7 @@ import 'screens/all_venues_screen.dart';
 import 'screens/bill_screen.dart';
 import 'screens/admin_screen.dart';
 import 'screens/auth_screen.dart';
+import 'screens/avatar_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/detail_screen.dart';
@@ -172,6 +173,7 @@ class V2AppBody extends StatelessWidget {
         V2Screen.home => const HomeScreen(),
         V2Screen.venueFilter => const VenueFilterScreen(),
         V2Screen.matchFilter => const MatchFilterScreen(),
+        V2Screen.avatar => const AvatarScreen(),
         V2Screen.detail => const DetailScreen(),
         V2Screen.swipe => const SwipeScreen(),
         V2Screen.inbox => const InboxScreen(),
@@ -194,7 +196,7 @@ class V2AppBody extends StatelessWidget {
   static NavTab _tabFor(V2Screen screen) => switch (screen) {
         V2Screen.swipe || V2Screen.matchFilter => NavTab.swipe,
         V2Screen.inbox || V2Screen.chat || V2Screen.bill || V2Screen.rate => NavTab.tables,
-        V2Screen.me || V2Screen.trust || V2Screen.admin => NavTab.me,
+        V2Screen.me || V2Screen.trust || V2Screen.admin || V2Screen.avatar => NavTab.me,
         _ => NavTab.discover,
       };
 }

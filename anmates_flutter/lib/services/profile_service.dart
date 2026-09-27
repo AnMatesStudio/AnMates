@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'api_client.dart';
 import 'auth_service.dart';
 
@@ -61,6 +64,21 @@ class ProfileService {
   /// PUT /profile — display name and bio from the Me screen's edit sheet.
   Future<void> updateProfile({required String name, required String bio}) async {
     await ApiClient().put('/api/v1/profile', body: {'name': name, 'bio': bio});
+  }
+
+  /// PUT /profile `avatar_url` — a bundled sample (`asset:<path>`), or "" for
+  /// the default. Returns the saved avatar_url.
+  Future<String?> setAvatarUrl(String avatarUrl) async {
+    final data = await ApiClient().put('/api/v1/profile', body: {'avatar_url': avatarUrl});
+    return (data as Map)['avatar_url'] as String?;
+  }
+
+  /// PUT /profile/avatar — the cropped photo; stored on our API, which answers
+  /// with the new avatar_url (`/api/v1/users/<id>/avatar?v=…`).
+  Future<String?> uploadAvatar(Uint8List image) async {
+    final data = await ApiClient().put('/api/v1/profile/avatar',
+        body: {'image_base64': base64Encode(image)});
+    return (data as Map)['avatar_url'] as String?;
   }
 
   String _formatDate(DateTime d) {

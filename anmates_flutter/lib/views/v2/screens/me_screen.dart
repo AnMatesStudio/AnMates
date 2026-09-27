@@ -78,20 +78,45 @@ class MeScreen extends StatelessWidget {
               ),
               child: Column(children: [
                 const SizedBox(height: 56),
-                Container(
-                  width: 116, height: 116, padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0A285A).withValues(alpha: 0.26),
-                        blurRadius: 34,
-                        offset: const Offset(0, 16),
+                // Signed in, tapping it opens the avatar screen (upload + crop,
+                // or a bundled illustration).
+                Semantics(
+                  button: s.signedIn,
+                  label: s.signedIn ? s.t('Đổi ảnh đại diện', 'Change profile photo') : null,
+                  child: GestureDetector(
+                    key: const Key('me-avatar'),
+                    onTap: s.signedIn ? () => s.go(V2Screen.avatar) : null,
+                    child: Stack(clipBehavior: Clip.none, children: [
+                      Container(
+                        width: 116, height: 116, padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF0A285A).withValues(alpha: 0.26),
+                              blurRadius: 34,
+                              offset: const Offset(0, 16),
+                            ),
+                          ],
+                        ),
+                        child: AvatarImage(url: s.myAvatarUrl),
                       ),
-                    ],
+                      if (s.signedIn)
+                        Positioned(
+                          right: 2, bottom: 4,
+                          child: Container(
+                            width: 34, height: 34,
+                            decoration: BoxDecoration(
+                              color: AppColorsV2.wisteria,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                            ),
+                            child: const Icon(Icons.photo_camera_rounded, size: 16, color: Colors.white),
+                          ),
+                        ),
+                    ]),
                   ),
-                  child: const CircleAvatar(backgroundImage: AssetImage(A.avatar)),
                 ),
                 const SizedBox(height: 12),
                 Text(s.profileName.isEmpty ? '—' : s.profileName,

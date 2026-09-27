@@ -53,6 +53,14 @@ func (u *User) UpdateProfile(c *fiber.Ctx) error {
 		}
 		r.Name = &trim
 	}
+	if r.AvatarURL != nil {
+		trim := strings.TrimSpace(*r.AvatarURL)
+		if !validAvatarChoice(uid.String(), trim) {
+			return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation,
+				"avatar_url must be one of the app's sample avatars, your uploaded photo, or empty")
+		}
+		r.AvatarURL = &trim
+	}
 
 	ctx, cancel := context.WithTimeout(c.UserContext(), 30*time.Second)
 	defer cancel()

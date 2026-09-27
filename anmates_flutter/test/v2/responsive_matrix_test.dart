@@ -113,6 +113,7 @@ final List<_Screen> _screens = [
           V2Screen.chat => () => find.byType(TextField),
           V2Screen.venueFilter => () => find.textContaining('quán phù hợp'),
           V2Screen.matchFilter => () => find.textContaining('mates phù hợp'),
+          V2Screen.avatar => () => find.text('Lưu ảnh đại diện'),
           _ => null,
         },
       ),

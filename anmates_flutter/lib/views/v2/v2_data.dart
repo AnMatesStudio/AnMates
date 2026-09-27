@@ -288,6 +288,21 @@ const List<({double a, double r, double s, double alpha})> kSparkles = [
   (a: 352, r: 166, s: 12, alpha: 0.7),
 ];
 
+/// ── Avatars ─────────────────────────────────────────────────────────────────
+
+/// The illustrations offered on the avatar screen for anyone who'd rather not
+/// upload a photo: the chibi (everyone's default) and the ten sample-mate
+/// portraits. Picked, one is saved as `avatar_url = 'asset:<path>'`, which the
+/// API allows only for these paths (handlers/avatar.go avatarSampleRe).
+const List<String> kAvatarSamples = [
+  A.avatar,
+  'assets/v2/avatars/sample-1.png', 'assets/v2/avatars/sample-2.png',
+  'assets/v2/avatars/sample-3.png', 'assets/v2/avatars/sample-4.png',
+  'assets/v2/avatars/sample-5.png', 'assets/v2/avatars/sample-6.png',
+  'assets/v2/avatars/sample-7.png', 'assets/v2/avatars/sample-8.png',
+  'assets/v2/avatars/sample-9.png', 'assets/v2/avatars/sample-10.png',
+];
+
 /// ── Filters ─────────────────────────────────────────────────────────────────
 
 const List<T> kVibeTags = [

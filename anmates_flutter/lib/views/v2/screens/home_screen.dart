@@ -142,7 +142,7 @@ class _Header extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
           ),
-          child: const CircleAvatar(radius: 21, backgroundImage: AssetImage(A.avatar)),
+          child: SizedBox.square(dimension: 42, child: AvatarImage(url: s.myAvatarUrl)),
         ),
       ),
     ]);

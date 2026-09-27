@@ -38,21 +38,21 @@ class FilterLayout extends StatelessWidget {
   }
 }
 
-/// Title row of the venue and mates filters: back to the screen the filter
-/// narrows, the title, and a "Đặt lại" pill.
+/// Title row of the venue and mates filters (and the avatar screen): back to
+/// the screen it belongs to, the title, and an optional "Đặt lại" pill.
 class FilterHeader extends StatelessWidget {
   const FilterHeader({
     super.key,
     required this.title,
-    required this.resetLabel,
     required this.onBack,
-    required this.onReset,
+    this.resetLabel,
+    this.onReset,
   });
 
   final String title;
-  final String resetLabel;
   final VoidCallback onBack;
-  final VoidCallback onReset;
+  final String? resetLabel;
+  final VoidCallback? onReset;
 
   @override
   Widget build(BuildContext context) {
@@ -67,6 +67,7 @@ class FilterHeader extends StatelessWidget {
           style: AppTextV2.section().copyWith(fontSize: 26, letterSpacing: 26 * -0.03),
         ),
       ),
+      if (resetLabel != null)
       V2TapTarget(
         onTap: onReset,
         child: Container(
@@ -77,7 +78,7 @@ class FilterHeader extends StatelessWidget {
             boxShadow: AppShadowsV2.pill,
           ),
           child: Text(
-            resetLabel,
+            resetLabel!,
             style: AppTextV2.name(color: AppColorsV2.wisteria, size: 11.5),
           ),
         ),

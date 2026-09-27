@@ -2,8 +2,10 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../services/api_client.dart';
 import '../../theme/app_theme_v2.dart';
 import '../../theme/v2_layout.dart';
+import 'v2_data.dart' show A;
 import 'v2_mate_mapper.dart' show avatarColorFor, initialsOf;
 
 /// Small building blocks repeated across the v2 screens — pill chips, the
@@ -254,8 +256,37 @@ class V2Eyebrow extends StatelessWidget {
       Text(label, style: AppTextV2.eyebrow(color: color));
 }
 
-/// A person's round avatar: their photo when they have one (initials if it
-/// fails to load), otherwise their initials on a steady color.
+/// What an `avatar_url` points at: a photo to fetch ([network] — an upload on
+/// our API, resolved against it, or an older absolute URL), or one of the
+/// bundled samples ([asset], from `asset:<path>`). Both null: none set.
+({String? network, String? asset}) avatarSourceOf(String? url) {
+  if (url == null || url.isEmpty) return (network: null, asset: null);
+  if (url.startsWith('asset:')) return (network: null, asset: url.substring('asset:'.length));
+  return (network: ApiClient.mediaUrl(url), asset: null);
+}
+
+/// My own avatar, round: the photo I uploaded or the sample I picked, else the
+/// app's default chibi — also when the photo fails to load.
+class AvatarImage extends StatelessWidget {
+  const AvatarImage({super.key, required this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final src = avatarSourceOf(url);
+    Widget fallback(BuildContext _, Object _, StackTrace? _) =>
+        Image.asset(A.avatar, fit: BoxFit.cover);
+    return ClipOval(
+      child: src.network != null
+          ? Image.network(src.network!, fit: BoxFit.cover, errorBuilder: fallback)
+          : Image.asset(src.asset ?? A.avatar, fit: BoxFit.cover, errorBuilder: fallback),
+    );
+  }
+}
+
+/// A person's round avatar: their photo or picked sample when they have one
+/// (initials if it fails to load), otherwise their initials on a steady color.
 class MateAvatar extends StatelessWidget {
   const MateAvatar({
     super.key,
@@ -285,7 +316,9 @@ class MateAvatar extends StatelessWidget {
             .copyWith(fontWeight: FontWeight.w800),
       ),
     );
-    final photo = url;
+    final src = avatarSourceOf(url);
+    final photo = src.network;
+    final bundled = src.asset ?? asset;
     return Container(
       width: size,
       height: size,
@@ -306,9 +339,9 @@ class MateAvatar extends StatelessWidget {
               child: Image.network(photo, fit: BoxFit.cover,
                   errorBuilder: (context, error, stack) => initials),
             )
-          : asset != null
+          : bundled != null
               ? ClipOval(
-                  child: Image.asset(asset!, fit: BoxFit.cover,
+                  child: Image.asset(bundled, fit: BoxFit.cover,
                       errorBuilder: (context, error, stack) => initials),
                 )
               : initials,

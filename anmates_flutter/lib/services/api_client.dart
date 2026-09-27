@@ -122,6 +122,11 @@ class ApiClient {
         : '$url?v=${Uri.encodeQueryComponent(version)}';
   }
 
+  /// An absolute URL for a media path the API hands out relative to itself
+  /// (an uploaded avatar is `/api/v1/users/<id>/avatar?v=…`). Absolute URLs pass
+  /// through unchanged.
+  static String mediaUrl(String url) => url.startsWith('/') ? '$_baseUrl$url' : url;
+
   // Derive WS scheme from the HTTP base so dev/prod and IP/domain all work.
   static String wsUrl(String matchId) {
     final wsBase = _baseUrl

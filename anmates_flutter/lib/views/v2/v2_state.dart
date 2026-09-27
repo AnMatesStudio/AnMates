@@ -22,7 +22,7 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, auth, home, venueFilter, matchFilter, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues, terms, privacy, verifyEmail, admin }
+enum V2Screen { onb, auth, home, venueFilter, matchFilter, avatar, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues, terms, privacy, verifyEmail, admin }
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
@@ -295,6 +295,12 @@ class V2State extends ChangeNotifier {
   // ── Profile (GET /api/v1/profile) ─────────────────────────────────────────
   String? _profileName;
 
+  /// My avatar_url: a sample (`asset:…`), an upload on our API, or null (default).
+  String? _myAvatarUrl;
+  bool _avatarSaving = false;
+  String? _avatarError;
+  Future<Uint8List?> Function() _avatarPicker = _pickAvatarFromGallery;
+
   // ── Reads ─────────────────────────────────────────────────────────────────
 
   V2Screen get screen => _screen;
@@ -434,6 +440,10 @@ class V2State extends ChangeNotifier {
   /// Empty while the profile hasn't loaded yet.
   String get profileName => _profileName ?? '';
 
+  String? get myAvatarUrl => _myAvatarUrl;
+  bool get avatarSaving => _avatarSaving;
+  String? get avatarError => _avatarError;
+
   /// Districts actually present in the catalogue, for the filter chips. Falls
   /// back to the design's static list only while the catalogue is still empty.
   List<String> get areaNames {
@@ -490,7 +500,8 @@ class V2State extends ChangeNotifier {
 
   /// Flows B–D run the aurora 30% softer so cards and glass read cleanly.
   bool get softBackground => const {
-        V2Screen.home, V2Screen.detail, V2Screen.venueFilter, V2Screen.matchFilter, V2Screen.swipe,
+        V2Screen.home, V2Screen.detail, V2Screen.venueFilter, V2Screen.matchFilter, V2Screen.avatar,
+        V2Screen.swipe,
         V2Screen.inbox, V2Screen.chat, V2Screen.bill, V2Screen.rate, V2Screen.local,
         V2Screen.allVenues,
       }.contains(_screen);
@@ -817,6 +828,7 @@ class V2State extends ChangeNotifier {
     _disconnectChat();
     _myUserId = null;
     _profileName = null;
+    _myAvatarUrl = null;
     _account = null;
     _deckNeedsVerify = false;
     _notifs = const [];
@@ -1233,6 +1245,7 @@ class V2State extends ChangeNotifier {
       final profile = await ProfileService().getProfile();
       _myUserId = profile['id'] as String?;
       _profileName = profile['name'] as String? ?? profile['nickname'] as String?;
+      _myAvatarUrl = profile['avatar_url'] as String?;
     } catch (_) {
       // Chat still renders without this — every message just shows as "theirs"
       // until the id is known, which self-corrects once the profile loads.
@@ -1496,6 +1509,58 @@ class V2State extends ChangeNotifier {
     _profileBio = bio.trim();
     notifyListeners();
     return true;
+  }
+
+  // ── Avatar ────────────────────────────────────────────────────────────────
+
+  static Future<Uint8List?> _pickAvatarFromGallery() async {
+    // Bounded here so a 48 MP photo isn't decoded at full size for the crop.
+    final picked = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, maxWidth: 2048, maxHeight: 2048, imageQuality: 92);
+    return picked?.readAsBytes();
+  }
+
+  @visibleForTesting
+  set avatarPickerForTest(Future<Uint8List?> Function() picker) => _avatarPicker = picker;
+
+  /// A photo from the gallery for the crop; null when cancelled or unreadable.
+  Future<Uint8List?> pickAvatarPhoto() async {
+    try {
+      return await _avatarPicker();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves one of [kAvatarSamples] as my avatar. False (and [avatarError]) on failure.
+  Future<bool> chooseAvatarSample(String asset) =>
+      _saveAvatar(() => ProfileService().setAvatarUrl('asset:$asset'));
+
+  /// Uploads the cropped photo (a PNG from the avatar screen) as my avatar.
+  Future<bool> uploadAvatarCrop(Uint8List png) =>
+      _saveAvatar(() => ProfileService().uploadAvatar(png));
+
+  Future<bool> _saveAvatar(Future<String?> Function() save) async {
+    if (_avatarSaving) return false;
+    _avatarSaving = true;
+    _avatarError = null;
+    notifyListeners();
+    try {
+      _myAvatarUrl = await save();
+      return true;
+    } catch (_) {
+      _avatarError = t('Không lưu được ảnh. Thử lại nhé.', "Couldn't save the photo. Please try again.");
+      return false;
+    } finally {
+      _avatarSaving = false;
+      notifyListeners();
+    }
+  }
+
+  void clearAvatarError() {
+    if (_avatarError == null) return;
+    _avatarError = null;
+    notifyListeners();
   }
 
   /// Permanently deletes the account on the server, then signs out locally.
@@ -2042,6 +2107,7 @@ class V2State extends ChangeNotifier {
       _myUserId = profile['id'] as String?;
       _profileName = (profile['name'] as String?) ?? (profile['nickname'] as String?);
       _profileBio = profile['bio'] as String?;
+      _myAvatarUrl = profile['avatar_url'] as String?;
       _onboardingDone = profile['onboarding_done'] as bool? ?? true;
       notifyListeners();
       unawaited(loadStats());

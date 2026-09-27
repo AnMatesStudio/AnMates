@@ -280,10 +280,16 @@ func run(log *slog.Logger) error {
 	venuePhotoH := handlers.NewVenuePhoto(services.NewVenuePhotoStore(pool))
 	api.Get("/venues/:id/photos/:position", venuePhotoH.Serve)
 
+	// Profile photos, also stored in Postgres (migration 021) and public for the
+	// same <img src> reason; uploading is under auth below.
+	avatarH := handlers.NewAvatar(services.NewAvatarStore(pool), userSvc)
+	api.Get("/users/:id/avatar", avatarH.Serve)
+
 	// Authenticated.
 	auth := api.Use(jwtMW)
 	auth.Get("/profile", userH.GetProfile)
 	auth.Put("/profile", userH.UpdateProfile)
+	auth.Put("/profile/avatar", avatarH.Upload)
 	auth.Patch("/profile/onboarding", userH.UpdateOnboarding)
 	auth.Patch("/profile/preferences", userH.UpdatePreferences)
 	auth.Patch("/profile/complete-onboarding", userH.CompleteOnboarding)
