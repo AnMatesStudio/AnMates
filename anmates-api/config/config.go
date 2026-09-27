@@ -38,6 +38,12 @@ type Config struct {
 	EmailOTPResendCooldown time.Duration
 	EmailOTPMaxAttempts   int
 
+	// Web Push (self-hosted, RFC 8292 VAPID). Unset keys ⇒ push off,
+	// realtime /ws/notify still on.
+	VAPIDPublicKey string
+	VAPIDPrivateKey string
+	VAPIDSubject    string
+
 	// AI Concierge. Single data source: the local `restaurants` table (via
 	// services.VenueEngine) ranked by an OpenAI-compatible model when AIBaseURL
 	// is set. Empty ⇒ concierge disabled (no card posted); the rest of the app
@@ -117,6 +123,11 @@ func Load() (*Config, error) {
 	}
 	c.EmailOTPResendCooldown = emailCooldown
 	c.EmailOTPMaxAttempts = parseIntOr("EMAIL_OTP_MAX_ATTEMPTS", 5)
+
+	// Web Push (self-hosted VAPID).
+	c.VAPIDPublicKey = os.Getenv("VAPID_PUBLIC_KEY")
+	c.VAPIDPrivateKey = os.Getenv("VAPID_PRIVATE_KEY")
+	c.VAPIDSubject = getOr("VAPID_SUBJECT", "mailto:anmates.studio@gmail.com")
 
 	// AI Concierge — DB+LLM venue suggestions over the restaurants table.
 	c.AIBaseURL = os.Getenv("AI_BASE_URL")

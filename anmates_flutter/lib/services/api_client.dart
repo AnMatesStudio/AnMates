@@ -134,4 +134,12 @@ class ApiClient {
         .replaceFirst('http://', 'ws://');
     return '$wsBase/ws/chat/$matchId';
   }
+
+  /// Per-user realtime notification socket (self-hosted; see handlers/push.go).
+  static String notifyWsUrl() {
+    final wsBase = _baseUrl
+        .replaceFirst('https://', 'wss://')
+        .replaceFirst('http://', 'ws://');
+    return '$wsBase/ws/notify';
+  }
 }

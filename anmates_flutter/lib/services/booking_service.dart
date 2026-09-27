@@ -54,8 +54,8 @@ class BookingService {
     final data = await _api.post('/api/v1/matches/$matchId/booking', body: {
       'restaurant_name': restaurantName,
       'restaurant_address': restaurantAddress,
-      if (lat != null) 'lat': lat,
-      if (lng != null) 'lng': lng,
+      'lat': ?lat,
+      'lng': ?lng,
       'scheduled_at': scheduledAt.toUtc().toIso8601String(),
     }) as Map<String, dynamic>;
     return Booking.fromJson(data);

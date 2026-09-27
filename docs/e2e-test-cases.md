@@ -27,7 +27,8 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | Legal + 18+ | no terms/privacy, no age check | Terms + Privacy screens (Decree 13/2023), sign-up needs birth date (18+) and consent, stored server-side (round 4) |
 | Report handling | reports stored, never reviewed | auto-suspend after 3 distinct reporters / 30 days; admin queue (dismiss / suspend / unsuspend) (round 4) |
 | Fake accounts | any email could sign up and swipe | email accounts verify a 6-digit code before swiping/booking/locals and stay hidden until then; old accounts grandfathered (round 4) |
-| Pay tiers, bill split OCR, push | placeholders | NOT built — need a payment merchant, an OCR service, FCM server keys |
+| Push notifications | none (30 s in-app polling only) | self-hosted: realtime `/ws/notify` + Web Push with our own VAPID keys, no Firebase (round 5; see docs/push-notifications.md) |
+| Pay tiers, bill split OCR | placeholders | NOT built — need a payment merchant and an OCR service |
 
 ## Journeys
 
@@ -52,6 +53,9 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | E2E-24 | Unverified hidden | unverified user with shared tastes; verify | not in viewer's deck → appears | Auto |
 | E2E-25 | Auto-suspend | 2 then 3 distinct reporters | not suspended at 2; at 3: 403 `ACCOUNT_SUSPENDED`, hidden from decks | Auto |
 | E2E-26 | Admin queue | non-admin; list; bad action; dismiss; suspend; unsuspend | 403; both reports with names/note; 400; resolved & gone from queue; right account suspended/unsuspended | Auto |
+| E2E-27 | Realtime `/ws/notify` | bad token; match created | 401; `notification` envelope (kind match, actor, body) in ~25 ms | Auto |
+| E2E-28 | Web Push (fake push service, 2 API replicas) | VAPID key; subscribe; match | aes128gcm + VAPID auth with our key; payload DECRYPTS with the browser keys; exactly 1 push | Auto |
+| E2E-29 | Subscription lifecycle | no token; bad input ×3; same endpoint twice; 410 endpoint; unsubscribe | 401; 400 ×3; one row; dead row deleted; row gone | Auto |
 | E2E-20 | Local Mates | no location; near ×2 with meals, far, near without meal; block | [] → only the 2 near with meals, nearest first ~1.1 km; blocked disappears | Auto |
 | E2E-27 | Avatar | upload without token; non-image; crop PNG (data: URL); GET versioned / with ETag / unversioned; partner's deck; sample; bad samples / external URL / someone else's photo; ""; never-uploaded user | 401; 400; avatar_url `/api/v1/users/<id>/avatar?v=…`; 200 image/jpeg immutable / 304 / no-cache; same avatar_url in B's deck; `asset:…`; 400 ×3; null; 404 | Auto |
 
@@ -86,4 +90,8 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | UI-24 | Venue filter (NEW) | Explore → tune icon; pick "Quận 1", ">350k"; pinned CTA; tune icon; Đặt lại; back; Quẹt → tune icon; back | "Lọc quán" with Khoảng cách / Món ăn / Khu vực / Khoảng giá, no "Vibe sống"; count narrows (29 → 6 → 3 near Q1 at 20 km); back on Explore, badge 2; count restored; Explore; "Match filter"; Quẹt — **Auto** `tool/e2e/ui_venue_filter.js` (signed out, local build or `APP=https://app.anmates.site/`) |
 | UI-25 | Avatar (NEW) | Me → tap avatar; pick illustration 4 → Lưu; tap avatar → Tải ảnh lên (a photo) → + + → drag → Dùng ảnh này; Explore; sign in as a partner → Quẹt | 11 illustrations; avatar_url `asset:…/sample-3.png`; crop step; stored 512×512 JPEG at `/users/<id>/avatar?v=…`, toast, photo on Me + Explore header; partner's card shows it — **Auto** `tool/e2e/ui_avatar.js` |
 | UI-26 | Avatar full size (NEW) | with an uploaded photo: avatar screen → "Xem ảnh đại diện" → Close; pick an illustration; chat header of a mate with a photo | badge + button only for the photo; viewer (pinch/wheel/double-tap zoom) opens and closes; gone once an illustration is picked; the mate's photo opens too, an illustration doesn't — **Auto** `tool/e2e/ui_avatar.js` + `test/v2/avatar_test.dart` |
+| UI-27 | Realtime (NEW) | match created by the other user | bell badge in ~0.35 s without reload — **Auto** `tool/e2e/ui_push_round5.js` |
+| UI-28 | Push opt-in (NEW) | Inbox card → Bật (grant) | real Chromium subscription stored (jmt17.google.com); card gone; Me switch on — **Auto** |
+| UI-29 | Web Push end to end (NEW) | page visible; other user rates | notification shown by OUR service worker via the real push service — **Auto** |
+| UI-30 | Hidden tab + switch off (NEW) | tab hidden; booking proposed; Me switch off | system notification; switch off removes the subscription — **Auto** |
 | UI-10 | Every screen | 360×640 and 402×874 viewports, VI and EN | no overflow stripes, no untranslated string |

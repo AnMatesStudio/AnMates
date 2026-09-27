@@ -41,6 +41,13 @@ func NewClient(conn *websocket.Conn, hub HubI, matchID, userID uuid.UUID, onMsg 
 	}
 }
 
+// Conn exposes the underlying WebSocket connection for callers that run their
+// own pump (e.g. the per-user notify channel, which has no room hub).
+func (c *Client) Conn() *websocket.Conn { return c.conn }
+
+// Send exposes the client's outbound message channel for the same callers.
+func (c *Client) Send() <-chan []byte { return c.send }
+
 // Run blocks until the connection closes. Spawns the writer; reader runs inline.
 func (c *Client) Run() {
 	c.hub.Join(c.matchID, c)

@@ -12,7 +12,10 @@ import '../../services/booking_service.dart';
 import '../../services/chat_socket.dart';
 import '../../services/location_service.dart';
 import '../../services/match_service.dart';
+import '../../services/notify_socket.dart';
 import '../../services/profile_service.dart';
+import '../../services/push_api.dart';
+import '../../services/push_bridge.dart';
 import '../../services/extras_service.dart';
 import '../../services/safety_service.dart';
 import '../../services/storage_service.dart';
@@ -156,6 +159,13 @@ class V2State extends ChangeNotifier {
   List<AppNotification> _notifs = const [];
   int _unread = 0;
   Timer? _notifTimer;
+
+  // Realtime: the per-user /ws/notify socket plus this browser's push state.
+  NotifySocket? _notifySocket;
+  StreamSubscription<Map<String, dynamic>>? _notifySub;
+  bool _pushOn = false; // this browser has a live subscription
+  bool _pushBusy = false;
+  bool _pushPromptDismissed = true; // loaded from prefs; true until known so it never flashes
 
   TrustScore? _trust;
   MealHistory? _history;
@@ -370,6 +380,17 @@ class V2State extends ChangeNotifier {
   }
   bool get notifsOpen => _notifsOpen;
   bool get searchOpen => _searchOpen;
+
+  /// Whether this browser can do Web Push at all.
+  bool get pushSupportedHere => pushSupported();
+  /// This browser has a live push subscription.
+  bool get pushOn => _pushOn;
+  /// A push subscription is being registered right now.
+  bool get pushBusy => _pushBusy;
+  /// iOS PWA not on the home screen: pushes need an "add to Home" nudge.
+  bool get pushNeedsHomeScreen => pushIOSNotInstalled();
+  /// Inbox card: signed in, push possible, not decided yet, not dismissed.
+  bool get showPushPrompt => signedIn && pushSupported() && pushPermission() == 'default' && !_pushPromptDismissed;
 
   List<CatalogVenue> get catalog => _catalog;
   List<Venue> get venues => _venues;
@@ -830,6 +851,7 @@ class V2State extends ChangeNotifier {
     _profileName = null;
     _myAvatarUrl = null;
     _account = null;
+    _stopRealtime(); // keep the push subscription: the server moves it to the next user
     _deckNeedsVerify = false;
     _notifs = const [];
     _unread = 0;
@@ -1760,6 +1782,112 @@ class V2State extends ChangeNotifier {
     return true;
   }
 
+  /// Opens the per-user notification socket. Idempotent: a second call while
+  /// already connected changes nothing. No-op when there is no stored access
+  /// token — tests run signed out and their socket would just be dead weight.
+  Future<void> startRealtime() async {
+    if (_notifySocket != null) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString('access_token') == null) return;
+    final socket = NotifySocket();
+    _notifySocket = socket;
+    _notifySub = socket.notifications.listen(_onRealtime);
+    unawaited(socket.connect());
+    _pushPromptDismissed = prefs.getBool('push_prompt_dismissed') ?? false;
+    _pushOn = pushPermission() == 'granted' && (prefs.getBool('push_on') ?? false);
+    notifyListeners();
+  }
+
+  /// Closes the notification socket and forgets it (sign-out, dispose).
+  void _stopRealtime() {
+    unawaited(_notifySub?.cancel());
+    _notifySocket?.close();
+    _notifySocket = null;
+    _notifySub = null;
+  }
+
+  /// One realtime frame from the socket: dedupe against the polled list,
+  /// prepend, count it unread, and alert — unless the message belongs to the
+  /// chat that is open and visible on this screen, which needs no alert.
+  void _onRealtime(Map<String, dynamic> p) {
+    final AppNotification n;
+    try {
+      n = AppNotification.fromJson(p);
+    } catch (_) {
+      return; // a malformed frame must not take the stream listener down
+    }
+    if (_notifs.any((x) => x.id == n.id)) return;
+    _notifs = [n, ..._notifs];
+    if (!_notifsOpen) _unread++;
+    final visibleChat = n.kind == 'message' &&
+        _screen == V2Screen.chat &&
+        _activeMatchId == n.matchId &&
+        !pageHidden();
+    if (!visibleChat && pageHidden()) {
+      // Web Push covers the app-closed case via its service worker; this
+      // covers a hidden tab that has no push subscription of its own.
+      notifyLocal(p['title'] as String? ?? 'ĂnMates', p['body'] as String? ?? notifText(n), n.id);
+    }
+    notifyListeners();
+  }
+
+  /// Registers this browser for Web Push (the VAPID key comes from the server;
+  /// the subscription is relayed to the signed-in user). True on success.
+  Future<bool> enablePush() async {
+    _pushBusy = true;
+    notifyListeners();
+    try {
+      final key = await PushApi().vapidKey();
+      if (key == null) return false;
+      final json = await pushEnable(key);
+      if (json == null) return false;
+      await PushApi().subscribe(jsonDecode(json) as Map<String, dynamic>);
+      _pushOn = true;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('push_on', true);
+      await prefs.setBool('push_prompt_dismissed', true);
+      return true;
+    } catch (_) {
+      _pushOn = false;
+      return false;
+    } finally {
+      _pushBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Unsubscribes this browser from Web Push and forgets the flag.
+  /// The switch flips off immediately (optimistic) so the user gets
+  /// feedback while the browser unsubscribe and API call run.
+  Future<void> disablePush() async {
+    _pushBusy = true;
+    _pushOn = false;
+    notifyListeners();
+    try {
+      final ep = await pushDisable();
+      if (ep != null && ep.isNotEmpty) {
+        try {
+          await PushApi().unsubscribe(ep);
+        } catch (_) {
+          // The browser copy is already gone; the server drops the rest.
+        }
+      }
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('push_on', false);
+    } finally {
+      _pushBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// The user dismissed the inbox push card: ask again later, not now.
+  Future<void> dismissPushPrompt() async {
+    _pushPromptDismissed = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('push_prompt_dismissed', true);
+    notifyListeners();
+  }
+
   /// Unblocks one person and drops them from the list.
   Future<bool> unblockUser(String userId) async {
     try {
@@ -2114,6 +2242,7 @@ class V2State extends ChangeNotifier {
       unawaited(loadPrefs());
       unawaited(loadAccountStatus());
       unawaited(loadNotifications());
+      unawaited(startRealtime());
     } catch (_) {
       // The header falls back to blank rather than a fake name.
     }
@@ -2123,6 +2252,7 @@ class V2State extends ChangeNotifier {
   void dispose() {
     _disconnectChat();
     _notifTimer?.cancel();
+    _stopRealtime();
     super.dispose();
   }
 }

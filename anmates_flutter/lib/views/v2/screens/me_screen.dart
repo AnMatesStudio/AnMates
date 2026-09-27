@@ -241,9 +241,13 @@ class MeScreen extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   child: s.history == null || s.history!.visits.isEmpty
-                      ? Text(
-                          s.t('Chưa có bữa nào được xác nhận.', 'No confirmed meals yet.'),
-                          style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                      ? SizedBox(
+                          width: double.infinity,
+                          child: Text(
+                            s.t('Chưa có bữa nào được xác nhận.', 'No confirmed meals yet.'),
+                            textAlign: TextAlign.start,
+                            style: AppTextV2.body(color: AppColorsV2.inkA(0.48), size: 12.5),
+                          ),
                         )
                       : SizedBox(
                           width: double.infinity,
@@ -305,6 +309,67 @@ class MeScreen extends StatelessWidget {
                       _UpgradeCard(s: s),
                       if (s.signedIn) ...[
                         const SizedBox(height: 22),
+                        V2Sheet(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(s.t('Thông báo đẩy', 'Push notifications'),
+                                      style: AppTextV2.name(size: 14)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    !s.pushSupportedHere && s.pushNeedsHomeScreen
+                                        ? s.t(
+                                            'Trên iPhone: bấm Chia sẻ → Thêm vào MH chính, rồi mở app từ đó để bật.',
+                                            'On iPhone: Share → Add to Home Screen, then open the app from there to turn this on.')
+                                        : !s.pushSupportedHere
+                                            ? s.t('Trình duyệt này chưa hỗ trợ.',
+                                                'This browser does not support it.')
+                                            : s.t(
+                                                'Báo khi có match, tin nhắn, lịch hẹn — kể cả khi đã đóng app.',
+                                                'Matches, messages and bookings — even when the app is closed.'),
+                                    style: AppTextV2.meta(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Semantics(
+                              label: s.t('Thông báo đẩy', 'Push notifications'),
+                              child: Switch(
+                                key: const Key('me-push-switch'),
+                                value: s.pushOn,
+                                activeThumbColor: Colors.white,
+                                activeTrackColor: AppColorsV2.wisteria,
+                                inactiveThumbColor: Colors.white,
+                                inactiveTrackColor: AppColorsV2.inkA(0.14),
+                                onChanged: (!s.pushSupportedHere || s.pushBusy)
+                                    ? null
+                                    : (v) async {
+                                        final messenger = ScaffoldMessenger.maybeOf(context);
+                                        final bottom = navClearance(context);
+                                        if (v) {
+                                          final ok = await s.enablePush();
+                                          showV2Toast(
+                                            messenger,
+                                            ok
+                                                ? s.t('Đã bật thông báo', 'Notifications on')
+                                                : s.t(
+                                                    'Chưa bật được — hãy cho phép thông báo trong trình duyệt.',
+                                                    'Could not turn on — allow notifications in your browser.'),
+                                            bottom: bottom,
+                                          );
+                                        } else {
+                                          await s.disablePush();
+                                        }
+                                      },
+                              ),
+                            ),
+                          ]),
+                        ),
+                        const SizedBox(height: 14),
                         if (s.isAdmin)
                           Center(
                             child: V2TapTarget(

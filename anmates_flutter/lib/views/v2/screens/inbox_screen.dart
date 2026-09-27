@@ -72,6 +72,63 @@ class InboxScreen extends StatelessWidget {
     }
     final rows = s.conversations;
     return [
+      if (s.showPushPrompt)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(pad, 0, pad, 12),
+            child: V2Sheet(
+              key: const Key('inbox-push-prompt'),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    s.t('Bật thông báo để không lỡ tin nhắn và lịch hẹn.',
+                        "Turn on notifications so you don't miss messages and bookings."),
+                    style: AppTextV2.name(size: 13.5),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    V2TapTarget(
+                      onTap: () async {
+                        final messenger = ScaffoldMessenger.maybeOf(context);
+                        final bottom = navClearance(context);
+                        final ok = await s.enablePush();
+                        showV2Toast(
+                          messenger,
+                          ok
+                              ? s.t('Đã bật thông báo', 'Notifications on')
+                              : s.t(
+                                  'Chưa bật được — hãy cho phép thông báo trong trình duyệt.',
+                                  'Could not turn on — allow notifications in your browser.'),
+                          bottom: bottom,
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: AppColorsV2.wisteria,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(s.t('Bật', 'Turn on'),
+                            style: AppTextV2.name(color: Colors.white, size: 13)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    V2TapTarget(
+                      onTap: s.dismissPushPrompt,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        child: Text(s.t('Để sau', 'Later'),
+                            style: AppTextV2.name(color: AppColorsV2.ink, size: 13)),
+                      ),
+                    ),
+                  ]),
+                ],
+              ),
+            ),
+          ),
+        ),
       if (s.conversationsError != null)
         SliverToBoxAdapter(
           child: Padding(

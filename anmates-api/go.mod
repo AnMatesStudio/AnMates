@@ -4,6 +4,8 @@ go 1.25.0
 
 require (
 	github.com/ansrivas/fiberprometheus/v2 v2.18.0
+	github.com/exaring/otelpgx v0.12.0
+	github.com/fasthttp/websocket v1.5.8
 	github.com/gofiber/contrib/otelfiber/v2 v2.2.3
 	github.com/gofiber/contrib/websocket v1.3.4
 	github.com/gofiber/fiber/v2 v2.52.14
@@ -25,12 +27,11 @@ require (
 )
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0 // indirect
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/exaring/otelpgx v0.12.0 // indirect
-	github.com/fasthttp/websocket v1.5.8 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect

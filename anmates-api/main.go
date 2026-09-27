@@ -167,6 +167,20 @@ func run(log *slog.Logger) error {
 	notifSvc := services.NewNotificationService(pool)
 	accountSvc := services.NewAccountService(pool)
 
+	// Self-hosted notification delivery: realtime over /ws/notify on every replica, and Web Push with our own
+	// VAPID keys (off when the keys are unset). Rows come from DB triggers; pg_notify fans them out.
+	pushStore := services.NewPushService(pool)
+	userHub := ws.NewUserHub()
+	var pushSender *services.WebPushSender
+	if cfg.VAPIDPublicKey != "" && cfg.VAPIDPrivateKey != "" {
+		pushSender = services.NewWebPushSender(cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject, cfg.DevMode)
+		log.Info("web push enabled (self-hosted VAPID)")
+	} else {
+		log.Info("web push disabled (set VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY); realtime /ws/notify still on")
+	}
+	dispatcher := services.NewPushDispatcher(pool, pushStore, userHub, pushSender, log)
+	go dispatcher.Run(ctx)
+
 	// One engine over the `restaurants` table, shared by the venue catalogue,
 	// the free-text /venues/search route and (optionally) the concierge.
 	venueEngine := services.NewVenueEngine(pool)
@@ -228,6 +242,7 @@ func run(log *slog.Logger) error {
 	mealsH := handlers.NewMeals(mealSvc)
 	extrasH := handlers.NewProfileExtras(extrasSvc)
 	notifH := handlers.NewNotifications(notifSvc)
+	pushH := handlers.NewPush(pushStore, pushSender, userHub, cfg.DevMode)
 	jwtMW := middleware.JWT(cfg.JWTSecret)
 
 	app.Get("/health", func(c *fiber.Ctx) error {
@@ -284,6 +299,9 @@ func run(log *slog.Logger) error {
 	// same <img src> reason; uploading is under auth below.
 	avatarH := handlers.NewAvatar(services.NewAvatarStore(pool), userSvc)
 	api.Get("/users/:id/avatar", avatarH.Serve)
+
+	// Web Push: the VAPID public key is public (browsers need it to subscribe).
+	api.Get("/push/vapid-public-key", pushH.VapidPublicKey)
 
 	// Authenticated.
 	auth := api.Use(jwtMW)
@@ -342,6 +360,10 @@ func run(log *slog.Logger) error {
 	auth.Get("/notifications", notifH.List)
 	auth.Post("/notifications/read", notifH.MarkAllRead)
 
+	// Web Push subscribe/unsubscribe (browser push endpoints).
+	auth.Post("/push/subscribe", pushH.Subscribe)
+	auth.Post("/push/unsubscribe", pushH.Unsubscribe)
+
 	// Account: status, email verification (codes via the existing email OTP sender).
 	auth.Get("/account/status", accountH.Status)
 	auth.Post("/account/verify-email/request", accountH.RequestVerify)
@@ -368,6 +390,9 @@ func run(log *slog.Logger) error {
 
 	// WebSocket chat — auth + upgrade-required check, then the WS handler.
 	app.Get("/ws/chat/:matchId", chatH.WSAuth(cfg.JWTSecret), chatH.WebSocket())
+
+	// WebSocket notify — one server→client notification socket per user.
+	app.Get("/ws/notify", pushH.NotifyAuth(cfg.JWTSecret), pushH.NotifyWS())
 
 	// Graceful shutdown.
 	//
