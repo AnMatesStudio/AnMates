@@ -48,6 +48,13 @@ tìm mates có filter riêng.
   29 quán → Quận 1: 6 → >350k: 3; badge 2; Đặt lại về 29; Quẹt → Match filter → back. Không page error.
 - Prod: xem mục Deploy bên dưới.
 
+## Deploy prod (cùng ngày)
+- `59e8def` push main → CI `36306521611` xanh (Flutter Web + Go API) → CD `36306664088` xanh (08:36:10Z).
+- `main.dart.js` prod last-modified 08:34:51Z, `cf-cache-status: BYPASS`, có key `venue-filter-radius` + `swipe-filter`.
+- `APP=https://app.anmates.site/ node tool/e2e/ui_venue_filter.js` (chưa đăng nhập, đi qua onboarding): 13/13 PASS,
+  29 → 6 → 3, badge 2, Đặt lại → 29, Quẹt → Match filter → back; không page error.
+- Script: nút onboarding có semantics "CÙNG ĂN THÔI →" nên click theo chuỗi con, không exact.
+
 ## Open follow-ups
 - Tiêu đề Quẹt: dòng phụ "Quẹt theo gu ăn, không theo ngoại hình" xuống 2 dòng ở 402 px vì thêm nút lọc.
 - "Xem tất cả" chưa theo bộ lọc quán.

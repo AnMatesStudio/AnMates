@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-27) — Lọc quán tách khỏi Match filter: icon tune Khám phá → "Lọc quán" (bán kính, món, quận, giá/người); Quẹt có nút lọc mates riêng. Code + test + UI thật local xong; push main (CI/CD) → verify prod; chờ user xác nhận:**
+**Status (2026-09-27) — Lọc quán tách khỏi Match filter: icon tune Khám phá → "Lọc quán" (bán kính, món, quận, giá/người); Quẹt có nút lọc mates riêng. DEPLOYED prod (59e8def, CI+CD xanh 08:36Z), verify trên app.anmates.site 13/13; chờ user xác nhận:**
 Xem `sessions/2026-09-27-venue-filter-split-from-match-filter.md`.
 
 ---

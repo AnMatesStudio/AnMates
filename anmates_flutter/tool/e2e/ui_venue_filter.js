@@ -49,7 +49,7 @@ const check = (name, ok, extra = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${
   try {
     if (!DEBUG_NAV) {
       for (const step of ['CÙNG ĂN THÔI', 'Bắt đầu gom kèo', 'Xem ai đang gom kèo', 'Tiếp tục', 'Vào Ăn Mates']) {
-        await click(step);
+        await click(step, false); // a button's label can carry its arrow too ("CÙNG ĂN THÔI →")
       }
     }
     await page.waitForTimeout(3000);
