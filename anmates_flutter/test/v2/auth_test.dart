@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:anmates/services/api_client.dart';
 import 'package:anmates/services/auth_service.dart';
 import 'package:anmates/views/v2/v2_app.dart';
+import 'package:anmates/views/v2/v2_data.dart';
+import 'package:flutter/services.dart';
 import 'package:anmates/views/v2/v2_state.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,6 +116,12 @@ void main() {
     await s.signOut();
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Tôi'), findsNothing);
+  });
+
+  test('the account avatar is the bundled chibi illustration, not a photo', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    expect(A.avatar, 'assets/v2/avatar-chibi.png');
+    expect((await rootBundle.load(A.avatar)).lengthInBytes, greaterThan(10000));
   });
 
   testWidgets('a short password is caught before any request', (tester) async {

@@ -28,7 +28,7 @@ class A {
   static const beer = 'assets/v2/beer.png';
 
   static const grain = 'assets/v2/grain.png';
-  static const avatar = 'assets/v2/avatar-minh.jpg';
+  static const avatar = 'assets/v2/avatar-chibi.png';
 }
 
 /// `assets/grain.png` is authored at 260px and tiled at 120 logical px.
