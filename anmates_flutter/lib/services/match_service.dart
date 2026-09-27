@@ -57,6 +57,10 @@ class ApiMatch {
   final String? lastMessage;
   final DateTime? lastMessageAt;
   final String? lastSenderId;
+  final String? lastMessageType;
+
+  /// The conversation's quick-reaction emoji, shared by both members.
+  final String quickEmoji;
 
   /// Messages from the partner (or the concierge) you haven't opened yet.
   final int unreadCount;
@@ -75,6 +79,8 @@ class ApiMatch {
     this.lastMessage,
     this.lastMessageAt,
     this.lastSenderId,
+    this.lastMessageType,
+    this.quickEmoji = '👍',
     this.unreadCount = 0,
     this.partnerReadAt,
     required this.score,
@@ -92,6 +98,8 @@ class ApiMatch {
     lastMessage: j['last_message'] as String?,
     lastMessageAt: _time(j['last_message_at']),
     lastSenderId: j['last_sender_id'] as String?,
+    lastMessageType: j['last_message_type'] as String?,
+    quickEmoji: j['quick_emoji'] as String? ?? '👍',
     unreadCount: (j['unread_count'] as num?)?.toInt() ?? 0,
     partnerReadAt: _time(j['partner_read_at']),
     score: (j['score'] as num).toDouble(),
@@ -183,6 +191,13 @@ class MatchService {
   /// Marks the match read up to now; the partner's socket gets the receipt.
   Future<void> markRead(String matchId) async {
     await _api.post('/api/v1/matches/$matchId/read');
+  }
+
+  /// Changes the conversation's quick emoji for both members; returns the
+  /// transcript line recording the change.
+  Future<ApiMessage> setQuickEmoji(String matchId, String emoji) async {
+    final data = await _api.put('/api/v1/matches/$matchId/emoji', body: {'emoji': emoji});
+    return ApiMessage.fromJson(data as Map<String, dynamic>);
   }
 
   /// Opens a chat with each demo bot (idempotent) and returns the inbox.

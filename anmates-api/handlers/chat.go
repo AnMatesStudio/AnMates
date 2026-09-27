@@ -93,6 +93,41 @@ func (ch *Chat) History(c *fiber.Ctx) error {
 	return httputil.OK(c,msgs)
 }
 
+type quickEmojiReq struct {
+	Emoji string `json:"emoji"`
+}
+
+// SetQuickEmoji changes the conversation's quick-reaction emoji for both
+// members. The change is saved as a transcript line and pushed to the
+// partner's socket as a regular "message" envelope (msg_type quick_emoji).
+func (ch *Chat) SetQuickEmoji(c *fiber.Ctx) error {
+	uid := middleware.UserID(c)
+	matchID, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid match id")
+	}
+	var r quickEmojiReq
+	if err := c.BodyParser(&r); err != nil {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, "invalid body")
+	}
+	r.Emoji = strings.TrimSpace(r.Emoji)
+	if !services.ValidQuickEmoji(r.Emoji) {
+		return httputil.Err(c, fiber.StatusBadRequest, httputil.ErrValidation, services.ErrBadEmoji.Error())
+	}
+	ctx, cancel := context.WithTimeout(c.UserContext(), 10*time.Second)
+	defer cancel()
+	if !ch.svc.IsMember(ctx, matchID, uid) {
+		return httputil.Err(c, fiber.StatusNotFound, httputil.ErrMatchNotFound, "match not found")
+	}
+	saved, err := ch.svc.SetQuickEmoji(ctx, matchID, uid, r.Emoji)
+	if err != nil {
+		return httputil.Err(c, fiber.StatusInternalServerError, httputil.ErrInternal, "set emoji failed")
+	}
+	payload, _ := json.Marshal(saved)
+	ch.hub.Broadcast(matchID, uid, wsx.Envelope{Type: "message", Payload: payload})
+	return httputil.OK(c, saved)
+}
+
 // WebSocket is the Fiber handler installed at /ws/chat/:matchId.
 func (ch *Chat) WebSocket() fiber.Handler {
 	return websocket.New(func(conn *websocket.Conn) {

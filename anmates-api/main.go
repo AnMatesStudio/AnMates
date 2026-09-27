@@ -288,6 +288,7 @@ func run(log *slog.Logger) error {
 	auth.Get("/conversations", matchH.Conversations)
 	auth.Get("/matches/:id/messages", chatH.History)
 	auth.Post("/matches/:id/read", chatH.MarkRead)
+	auth.Put("/matches/:id/emoji", chatH.SetQuickEmoji)
 	if botsH != nil {
 		auth.Post("/demo/bots", botsH.Start)
 	}

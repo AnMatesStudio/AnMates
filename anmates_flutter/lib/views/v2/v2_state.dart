@@ -47,6 +47,12 @@ int _keepRadiusKm(int km) =>
 
 enum SplitMode { item, equal }
 
+/// The quick-emoji picker's choices, food first.
+const List<String> kQuickEmojiChoices = [
+  '👍', '❤️', '😂', '🔥', '🥰', '😋', '🤤', '🙏',
+  '🍜', '🍲', '🍕', '🍔', '🍣', '🍻', '🧋', '☕',
+];
+
 /// One line of the chat transcript as the chat screen draws it.
 class ChatLine {
   const ChatLine({required this.text, required this.mine, required this.at, this.kind = 'text'});
@@ -196,6 +202,7 @@ class V2State extends ChangeNotifier {
   ChatSocket? _chatSocket;
   String? _myUserId;
   bool _activeIsBot = false;
+  String _quickEmoji = '👍';
   bool _partnerTyping = false;
   Timer? _typingTimer;
   DateTime? _lastTypingSent;
@@ -304,6 +311,9 @@ class V2State extends ChangeNotifier {
   bool get authBusy => _authBusy;
   String? get authError => _authError;
   bool get partnerTyping => _partnerTyping;
+
+  /// This conversation's quick-reaction emoji (the composer's "like").
+  String get quickEmoji => _quickEmoji;
   bool get messagesLoading => _messagesLoading;
 
   Booking? get booking => _booking;
@@ -445,7 +455,7 @@ class V2State extends ChangeNotifier {
   int? get lastMineIndex {
     final t = transcript;
     for (var i = t.length - 1; i >= 0; i--) {
-      if (t[i].mine) return i;
+      if (t[i].mine && t[i].kind != 'quick_emoji') return i;
     }
     return null;
   }
@@ -681,6 +691,7 @@ class V2State extends ChangeNotifier {
     _activeMatchId = c.id;
     _activeMate = mateFromConversation(c);
     _activeIsBot = c.partnerIsBot;
+    _quickEmoji = c.quickEmoji;
     _sampleChat = false;
     _sampleLines = const [];
     _messages = const [];
@@ -710,6 +721,29 @@ class V2State extends ChangeNotifier {
     final id = _activeMatchId;
     if (id == null || _sampleChat) return;
     unawaited(MatchService().markRead(id).catchError((_) {}));
+  }
+
+  /// Changes the quick emoji for both of you. Shown at once; put back if the
+  /// server refuses. A sample chat keeps it on this device.
+  Future<void> setQuickEmoji(String emoji) async {
+    if (emoji == _quickEmoji) return;
+    final before = _quickEmoji;
+    _quickEmoji = emoji;
+    if (_sampleChat) {
+      _sampleLines = [..._sampleLines, ChatLine(text: emoji, mine: true, at: DateTime.now(), kind: 'quick_emoji')];
+      notifyListeners();
+      return;
+    }
+    final id = _activeMatchId;
+    if (id == null) return;
+    notifyListeners();
+    try {
+      final saved = await MatchService().setQuickEmoji(id, emoji);
+      _messages = [..._messages, saved];
+    } catch (_) {
+      _quickEmoji = before;
+    }
+    notifyListeners();
   }
 
   /// The composer's keystrokes: tells the partner you're typing, at most every 2 s.
@@ -902,6 +936,7 @@ class V2State extends ChangeNotifier {
       _booking = null;
       _sampleChat = true;
       _activeIsBot = false;
+      _quickEmoji = '👍';
       _sampleLines = const [];
       _matchReveal = null;
       _screen = V2Screen.chat;
@@ -915,6 +950,7 @@ class V2State extends ChangeNotifier {
     }
     _sampleChat = false;
     _activeIsBot = false;
+    _quickEmoji = '👍';
     _seenThrough = -1;
     _matchReveal = null;
     _screen = V2Screen.chat;
@@ -989,6 +1025,7 @@ class V2State extends ChangeNotifier {
     _chatSocket = socket;
     socket.messages.listen((m) {
       _messages = [..._messages, m];
+      if (m.msgType == 'quick_emoji') _quickEmoji = m.content;
       _partnerTyping = false;
       _typingTimer?.cancel();
       notifyListeners();

@@ -48,3 +48,16 @@ func TestBotPersonasHaveIDs(t *testing.T) {
 		}
 	}
 }
+
+func TestValidQuickEmoji(t *testing.T) {
+	for _, ok := range []string{"👍", "❤️", "🍜", "🔥🔥", "👨‍👩‍👧", "🇻🇳", "🙏🏽", "☕"} {
+		if !ValidQuickEmoji(ok) {
+			t.Errorf("ValidQuickEmoji(%q) = false, want true", ok)
+		}
+	}
+	for _, bad := range []string{"", "ok", "👍 ", " ", "a👍", "1", "<b>", "!", "‍", "^", "👍​","👍👍👍👍👍👍👍👍👍", "\u200b"} {
+		if ValidQuickEmoji(bad) {
+			t.Errorf("ValidQuickEmoji(%q) = true, want false", bad)
+		}
+	}
+}

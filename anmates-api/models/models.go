@@ -112,6 +112,9 @@ type Conversation struct {
 	LastMessage      *string    `json:"last_message,omitempty"`
 	LastMessageAt    *time.Time `json:"last_message_at,omitempty"`
 	LastSenderID     *uuid.UUID `json:"last_sender_id,omitempty"`
+	LastMessageType  *string    `json:"last_message_type,omitempty"`
+	// The conversation's quick-reaction emoji, shared by both members.
+	QuickEmoji string `json:"quick_emoji"`
 	// Messages from anyone but the caller newer than the caller's last read.
 	UnreadCount int `json:"unread_count"`
 	// When the partner last opened this chat — the "Đã xem" under your message.

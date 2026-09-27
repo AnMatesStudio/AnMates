@@ -37,9 +37,14 @@ List<String> serveChatApi({
       return listStatus != null ? json(null, listStatus) : json(conversations);
     }
     if (req.method == 'POST' && path == '/api/v1/demo/bots') return json(bots);
-    final m = RegExp(r'^/api/v1/matches/([^/]+)/(messages|read|booking)$').firstMatch(path);
+    final m = RegExp(r'^/api/v1/matches/([^/]+)/(messages|read|booking|emoji)$').firstMatch(path);
     if (m != null) {
+      if (m.group(2) == 'emoji') calls.add('BODY ${req.body}');
       return switch (m.group(2)) {
+        'emoji' => json({
+            ...message(m.group(1)!, kMe, jsonDecode(req.body)['emoji'] as String, DateTime.now()),
+            'msg_type': 'quick_emoji',
+          }),
         'messages' => json([...?history[m.group(1)]].reversed.toList()),
         'read' => json({'read_at': DateTime.now().toUtc().toIso8601String()}),
         _ => json(null, 404),
@@ -61,6 +66,8 @@ Map<String, dynamic> conversation(
   DateTime? lastAt,
   int unread = 0,
   DateTime? partnerReadAt,
+  String quickEmoji = '👍',
+  String? lastType,
 }) =>
     {
       'match_id': matchId,
@@ -71,6 +78,8 @@ Map<String, dynamic> conversation(
       'last_message_at': lastAt?.toUtc().toIso8601String(),
       'last_sender_id': lastSender,
       'unread_count': unread,
+      'quick_emoji': quickEmoji,
+      'last_message_type': lastType,
       'partner_read_at': partnerReadAt?.toUtc().toIso8601String(),
       'score': 0.5,
       'created_at': DateTime.utc(2026, 9, 20).toIso8601String(),

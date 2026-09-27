@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"errors"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/anmates/api/models"
 	"github.com/google/uuid"
@@ -132,4 +135,53 @@ func (s *ChatService) MarkRead(ctx context.Context, matchID, userID uuid.UUID) (
 		RETURNING last_read_at
 	`, matchID, userID).Scan(&at)
 	return at, err
+}
+
+// ErrBadEmoji: the quick emoji must be a short run of emoji — no letters,
+// digits or spaces, so it can't smuggle a message into the composer button.
+var ErrBadEmoji = errors.New("quick emoji must be 1-8 emoji characters")
+
+// ValidQuickEmoji reports whether s can be a conversation's quick emoji.
+func ValidQuickEmoji(s string) bool {
+	if s == "" || len(s) > 32 || !utf8.ValidString(s) {
+		return false
+	}
+	symbols := 0
+	for _, r := range s {
+		switch {
+		case unicode.Is(unicode.So, r): // the emoji themselves, flags' regional indicators
+			symbols++
+		case r == 0x200D, unicode.Is(unicode.Sk, r), unicode.Is(unicode.Mn, r), unicode.Is(unicode.Me, r):
+			// ZWJ sequences, skin tones, variation selectors, keycaps
+		default:
+			return false
+		}
+	}
+	return symbols >= 1 && symbols <= 8
+}
+
+// SetQuickEmoji changes the match's quick emoji and records the change as a
+// transcript line from userID (msg_type quick_emoji, content = the emoji).
+func (s *ChatService) SetQuickEmoji(ctx context.Context, matchID, userID uuid.UUID, emoji string) (*models.Message, error) {
+	if !ValidQuickEmoji(emoji) {
+		return nil, ErrBadEmoji
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // no-op after Commit
+	if _, err := tx.Exec(ctx, `UPDATE matches SET quick_emoji = $2 WHERE id = $1`, matchID, emoji); err != nil {
+		return nil, err
+	}
+	var saved models.Message
+	if err := tx.QueryRow(ctx, `
+		INSERT INTO messages (match_id, sender_id, content, msg_type)
+		VALUES ($1, $2, $3, 'quick_emoji')
+		RETURNING id, match_id, sender_id, content, msg_type, created_at
+	`, matchID, userID, emoji).Scan(
+		&saved.ID, &saved.MatchID, &saved.SenderID, &saved.Content, &saved.MsgType, &saved.CreatedAt); err != nil {
+		return nil, err
+	}
+	return &saved, tx.Commit(ctx)
 }

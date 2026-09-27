@@ -126,6 +126,18 @@ class _Header extends StatelessWidget {
                 ],
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: V2TapTarget(
+                onTap: () => showQuickEmojiPicker(context, s),
+                child: Tooltip(
+                  message: s.t('Đổi biểu tượng cảm xúc', 'Change emoji'),
+                  child: Text(s.quickEmoji,
+                      key: const Key('chat-emoji-header'),
+                      style: const TextStyle(fontSize: 22)),
+                ),
+              ),
+            ),
           ]),
         ),
       ),
@@ -207,6 +219,9 @@ class _Transcript extends StatelessWidget {
       if (s.partnerTyping) _TypingBubble(s: s),
       for (var i = lines.length - 1; i >= 0; i--) ...[
         if (i == lastMine && !s.isSampleChat) _Status(s: s),
+        if (lines[i].kind == 'quick_emoji')
+          _EmojiChangeLine(s: s, line: lines[i])
+        else
         _Bubble(
           s: s,
           line: lines[i],
@@ -227,7 +242,83 @@ class _Transcript extends StatelessWidget {
   }
 
   static bool _sameGroup(ChatLine a, ChatLine b) =>
-      a.mine == b.mine && b.at.difference(a.at) < kGroupGap;
+      a.mine == b.mine &&
+      a.kind != 'quick_emoji' &&
+      b.kind != 'quick_emoji' &&
+      b.at.difference(a.at) < kGroupGap;
+}
+
+/// "Bạn đã đổi biểu tượng cảm xúc thành 🍜", centred like a separator.
+class _EmojiChangeLine extends StatelessWidget {
+  const _EmojiChangeLine({required this.s, required this.line});
+  final V2State s;
+  final ChatLine line;
+
+  @override
+  Widget build(BuildContext context) {
+    final who = line.mine ? s.t('Bạn', 'You') : s.chatPartner.name;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Center(
+        child: Text(
+          s.t('$who đã đổi biểu tượng cảm xúc thành ${line.text}',
+              '$who changed the emoji to ${line.text}'),
+          textAlign: TextAlign.center,
+          style: AppTextV2.meta(color: AppColorsV2.inkA(0.5)).copyWith(fontSize: 12),
+        ),
+      ),
+    );
+  }
+}
+
+/// The quick-emoji picker: one tap changes it for both people in the chat.
+Future<void> showQuickEmojiPicker(BuildContext context, V2State s) {
+  return showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (sheet) => SafeArea(
+      child: Padding(
+        key: const Key('emoji-picker'),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(s.t('Biểu tượng cảm xúc nhanh', 'Quick reaction'),
+              style: AppTextV2.name(size: 15)),
+          const SizedBox(height: 4),
+          Text(s.t('Cả hai bạn đều thấy biểu tượng này.', 'You both see this emoji.'),
+              style: AppTextV2.meta()),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            alignment: WrapAlignment.center,
+            children: [
+              for (final e in kQuickEmojiChoices)
+                V2TapTarget(
+                  onTap: () {
+                    Navigator.of(sheet).pop();
+                    s.setQuickEmoji(e);
+                  },
+                  child: Container(
+                    key: Key('emoji-$e'),
+                    width: 52,
+                    height: 52,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: e == s.quickEmoji ? AppColorsV2.wisteriaTint : Colors.transparent,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(e, style: const TextStyle(fontSize: 28)),
+                  ),
+                ),
+            ],
+          ),
+        ]),
+      ),
+    ),
+  );
 }
 
 class _Separator extends StatelessWidget {
@@ -500,13 +591,16 @@ class _Composer extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          // Empty field: a one-tap 👍, the way Messenger offers its like.
+          // Empty field: the chat's quick emoji in one tap (long-press to
+          // change it), the way Messenger offers its like.
           ValueListenableBuilder<TextEditingValue>(
             valueListenable: controller,
             builder: (context, value, _) {
               final empty = value.text.trim().isEmpty;
-              return V2TapTarget(
-                onTap: empty ? () => s.sendRealMessage('👍') : onSend,
+              return GestureDetector(
+                onLongPress: () => showQuickEmojiPicker(context, s),
+                child: V2TapTarget(
+                onTap: empty ? () => s.sendRealMessage(s.quickEmoji) : onSend,
                 child: Container(
                   key: Key(empty ? 'chat-like' : 'chat-send'),
                   width: 38, height: 38,
@@ -515,8 +609,9 @@ class _Composer extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: empty
-                      ? const Center(child: Text('👍', style: TextStyle(fontSize: 24)))
+                      ? Center(child: Text(s.quickEmoji, style: const TextStyle(fontSize: 24)))
                       : const Icon(Icons.send_rounded, size: 17, color: Colors.white),
+                ),
                 ),
               );
             },

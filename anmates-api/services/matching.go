@@ -247,6 +247,8 @@ func (s *MatchingService) Conversations(ctx context.Context, userID uuid.UUID) (
 			last_msg.content,
 			last_msg.created_at AS last_message_at,
 			last_msg.sender_id,
+			last_msg.msg_type,
+			mt.quick_emoji,
 			(SELECT count(*) FROM messages m2
 			  WHERE m2.match_id = mt.id AND m2.sender_id <> $1
 			    AND m2.created_at > COALESCE(mine.last_read_at, '-infinity'::timestamptz))::int AS unread_count,
@@ -256,7 +258,7 @@ func (s *MatchingService) Conversations(ctx context.Context, userID uuid.UUID) (
 		FROM matches mt
 		JOIN users u ON u.id = CASE WHEN mt.user_a_id = $1 THEN mt.user_b_id ELSE mt.user_a_id END
 		LEFT JOIN LATERAL (
-			SELECT content, created_at, sender_id FROM messages
+			SELECT content, created_at, sender_id, msg_type FROM messages
 			WHERE match_id = mt.id
 			ORDER BY created_at DESC LIMIT 1
 		) last_msg ON true
@@ -276,7 +278,7 @@ func (s *MatchingService) Conversations(ctx context.Context, userID uuid.UUID) (
 		var cv models.Conversation
 		if err := rows.Scan(
 			&cv.MatchID, &cv.PartnerID, &cv.PartnerName, &cv.PartnerAvatarURL, &cv.PartnerIsBot,
-			&cv.LastMessage, &cv.LastMessageAt, &cv.LastSenderID,
+			&cv.LastMessage, &cv.LastMessageAt, &cv.LastSenderID, &cv.LastMessageType, &cv.QuickEmoji,
 			&cv.UnreadCount, &cv.PartnerReadAt, &cv.Score, &cv.CreatedAt,
 		); err != nil {
 			return nil, err

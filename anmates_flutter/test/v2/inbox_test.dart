@@ -174,6 +174,45 @@ void main() {
     expect(s.messages.last, (text: '👍', mine: true));
   });
 
+  testWidgets("the like button is the chat's own emoji, and changing it is shared", (tester) async {
+    final calls = serveChatApi(
+      conversations: [conversation('m1', 'u1', 'Hạnh', quickEmoji: '🍜')],
+      history: {'m1': []},
+    );
+    final s = await pumpApp(tester, start: V2Screen.inbox);
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('inbox-row-m1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(s.quickEmoji, '🍜');
+    expect(find.descendant(of: find.byKey(const Key('chat-like')), matching: find.text('🍜')), findsOneWidget);
+
+    await tester.longPress(find.byKey(const Key('chat-like')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('emoji-picker')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('emoji-🔥')));
+    await tester.pumpAndSettle();
+
+    expect(calls, containsAll(['PUT /api/v1/matches/m1/emoji', 'BODY {"emoji":"🔥"}']));
+    expect(s.quickEmoji, '🔥');
+    expect(find.text('Bạn đã đổi biểu tượng cảm xúc thành 🔥'), findsOneWidget);
+    expect(find.byKey(const Key('chat-status-sent')), findsNothing); // a notice, not a message
+
+    await tester.tap(find.byKey(const Key('chat-like')));
+    await tester.pump();
+    expect(s.messages.last, (text: '🔥', mine: true));
+  });
+
+  testWidgets("the inbox tells who changed the emoji", (tester) async {
+    serveChatApi(conversations: [
+      conversation('m1', 'u1', 'Hạnh', last: '❤️', lastSender: 'u1', lastType: 'quick_emoji', lastAt: now),
+    ]);
+    await pumpApp(tester, start: V2Screen.inbox);
+    await tester.pump();
+    expect(find.text('Hạnh đã đổi biểu tượng thành ❤️'), findsOneWidget);
+  });
+
   group('time labels', () {
     final n = DateTime(2026, 9, 27, 18, 0); // a Sunday
     test('inbox: time today, weekday this week, date before', () {

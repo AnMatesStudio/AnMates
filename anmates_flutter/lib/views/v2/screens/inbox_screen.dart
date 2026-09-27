@@ -254,9 +254,14 @@ class _Row extends StatelessWidget {
         ? s.t('Các bạn đã hợp gu — vẫy chào đi 👋', "You matched — say hi 👋")
         : c.lastSenderId == '00000000-0000-0000-0000-0000000000a1'
             ? s.t('✨ Trợ lý gợi ý quán cho hai bạn', '✨ The assistant suggested spots')
-            : mine
-                ? s.t('Bạn: $last', 'You: $last')
-                : last;
+            : c.lastMessageType == 'quick_emoji'
+                ? (mine
+                    ? s.t('Bạn đã đổi biểu tượng thành $last', 'You changed the emoji to $last')
+                    : s.t('${c.partnerName} đã đổi biểu tượng thành $last',
+                        '${c.partnerName} changed the emoji to $last'))
+                : mine
+                    ? s.t('Bạn: $last', 'You: $last')
+                    : last;
     final seen = mine && c.partnerReadAt != null && c.lastMessageAt != null &&
         !c.lastMessageAt!.isAfter(c.partnerReadAt!);
 
