@@ -25,6 +25,9 @@ class MatchCandidate {
   /// The candidate's own vibe tags, kept separate from [tags].
   final List<String> vibeTags;
 
+  /// km from the viewer; null when either side has no location.
+  final double? distanceKm;
+
   MatchCandidate({
     required this.userId,
     required this.name,
@@ -37,6 +40,7 @@ class MatchCandidate {
     this.district,
     this.priceTier,
     this.vibeTags = const [],
+    this.distanceKm,
   });
 
   factory MatchCandidate.fromJson(Map<String, dynamic> j) => MatchCandidate(
@@ -55,6 +59,7 @@ class MatchCandidate {
     district: j['district'] as String?,
     priceTier: (j['price_tier'] as num?)?.toInt(),
     vibeTags: [...?(j['vibe_tags'] as List?)?.whereType<String>()],
+    distanceKm: (j['distance_km'] as num?)?.toDouble(),
   );
 
   /// Real taste-overlap percentage — how much of the union of both users'

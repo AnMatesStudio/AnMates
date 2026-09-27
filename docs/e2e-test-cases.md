@@ -23,6 +23,7 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | Visits / reviews (Me) | placeholders | `GET /profile/history` from confirmed bookings + ratings given (round 3) |
 | Local Mates | placeholder | `GET /locals`: ≤5 km, ≥1 real meal, invite = like (round 3) |
 | Chat photos | text only | attach button → Firebase Storage → `image` message + bubble (round 3) |
+| Match filter distance + areas | no distance; 11+ area chips always shown | "Match filter": 0–200 km radius (unknown location kept); areas collapsed to 6 + "Thêm", diacritic-insensitive search |
 | Pay tiers, bill split OCR, push | placeholders | NOT built — need a payment merchant, an OCR service, FCM server keys |
 
 ## Journeys
@@ -42,6 +43,7 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | E2E-17 | Notifications | match; propose+confirm; rating; mark read | right kinds to the right person (never your own proposal); actor name; unread → 0 | Auto |
 | E2E-18 | Trust Score | fresh; +meal; +5★; 2 no-show reports by 1 person + 1 harassment | 80 → 84 → 86 → 56; partner 84 | Auto |
 | E2E-19 | History | fresh; confirmed booking + rating with note | empty → 1 visit (venue, partner) + 1 review (stars, note, venue) | Auto |
+| E2E-21 | Candidate distance | A, B ~10 km, C without location, same unique tastes | B `distance_km` ≈ 10; C `null`; both in A's deck | Auto |
 | E2E-20 | Local Mates | no location; near ×2 with meals, far, near without meal; block | [] → only the 2 near with meals, nearest first ~1.1 km; blocked disappears | Auto |
 
 ## UI checks
@@ -67,4 +69,5 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | UI-16 | Trust (NEW) | open Trust Score | same score as API + breakdown — **Auto-UI3** |
 | UI-17 | Local Mates (NEW) | Explore → "Tìm Local Mates" → "Mời đi ăn" | nearby local listed; toast; like row in DB — **Auto-UI3** |
 | UI-18 | Delete account (NEW) | Me → Xoá tài khoản → Xoá | user row gone — **Auto-UI3** |
+| UI-19 | Match filter (NEW) | title; drag radius to ~20 km / ~5 km; Đặt lại; "+ Thêm" / "Thu gọn"; search "thu duc"; nonsense search | "Match filter"; counts 3 → 2 → 1 → 3; 6 chips + "+ Thêm (5)"; finds "Thủ Đức" only; no-match text — **Auto** `tool/e2e/ui_match_radius.js` |
 | UI-10 | Every screen | 360×640 and 402×874 viewports, VI and EN | no overflow stripes, no untranslated string |

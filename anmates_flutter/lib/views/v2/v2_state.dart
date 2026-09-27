@@ -26,6 +26,9 @@ enum V2Screen { onb, auth, home, filters, detail, swipe, inbox, chat, bill, rate
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
 
+/// Upper end of the match-filter distance slider.
+const double kMaxMatchRadiusKm = 200;
+
 /// The home feed's radius slider, in km. The feed holds only venues inside the
 /// picked radius — none in range stays an empty feed that offers to widen it,
 /// never a quiet reach further out.
@@ -112,6 +115,9 @@ class V2State extends ChangeNotifier {
 
   /// The price filter only applies after the user has touched the price track.
   bool _priceTouched = false;
+
+  /// Match-filter radius, km (0–200). Default = max, i.e. no distance limit.
+  double _matchRadiusKm = kMaxMatchRadiusKm;
 
   /// Every candidate the API returned; `_candidates` is this after the filters.
   List<MatchCandidate> _allCandidates = const [];
@@ -287,6 +293,7 @@ class V2State extends ChangeNotifier {
   Set<int> get areas => _areas;
   Set<int> get vibeTags => _vibeTags;
   int get price => _price;
+  double get matchRadiusKm => _matchRadiusKm;
   int get stars => _stars;
   Set<int> get rateTags => _rateTags;
   bool get rated => _rated;
@@ -1106,6 +1113,8 @@ class V2State extends ChangeNotifier {
       if (vibes.isNotEmpty && known.isNotEmpty && known.intersection(vibes).isEmpty) return false;
       final tier = c.priceTier;
       if (_priceTouched && tier != null && (tier - _price).abs() > 1) return false;
+      final km = c.distanceKm;
+      if (km != null && km > _matchRadiusKm) return false;
       return true;
     }).toList();
   }
@@ -1273,11 +1282,19 @@ class V2State extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Slider on the match filter: people farther than [km] leave the deck.
+  void setMatchRadius(double km) {
+    _matchRadiusKm = km.clamp(0, kMaxMatchRadiusKm).toDouble();
+    _refilter();
+    notifyListeners();
+  }
+
   void resetFilters() {
     _areas = {};
     _vibeTags = {};
     _price = 2;
     _priceTouched = false;
+    _matchRadiusKm = kMaxMatchRadiusKm;
     _refilter();
     notifyListeners();
   }

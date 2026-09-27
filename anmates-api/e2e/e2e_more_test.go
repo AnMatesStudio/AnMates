@@ -294,3 +294,41 @@ func TestE2E20_LocalMates(t *testing.T) {
 		}
 	}
 }
+
+// E2E-21: each deck candidate carries distance_km from the viewer's saved location
+// (null when either side has none), so the app's 0–200 km radius filter can use it.
+func TestE2E21_CandidateDistance(t *testing.T) {
+	a, b, c := newUser(t, "E2E Dist A"), newUser(t, "E2E Dist B"), newUser(t, "E2E Dist C")
+	tag := fmt.Sprintf("e2e-dist-%d", time.Now().UnixNano())
+	for _, u := range []user{a, b, c} {
+		onboard(t, u, tag)
+	}
+	n := time.Now().UnixNano()
+	lat, lng := -60+float64(n%12000)/100, -170+float64((n/12000)%34000)/100
+	setLocation(t, a, lat, lng, "E2E")
+	setLocation(t, b, lat+0.09, lng, "E2E") // ~10 km north; C has no location
+
+	var cs []struct {
+		UserID     string   `json:"user_id"`
+		DistanceKm *float64 `json:"distance_km"`
+	}
+	decode(t, must(t, http.MethodGet, "/api/v1/matches", a.token, nil, 200), &cs)
+	seen := 0
+	for _, x := range cs {
+		switch x.UserID {
+		case b.id:
+			seen++
+			if x.DistanceKm == nil || *x.DistanceKm < 9.5 || *x.DistanceKm > 10.5 {
+				t.Fatalf("B distance_km = %v, want ~10", x.DistanceKm)
+			}
+		case c.id:
+			seen++
+			if x.DistanceKm != nil {
+				t.Fatalf("C has no location, distance_km = %v, want null", *x.DistanceKm)
+			}
+		}
+	}
+	if seen != 2 {
+		t.Fatalf("B and C (same unique tastes) not both in A's deck: saw %d of %d", seen, len(cs))
+	}
+}

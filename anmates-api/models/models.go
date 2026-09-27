@@ -104,6 +104,8 @@ type MatchCandidate struct {
 	// (0..3) — nil when never set; the app's filters keep unknowns.
 	District  *string `json:"district"`
 	PriceTier *int16  `json:"price_tier"`
+	// Distance from the viewer, km (1 decimal); nil when either has no location.
+	DistanceKm *float64 `json:"distance_km"`
 }
 
 // Conversation is what GET /api/conversations returns — accepted matches with partner info.

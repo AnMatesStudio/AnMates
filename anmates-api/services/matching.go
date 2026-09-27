@@ -62,7 +62,13 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		       c.overlap_count, c.overlap_foods,
 		       (c.overlap_count::float / NULLIF(c.union_count, 0)) AS score,
 	       (SELECT ul.district FROM user_locations ul WHERE ul.user_id = c.user_id) AS district,
-	       u.price_tier
+	       u.price_tier,
+	       (SELECT round((6371 * 2 * asin(sqrt(
+	                  power(sin(radians(them.lat - mine.lat) / 2), 2) +
+	                  cos(radians(mine.lat)) * cos(radians(them.lat)) *
+	                  power(sin(radians(them.lng - mine.lng) / 2), 2))))::numeric, 1)::float8
+	          FROM user_locations mine, user_locations them
+	         WHERE mine.user_id = $1 AND them.user_id = c.user_id) AS distance_km
 		FROM (
 			SELECT i.user_id,
 			       cardinality(ARRAY(
@@ -108,7 +114,7 @@ func (s *MatchingService) ListCandidates(ctx context.Context, userID uuid.UUID) 
 		if err := rows.Scan(&mc.UserID, &mc.Name, &mc.AvatarURL, &mc.Age,
 			&mc.FoodTags, &mc.VibeTags,
 			&mc.OverlapCount, &mc.OverlapFoods, &mc.Score,
-			&mc.District, &mc.PriceTier); err != nil {
+			&mc.District, &mc.PriceTier, &mc.DistanceKm); err != nil {
 			return nil, err
 		}
 		out = append(out, mc)
