@@ -111,6 +111,8 @@ final List<_Screen> _screens = [
         pinned: switch (screen) {
           V2Screen.swipe => () => find.text('Gửi lời mời đi ăn'),
           V2Screen.chat => () => find.byType(TextField),
+          V2Screen.venueFilter => () => find.textContaining('quán phù hợp'),
+          V2Screen.matchFilter => () => find.textContaining('mates phù hợp'),
           _ => null,
         },
       ),

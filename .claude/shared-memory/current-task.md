@@ -1,5 +1,10 @@
 # Current Task
 
+**Status (2026-09-27) — Lọc quán tách khỏi Match filter: icon tune Khám phá → "Lọc quán" (bán kính, món, quận, giá/người); Quẹt có nút lọc mates riêng. Code + test + UI thật local xong; push main (CI/CD) → verify prod; chờ user xác nhận:**
+Xem `sessions/2026-09-27-venue-filter-split-from-match-filter.md`.
+
+---
+
 **Status (2026-09-27) — Đăng nhập/Đăng ký email + mật khẩu: code + test + E2E local xong, push main (CI/CD); chờ verify prod:**
 Xem `sessions/2026-09-27-email-password-auth.md`.
 

@@ -77,9 +77,10 @@ is enough). "NEW" = feature added 2026-09-27 (it did not exist when this list wa
 | UI-16 | Trust (NEW) | open Trust Score | same score as API + breakdown — **Auto-UI3** |
 | UI-17 | Local Mates (NEW) | Explore → "Tìm Local Mates" → "Mời đi ăn" | nearby local listed; toast; like row in DB — **Auto-UI3** |
 | UI-18 | Delete account (NEW) | Me → Xoá tài khoản → Xoá | user row gone — **Auto-UI3** |
-| UI-19 | Match filter (NEW) | title; drag radius to ~20 km / ~5 km; Đặt lại; "+ Thêm" / "Thu gọn"; search "thu duc"; nonsense search | "Match filter"; counts 3 → 2 → 1 → 3; 6 chips + "+ Thêm (5)"; finds "Thủ Đức" only; no-match text — **Auto** `tool/e2e/ui_match_radius.js` |
+| UI-19 | Match filter (NEW) | opened from Quẹt's tune button (Explore's opens UI-24); title; drag radius to ~20 km / ~5 km; Đặt lại; "+ Thêm" / "Thu gọn"; search "thu duc"; nonsense search | "Match filter"; counts 3 → 2 → 1 → 3; 6 chips + "+ Thêm (5)"; finds "Thủ Đức" only; no-match text — **Auto** `tool/e2e/ui_match_radius.js` |
 | UI-20 | Sign-up (NEW) | fill form + birth date, submit without consent; open Terms and close; tick; submit | blocked + no DB row; Terms sheet over the form; form kept; account with birth date + consent — **Auto** `tool/e2e/ui_trust_round4.js` |
 | UI-21 | Verify email (NEW) | verify screen after sign-up; wrong code; right code | code auto-requested; error; `email_verified_at` set — **Auto** |
 | UI-22 | Legal pages (NEW) | Me → Quyền riêng tư; Terms | Decree 13 section; 18+ rule — **Auto** |
 | UI-23 | Admin (NEW) | admin → Me → Quản trị báo cáo → Khoá tài khoản → Khoá | report listed; account suspended; item leaves queue — **Auto** |
+| UI-24 | Venue filter (NEW) | Explore → tune icon; pick "Quận 1", ">350k"; pinned CTA; tune icon; Đặt lại; back; Quẹt → tune icon; back | "Lọc quán" with Khoảng cách / Món ăn / Khu vực / Khoảng giá, no "Vibe sống"; count narrows (29 → 6 → 3 near Q1 at 20 km); back on Explore, badge 2; count restored; Explore; "Match filter"; Quẹt — **Auto** `tool/e2e/ui_venue_filter.js` (signed out, local build or `APP=https://app.anmates.site/`) |
 | UI-10 | Every screen | 360×640 and 402×874 viewports, VI and EN | no overflow stripes, no untranslated string |

@@ -129,7 +129,7 @@ async function devUser(name) {
     await call('POST', `/matches/${lm.data.match.id}/booking/confirm`, lp.token);
 
     // ── 2. Filters narrow the deck ──
-    await page.goto(APP + '?v2screen=filters');
+    await page.goto(APP + '?v2screen=matchFilter');
     await semantics();
     await shot('03-filters');
     const count = async () => {

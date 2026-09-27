@@ -45,7 +45,7 @@ async function devUser(name) {
     localStorage.setItem('flutter.refresh_token', JSON.stringify(r));
     localStorage.setItem('flutter.user_id', JSON.stringify(id));
   }, [a.token, a.refresh, a.id]);
-  await page.goto(APP + '?v2screen=filters');
+  await page.goto(APP + '?v2screen=matchFilter');
   await page.waitForTimeout(5000);
   await page.evaluate(() => document.querySelector('flt-semantics-placeholder')?.click());
   await page.waitForTimeout(1000);

@@ -57,6 +57,22 @@ String priceLabel(int? min, int? max, {bool en = false}) {
   return en ? 'up to ${_k(max!)}k' : 'đến ${_k(max!)}k';
 }
 
+/// Whether a venue's price band touches spend tier [tier] of `kPrices`
+/// (`<50k`, `50–150k`, `150–350k`, `>350k`); a band on a boundary is in both
+/// tiers. With only one end on file that price is the whole band — "từ 45k"
+/// says nothing about the top of the menu. No price at all is in no tier.
+bool venueInPriceTier(int? min, int? max, int tier) {
+  final lo = min ?? max;
+  final hi = max ?? min;
+  if (lo == null || hi == null) return false;
+  return switch (tier) {
+    0 => lo < 50000,
+    1 => lo <= 150000 && hi >= 50000,
+    2 => lo <= 350000 && hi >= 150000,
+    _ => hi > 350000,
+  };
+}
+
 /// `800 m` / `2,4 km`, matching the design's Vietnamese decimal comma. Empty
 /// when the request carried no location, so callers can omit the segment.
 String distanceLabel(int? metres) {

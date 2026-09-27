@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import '../../../widgets/v2/filter_parts.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
@@ -80,7 +81,38 @@ class _Header extends StatelessWidget {
               ),
           ],
         ),
+        const SizedBox(width: 6),
+        _FilterButton(s: s),
       ],
+    );
+  }
+}
+
+/// Opens the mates filter — distance, area, spend, vibe — badged with how
+/// many of its choices are on.
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({required this.s});
+  final V2State s;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: s.t('Lọc mates', 'Filter mates'),
+      child: V2TapTarget(
+        key: const Key('swipe-filter'),
+        onTap: () => s.go(V2Screen.matchFilter),
+        child: FilterCountBadge(
+          count: s.matchFilterCount,
+          child: Container(
+            width: 42, height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white, shape: BoxShape.circle, boxShadow: AppShadowsV2.pill,
+            ),
+            child: const Icon(Icons.tune_rounded, size: 20, color: AppColorsV2.wisteria),
+          ),
+        ),
+      ),
     );
   }
 }

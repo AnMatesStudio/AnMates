@@ -22,7 +22,7 @@ import 'v2_mate_mapper.dart';
 import 'v2_venue_mapper.dart';
 
 /// Which screen the phone is showing. Mirrors the design's `state.screen`.
-enum V2Screen { onb, auth, home, filters, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues, terms, privacy, verifyEmail, admin }
+enum V2Screen { onb, auth, home, venueFilter, matchFilter, detail, swipe, inbox, chat, bill, rate, me, trust, pay, local, allVenues, terms, privacy, verifyEmail, admin }
 
 /// Rows per request on the "see all" list.
 const int kAllVenuesPageSize = 10;
@@ -165,6 +165,13 @@ class V2State extends ChangeNotifier {
 
   /// Index into [kFeedCategories] of Explore's selected tile; 0 is "all".
   int _feedCategory = 0;
+
+  /// The venue filter's districts, by label — the chip list follows the
+  /// radius, so an index would point at another district after a reload.
+  Set<String> _venueAreas = {};
+
+  /// The venue filter's spend tiers, indexes into [kPrices]; any of them matches.
+  Set<int> _venuePrices = {};
 
   bool _notifsOpen = false;
   bool _searchOpen = false;
@@ -483,7 +490,7 @@ class V2State extends ChangeNotifier {
 
   /// Flows B–D run the aurora 30% softer so cards and glass read cleanly.
   bool get softBackground => const {
-        V2Screen.home, V2Screen.detail, V2Screen.filters, V2Screen.swipe,
+        V2Screen.home, V2Screen.detail, V2Screen.venueFilter, V2Screen.matchFilter, V2Screen.swipe,
         V2Screen.inbox, V2Screen.chat, V2Screen.bill, V2Screen.rate, V2Screen.local,
         V2Screen.allVenues,
       }.contains(_screen);
@@ -497,11 +504,58 @@ class V2State extends ChangeNotifier {
   /// cut to the radius) narrowed to the tile's cuisine tags.
   List<Venue> get homeVenues {
     final tags = kFeedCategories[_feedCategory].tags;
-    if (tags.isEmpty) return _venues;
+    if (tags.isEmpty && venueFilterCount == 0) return _venues;
     return [
       for (var i = 0; i < _catalog.length && i < _venues.length; i++)
-        if (_catalog[i].cuisineTags.any((t) => tags.contains(t.toLowerCase()))) _venues[i],
+        if (_venueMatches(_catalog[i], tags)) _venues[i],
     ];
+  }
+
+  /// The dish tile, then the venue filter: a district picked there needs the
+  /// venue's own; a spend tier needs a price on file that touches it.
+  bool _venueMatches(CatalogVenue v, Set<String> tags) {
+    if (tags.isNotEmpty && !v.cuisineTags.any((t) => tags.contains(t.toLowerCase()))) return false;
+    if (_venueAreas.isNotEmpty &&
+        (!_hasDistrict(v) || !_venueAreas.contains(districtLabel(v.district)))) {
+      return false;
+    }
+    if (_venuePrices.isNotEmpty &&
+        !_venuePrices.any((t) => venueInPriceTier(v.priceMin, v.priceMax, t))) {
+      return false;
+    }
+    return true;
+  }
+
+  static bool _hasDistrict(CatalogVenue v) => (v.district ?? '').trim().isNotEmpty;
+
+  Set<String> get venueAreas => _venueAreas;
+  Set<int> get venuePrices => _venuePrices;
+
+  /// Districts of the venues in range, plus any picked one a new radius left
+  /// out (so it can still be unpicked). No "Chưa rõ": that is no place to go.
+  List<String> get venueAreaNames {
+    final seen = {..._venueAreas};
+    for (final v in _catalog) {
+      if (_hasDistrict(v)) seen.add(districtLabel(v.district));
+    }
+    return seen.toList()..sort();
+  }
+
+  /// District and spend chips switched on, for the badge on Explore's tune icon.
+  /// The dish tile shows on Explore itself, so it isn't counted.
+  int get venueFilterCount => _venueAreas.length + _venuePrices.length;
+
+  /// Mates-filter choices that differ from the defaults, for Quẹt's filter button.
+  int get matchFilterCount =>
+      _areas.length +
+      _vibeTags.length +
+      (_priceTouched ? 1 : 0) +
+      (_matchRadiusKm < kMaxMatchRadiusKm ? 1 : 0);
+
+  String get venueFilterCta {
+    if (_venuesLoading) return t('Đang tải quán…', 'Loading spots…');
+    final n = homeVenues.length;
+    return t('Xem $n quán phù hợp', 'Show $n matching spots');
   }
 
   String get sectionTitle {
@@ -1728,6 +1782,28 @@ class V2State extends ChangeNotifier {
 
   void setFeedCategory(int i) {
     _feedCategory = i.clamp(0, kFeedCategories.length - 1);
+    notifyListeners();
+  }
+
+  void toggleVenueArea(String name) {
+    _venueAreas = _venueAreas.contains(name)
+        ? ({..._venueAreas}..remove(name))
+        : {..._venueAreas, name};
+    notifyListeners();
+  }
+
+  void toggleVenuePrice(int tier) {
+    _venuePrices = _toggled(_venuePrices, tier);
+    notifyListeners();
+  }
+
+  /// "Đặt lại" on the venue filter: dish, districts and spend. The radius stays
+  /// — it is where you are looking, saved across sessions, and set in the
+  /// Explore header too.
+  void resetVenueFilters() {
+    _feedCategory = 0;
+    _venueAreas = {};
+    _venuePrices = {};
     notifyListeners();
   }
 

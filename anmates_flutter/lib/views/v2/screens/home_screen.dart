@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../../theme/app_theme_v2.dart';
 import '../../../theme/v2_layout.dart';
+import '../../../widgets/v2/filter_parts.dart';
 import '../../../widgets/v2/food_art.dart';
 import '../v2_data.dart';
 import '../v2_kit.dart';
@@ -188,8 +189,8 @@ class _NotifButton extends StatelessWidget {
   }
 }
 
-/// Opens the search overlay; the tune icon at its end opens the mates filter
-/// (C1), which used to have a button of its own here.
+/// Opens the search overlay; the tune icon at its end opens the venue filter,
+/// badged with how many of its chips are on. (The mates filter lives on Quẹt.)
 class _SearchBar extends StatelessWidget {
   const _SearchBar({required this.s});
   final V2State s;
@@ -227,11 +228,19 @@ class _SearchBar extends StatelessWidget {
             ),
           ),
         ),
-        V2TapTarget(
-          onTap: () => s.go(V2Screen.filters),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14),
-            child: Icon(Icons.tune_rounded, size: 20, color: AppColorsV2.wisteria),
+        Semantics(
+          button: true,
+          label: s.t('Lọc quán', 'Filter spots'),
+          child: V2TapTarget(
+            key: const Key('home-filter'),
+            onTap: () => s.go(V2Screen.venueFilter),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: FilterCountBadge(
+                count: s.venueFilterCount,
+                child: const Icon(Icons.tune_rounded, size: 20, color: AppColorsV2.wisteria),
+              ),
+            ),
           ),
         ),
       ]),
@@ -589,6 +598,12 @@ class _FeedPlaceholder extends StatelessWidget {
           s.t('Không tải được danh sách quán', "Couldn't load venues"),
           s.t('Thử lại', 'Retry'),
           () => s.loadVenues(force: true),
+        ),
+      // Venues in range, just none past the venue filter.
+      _ when s.venueFilterCount > 0 && s.venues.isNotEmpty => (
+          s.t('Không có quán nào khớp bộ lọc', 'No spots match your filters'),
+          s.t('Xoá bộ lọc', 'Clear filters'),
+          s.resetVenueFilters,
         ),
       final r when cat != null => (
           r == null

@@ -17,7 +17,7 @@ import 'screens/auth_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/inbox_screen.dart';
 import 'screens/detail_screen.dart';
-import 'screens/filters_screen.dart';
+import 'screens/match_filter_screen.dart';
 import 'screens/legal_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/local_screen.dart';
@@ -27,6 +27,7 @@ import 'screens/pay_screen.dart';
 import 'screens/rate_screen.dart';
 import 'screens/swipe_screen.dart';
 import 'screens/trust_screen.dart';
+import 'screens/venue_filter_screen.dart';
 import 'screens/verify_email_screen.dart';
 import 'v2_state.dart';
 
@@ -169,7 +170,8 @@ class V2AppBody extends StatelessWidget {
         V2Screen.onb => const OnboardingScreen(),
         V2Screen.auth => const AuthScreen(),
         V2Screen.home => const HomeScreen(),
-        V2Screen.filters => const FiltersScreen(),
+        V2Screen.venueFilter => const VenueFilterScreen(),
+        V2Screen.matchFilter => const MatchFilterScreen(),
         V2Screen.detail => const DetailScreen(),
         V2Screen.swipe => const SwipeScreen(),
         V2Screen.inbox => const InboxScreen(),
@@ -190,7 +192,7 @@ class V2AppBody extends StatelessWidget {
   /// The design keeps a tab lit for the screens that live under it — Trust under
   /// Me, and Split bill / Close the meal under Messages.
   static NavTab _tabFor(V2Screen screen) => switch (screen) {
-        V2Screen.swipe => NavTab.swipe,
+        V2Screen.swipe || V2Screen.matchFilter => NavTab.swipe,
         V2Screen.inbox || V2Screen.chat || V2Screen.bill || V2Screen.rate => NavTab.tables,
         V2Screen.me || V2Screen.trust || V2Screen.admin => NavTab.me,
         _ => NavTab.discover,
