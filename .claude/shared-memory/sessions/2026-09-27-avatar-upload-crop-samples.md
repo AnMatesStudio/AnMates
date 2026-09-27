@@ -50,7 +50,23 @@ badge máy ảnh) → màn **"Ảnh đại diện"** (`V2Screen.avatar`):
   chọn ảnh 4 → `asset:…/sample-3.png`; upload + zoom + kéo → JPEG 512×512 ở `/users/<id>/avatar?v=…`, toast,
   ảnh ở Me + header Khám phá; tài khoản B thấy ảnh A trên thẻ Quẹt. Không page error.
 
+## Deploy prod (cùng ngày)
+- `754eccb` → CI `36309144278` xanh (Flutter Web + Go API) → CD `36309307181` xanh (09:26:04Z).
+- `main.dart.js` 09:24:45Z (BYPASS) có `avatar-cropper`; `GET /users/<uuid lạ>/avatar` → 404 (bảng 021 đã có,
+  không 500); `PUT /profile/avatar` không token → 401.
+- UI thật trên app.anmates.site với tài khoản thử đăng ký qua API (không gửi email): Me → avatar → 11 ảnh →
+  ảnh 6 → Lưu → `asset:…/sample-5.png` ✓; Tải ảnh lên → crop, phóng to, kéo → Dùng ảnh này →
+  `/api/v1/users/<id>/avatar?v=16f5e774f5e1` ✓, toast, ảnh hiện ở Me ✓. Không page error.
+- ⚠️ Các lệnh API sau đó của script (tải JPEG, thử URL ngoài, **DELETE /profile dọn dẹp**) bị **429** do rate
+  limiter per-IP (0.5 rps, burst 5; có vẻ per-pod — 8 GET liên tiếp: lúc qua hết, lúc 1 cái 429).
+  → **Tài khoản thử còn trên prod**: id `7bcc9f7c-0b9f-4b91-9b91-1891a3c48bc6`, tên "QA Avatar",
+  email `qa-avatar-<ts>@example.com` (chưa xác minh → không hiện trong deck ai). Script không lưu email/token
+  nên không tự xoá được; cần user duyệt xoá qua DB (kubectl + psql) hoặc tự xoá.
+  Bài học: lưu credential dọn dẹp TRƯỚC khi chạy, và chờ/thử lại khi 429.
+
 ## Open follow-ups
+- Xoá tài khoản thử "QA Avatar" trên prod (xem trên).
+- Rate limiter chặn cả luồng UI bình thường khi nhiều request dồn (Me gọi 5+ API cùng lúc; deck 10 avatar).
 - Ảnh chat qua Firebase Storage (412) — xem trên.
 - Ảnh đã tải lên vẫn giữ trong `user_avatars` khi chuyển sang ảnh có sẵn; UI chưa có ô "ảnh đã tải" để quay lại.
 - Rate limiter per-IP 0.5 rps/burst 5 phủ cả `/api/v1` (kể cả ảnh) — prod chưa thấy 429, nên kiểm cấu hình.

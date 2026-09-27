@@ -1,6 +1,6 @@
 # Current Task
 
-**Status (2026-09-27) — Ảnh đại diện: tải lên + crop/zoom hoặc chọn 11 ảnh có sẵn; ảnh lưu trong Postgres (migration 021, KHÔNG dùng Firebase Storage — bucket đang 412). Code + test + E2E Go/UI local xong; push main (CI/CD) → verify prod; chờ user xác nhận:**
+**Status (2026-09-27) — Ảnh đại diện: tải lên + crop/zoom hoặc chọn 11 ảnh có sẵn; ảnh lưu trong Postgres (migration 021, KHÔNG dùng Firebase Storage — bucket đang 412). DEPLOYED prod (754eccb, CI+CD xanh 09:26Z), verify UI trên app.anmates.site OK; còn 1 tài khoản thử "QA Avatar" trên prod cần xoá (429 chặn bước dọn); chờ user xác nhận:**
 Xem `sessions/2026-09-27-avatar-upload-crop-samples.md`.
 
 ---
